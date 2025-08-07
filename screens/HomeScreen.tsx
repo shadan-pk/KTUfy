@@ -80,6 +80,13 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
             <Text style={styles.featureButtonText}>Settings</Text>
           </TouchableOpacity>
 
+          <TouchableOpacity 
+            style={styles.featureButton}
+            onPress={() => navigation.navigate('Chatbot')}
+          >
+            <Text style={styles.featureButtonText}>Chatbot Assistant</Text>
+          </TouchableOpacity>
+
           <TouchableOpacity style={styles.featureButton}>
             <Text style={styles.featureButtonText}>Help</Text>
           </TouchableOpacity>

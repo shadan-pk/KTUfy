@@ -5,12 +5,12 @@ import { onAuthStateChanged, User } from 'firebase/auth';
 import { auth } from './firebaseConfig';
 import { StatusBar } from 'expo-status-bar';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
-import 'react-native-gesture-handler';
 
 // Import screens
 import LoginScreen from './screens/LoginScreen';
 import SignupScreen from './screens/SignupScreen';
 import HomeScreen from './screens/HomeScreen';
+import ChatbotScreen from './screens/ChatbotScreen';
 import { RootStackParamList } from './types/navigation';
 
 const Stack = createStackNavigator<RootStackParamList>();
@@ -25,6 +25,7 @@ export default function App() {
       setLoading(false);
     });
 
+    
     return unsubscribe;
   }, []);
 
@@ -46,7 +47,10 @@ export default function App() {
       >
         {user ? (
           // Authenticated stack
-          <Stack.Screen name="Home" component={HomeScreen} />
+          <>
+            <Stack.Screen name="Home" component={HomeScreen} />
+            <Stack.Screen name="Chatbot" component={ChatbotScreen} />
+          </>
         ) : (
           // Non-authenticated stack
           <>
