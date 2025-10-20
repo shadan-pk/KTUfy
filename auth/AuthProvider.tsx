@@ -50,6 +50,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (data?.session) {
       const accessToken = data.session.access_token;
       const refreshToken = data.session.refresh_token;
+      
+      // ⚠️ TEMPORARY: Console log JWT token for testing
+      console.log('='.repeat(80));
+      console.log('🔑 JWT ACCESS TOKEN:');
+      console.log(accessToken);
+      console.log('='.repeat(80));
+      console.log('🔄 REFRESH TOKEN:');
+      console.log(refreshToken);
+      console.log('='.repeat(80));
+      
       await saveTokens(accessToken, refreshToken);
       setUser(data.user ?? { token: accessToken });
     }
