@@ -9,9 +9,9 @@ import {
   Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { onAuthStateChanged, User } from 'firebase/auth';
-import { doc, getDoc, collection, onSnapshot, updateDoc } from 'firebase/firestore';
-import { auth, db } from '../firebaseConfig';
+import { useAuth } from '../auth/AuthProvider';
+import { getUserProfile, getTicklistsForUser, upsertTicklist } from '../supabaseConfig';
+import supabase from '../supabaseClient';
 import { HomeScreenNavigationProp } from '../types/navigation';
 
 const { width } = Dimensions.get('window');
@@ -44,7 +44,8 @@ interface Subject {
 }
 
 const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
-  const [user, setUser] = useState<User | null>(null);
+  const { user: authUser, getToken } = useAuth();
+  const [supabaseUser, setSupabaseUser] = useState<any | null>(null);
   const [userData, setUserData] = useState<UserData | null>(null);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [studyStreak, setStudyStreak] = useState(7);
@@ -53,26 +54,26 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   const [subjects, setSubjects] = useState<Subject[]>([]);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      setUser(user);
-      if (user) {
-        try {
-          const userDoc = await getDoc(doc(db, 'users', user.uid));
-          if (userDoc.exists()) {
-            setUserData(userDoc.data() as UserData);
-          }
-        } catch (error) {
-          console.error('Error fetching user data:', error);
+    (async () => {
+      try {
+        const { data: userRes, error } = await supabase.auth.getUser();
+        if (error) throw error;
+        const sUser = userRes?.user ?? null;
+        setSupabaseUser(sUser);
+        if (sUser) {
+          const profile = await getUserProfile(sUser.id);
+          if (profile) setUserData(profile as UserData);
         }
+      } catch (err) {
+        console.error('Error loading user profile:', err);
       }
-    });
+    })();
 
     const timeInterval = setInterval(() => {
       setCurrentTime(new Date());
     }, 60000);
 
     return () => {
-      unsubscribe();
       clearInterval(timeInterval);
     };
   }, []);
@@ -89,28 +90,27 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 
   // Load ticklist subjects from Firestore
   useEffect(() => {
-    if (!user) return;
-
-    const subjectsRef = collection(db, 'users', user.uid, 'ticklist');
-    const unsubscribe = onSnapshot(
-      subjectsRef,
-      (snapshot) => {
-        const loadedSubjects: Subject[] = [];
-        snapshot.forEach((doc) => {
-          loadedSubjects.push({ id: doc.id, ...doc.data() } as Subject);
-        });
+    (async () => {
+      if (!supabaseUser) return;
+      try {
+        const lists = await getTicklistsForUser(supabaseUser.id);
+        // Map rows into Subject[]
+        const loadedSubjects: Subject[] = (lists || []).map((r: any) => ({
+          id: r.id,
+          name: r.subject_name,
+          code: r.code,
+          color: r.color,
+          items: r.items || [],
+        }));
         setSubjects(loadedSubjects);
-      },
-      (error) => {
-        console.error('Error loading ticklist:', error);
+      } catch (err) {
+        console.error('Error loading ticklist:', err);
       }
-    );
-
-    return () => unsubscribe();
-  }, [user]);
+    })();
+  }, [supabaseUser]);
 
   const toggleItem = async (subjectId: string, itemId: string) => {
-    if (!user) return;
+    if (!supabaseUser) return;
 
     try {
       const subject = subjects.find(s => s.id === subjectId);
@@ -120,7 +120,12 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         item.id === itemId ? { ...item, completed: !item.completed } : item
       );
 
-      await updateDoc(doc(db, 'users', user.uid, 'ticklist', subjectId), {
+      await upsertTicklist({
+        id: subjectId,
+        user_id: supabaseUser.id,
+        subject_name: subject.name,
+        code: subject.code,
+        color: subject.color,
         items: updatedItems,
       });
     } catch (error) {
@@ -171,7 +176,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         <View style={styles.header}>
           <View>
             <Text style={styles.greeting}>{getGreeting()}</Text>
-            <Text style={styles.userName}>{userData?.name || user?.displayName || 'Student'}</Text>
+            <Text style={styles.userName}>{userData?.name || supabaseUser?.user_metadata?.name || supabaseUser?.email || authUser?.email || 'Student'}</Text>
           </View>
           <TouchableOpacity
             style={styles.profileButton}

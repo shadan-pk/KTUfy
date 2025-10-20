@@ -14,9 +14,9 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { TicklistScreenNavigationProp } from '../types/navigation';
-import { auth, db } from '../firebaseConfig';
-import { collection, doc, setDoc, deleteDoc, onSnapshot, updateDoc } from 'firebase/firestore';
-import { onAuthStateChanged, User } from 'firebase/auth';
+import { useAuth } from '../auth/AuthProvider';
+import { getTicklistsForUser, upsertTicklist, deleteTicklist } from '../supabaseConfig';
+import supabase from '../supabaseClient';
 
 interface TicklistItem {
   id: string;
@@ -38,7 +38,8 @@ interface TicklistScreenProps {
 }
 
 const TicklistScreen: React.FC<TicklistScreenProps> = ({ navigation }) => {
-  const [user, setUser] = React.useState<User | null>(null);
+  const { user: authUser } = useAuth();
+  const [supabaseUser, setSupabaseUser] = React.useState<any | null>(null);
   const [subjects, setSubjects] = React.useState<Subject[]>([]);
   const [filter, setFilter] = React.useState<'all' | 'pending' | 'completed'>('all');
   const [loading, setLoading] = React.useState(true);
@@ -56,61 +57,46 @@ const TicklistScreen: React.FC<TicklistScreenProps> = ({ navigation }) => {
   // Color palette for subjects
   const colors = ['#6366F1', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#14B8A6'];
 
-  // Listen to auth state
   React.useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setUser(user);
-      if (!user) {
-        setLoading(false);
+    (async () => {
+      try {
+        const { data: userRes, error } = await supabase.auth.getUser();
+        if (error) throw error;
+        setSupabaseUser(userRes?.user ?? null);
+      } catch (err) {
+        console.error('Error getting supabase user:', err);
       }
-    });
-    return unsubscribe;
+    })();
   }, []);
 
-  // Load subjects from Firestore
+  // Load subjects from Supabase when supabaseUser changes
   React.useEffect(() => {
-    if (!user) {
+    if (!supabaseUser) {
       setLoading(false);
       return;
     }
 
     setLoading(true);
-    
-    // Timeout fallback in case Firestore doesn't respond
-    const timeoutId = setTimeout(() => {
-      setLoading(false);
-      Alert.alert(
-        'Connection Timeout',
-        'Taking longer than expected. Please check your internet connection and try again.',
-        [{ text: 'OK' }]
-      );
-    }, 10000); // 10 second timeout
 
-    const subjectsRef = collection(db, 'users', user.uid, 'ticklist');
-    const unsubscribe = onSnapshot(
-      subjectsRef,
-      (snapshot) => {
-        clearTimeout(timeoutId); // Clear timeout on successful load
-        const loadedSubjects: Subject[] = [];
-        snapshot.forEach((doc) => {
-          loadedSubjects.push({ id: doc.id, ...doc.data() } as Subject);
-        });
+    (async () => {
+      try {
+        const lists = await getTicklistsForUser(supabaseUser.id);
+        const loadedSubjects: Subject[] = (lists || []).map((r: any) => ({
+          id: r.id,
+          name: r.subject_name,
+          code: r.code,
+          color: r.color,
+          items: r.items || [],
+        }));
         setSubjects(loadedSubjects);
-        setLoading(false);
-      },
-      (error) => {
-        clearTimeout(timeoutId); // Clear timeout on error
+      } catch (error) {
         console.error('Error loading ticklist:', error);
         Alert.alert('Error', 'Failed to load checklist. Please check your connection.');
+      } finally {
         setLoading(false);
       }
-    );
-
-    return () => {
-      clearTimeout(timeoutId);
-      unsubscribe();
-    };
-  }, [user]);
+    })();
+  }, [supabaseUser]);
 
   const addSubject = async () => {
     if (!subjectName.trim() || !subjectCode.trim()) {
@@ -118,7 +104,7 @@ const TicklistScreen: React.FC<TicklistScreenProps> = ({ navigation }) => {
       return;
     }
 
-    if (!user) {
+    if (!supabaseUser) {
       Alert.alert('Error', 'You must be logged in to add subjects');
       return;
     }
@@ -139,7 +125,14 @@ const TicklistScreen: React.FC<TicklistScreenProps> = ({ navigation }) => {
       setSubjectCode('');
       
       // Save to Firestore in the background
-      await setDoc(doc(db, 'users', user.uid, 'ticklist', newSubjectId), newSubject);
+      await upsertTicklist({
+        id: newSubjectId,
+        user_id: supabaseUser.id,
+        subject_name: newSubject.name,
+        code: newSubject.code,
+        color: newSubject.color,
+        items: newSubject.items,
+      });
     } catch (error) {
       console.error('Error adding subject:', error);
       Alert.alert('Error', 'Failed to add subject. Please try again.');
@@ -152,7 +145,7 @@ const TicklistScreen: React.FC<TicklistScreenProps> = ({ navigation }) => {
       return;
     }
 
-    if (!user) {
+    if (!supabaseUser) {
       Alert.alert('Error', 'You must be logged in to add items');
       return;
     }
@@ -171,9 +164,14 @@ const TicklistScreen: React.FC<TicklistScreenProps> = ({ navigation }) => {
       setShowAddItemModal(false);
       setItemTitle('');
       
-      // Save to Firestore in the background
+      // Save to Supabase in the background
       const updatedItems = [...subject.items, newItem];
-      await updateDoc(doc(db, 'users', user.uid, 'ticklist', selectedSubjectId), {
+      await upsertTicklist({
+        id: selectedSubjectId,
+        user_id: supabaseUser.id,
+        subject_name: subject.name,
+        code: subject.code,
+        color: subject.color,
         items: updatedItems,
       });
     } catch (error) {
@@ -191,10 +189,10 @@ const TicklistScreen: React.FC<TicklistScreenProps> = ({ navigation }) => {
         {
           text: 'Delete',
           style: 'destructive',
-          onPress: async () => {
-            if (!user) return;
+            onPress: async () => {
+            if (!supabaseUser) return;
             try {
-              await deleteDoc(doc(db, 'users', user.uid, 'ticklist', subjectId));
+              await deleteTicklist(subjectId, supabaseUser.id);
             } catch (error) {
               console.error('Error deleting subject:', error);
               Alert.alert('Error', 'Failed to delete subject. Please try again.');
@@ -206,16 +204,26 @@ const TicklistScreen: React.FC<TicklistScreenProps> = ({ navigation }) => {
   };
 
   const deleteItem = async (subjectId: string, itemId: string) => {
-    if (!user) return;
-    
+    if (!supabaseUser) return;
+
     try {
       const subject = subjects.find(s => s.id === subjectId);
       if (!subject) return;
 
       const updatedItems = subject.items.filter(item => item.id !== itemId);
-      await updateDoc(doc(db, 'users', user.uid, 'ticklist', subjectId), {
+
+      // Persist the updated items to Supabase
+      await upsertTicklist({
+        id: subjectId,
+        user_id: supabaseUser.id,
+        subject_name: subject.name,
+        code: subject.code,
+        color: subject.color,
         items: updatedItems,
       });
+
+      // Update local state for immediate UI feedback
+      setSubjects(prev => prev.map(s => (s.id === subjectId ? { ...s, items: updatedItems } : s)));
     } catch (error) {
       console.error('Error deleting item:', error);
       Alert.alert('Error', 'Failed to delete item. Please try again.');
@@ -223,8 +231,8 @@ const TicklistScreen: React.FC<TicklistScreenProps> = ({ navigation }) => {
   };
 
   const toggleItem = async (subjectId: string, itemId: string) => {
-    if (!user) return;
-
+    if (!supabaseUser) return;
+    
     try {
       const subject = subjects.find(s => s.id === subjectId);
       if (!subject) return;
@@ -233,7 +241,12 @@ const TicklistScreen: React.FC<TicklistScreenProps> = ({ navigation }) => {
         item.id === itemId ? { ...item, completed: !item.completed } : item
       );
 
-      await updateDoc(doc(db, 'users', user.uid, 'ticklist', subjectId), {
+      await upsertTicklist({
+        id: subjectId,
+        user_id: supabaseUser.id,
+        subject_name: subject.name,
+        code: subject.code,
+        color: subject.color,
         items: updatedItems,
       });
     } catch (error) {

@@ -10,8 +10,7 @@ import {
   Platform,
   ScrollView,
 } from 'react-native';
-import { signInWithEmailAndPassword } from 'firebase/auth';
-import { auth } from '../firebaseConfig';
+import { useAuth } from '../auth/AuthProvider';
 import { LoginScreenNavigationProp } from '../types/navigation';
 
 interface LoginScreenProps {
@@ -23,6 +22,8 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
+  const { signIn } = useAuth();
+
   const handleLogin = async () => {
     if (!email || !password) {
       Alert.alert('Error', 'Please fill in all fields');
@@ -31,7 +32,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
 
     setLoading(true);
     try {
-      await signInWithEmailAndPassword(auth, email, password);
+      await signIn(email, password);
       // Navigation will be handled by the main App component
     } catch (error: any) {
       Alert.alert('Login Error', error.message);

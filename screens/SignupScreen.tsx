@@ -10,9 +10,9 @@ import {
   Platform,
   ScrollView,
 } from 'react-native';
-import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
-import { doc, setDoc } from 'firebase/firestore';
-import { auth, db } from '../firebaseConfig';
+import { useAuth } from '../auth/AuthProvider';
+import supabase from '../supabaseClient';
+import { upsertUserProfile } from '../supabaseConfig';
 import { SignupScreenNavigationProp } from '../types/navigation';
 
 interface SignupScreenProps {
@@ -77,6 +77,8 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
     setParsedInfo(parsed);
   };
 
+  const { signUp } = useAuth();
+
   const handleSignup = async () => {
     if (!name || !registrationNumber || !email || !password || !confirmPassword) {
       Alert.alert('Error', 'Please fill in all fields');
@@ -109,45 +111,52 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
 
     setLoading(true);
     try {
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      
-      // Update user profile with name and registration info
-      await updateProfile(userCredential.user, {
-        displayName: name,
-      });
-
-      // Save user data to Firestore
-      await setDoc(doc(db, 'users', userCredential.user.uid), {
+      // Build metadata object with parsed registration details so the auth.user entry contains them
+      const metadata = {
         name,
-        email,
-        registrationNumber: registrationNumber.toUpperCase(),
+        registration_number: registrationNumber.toUpperCase(),
         college: parsed.college,
         branch: parsed.branch,
-        yearJoined: parsed.yearJoined,
-        yearEnding: parsed.yearEnding,
-        rollNumber: parsed.rollNumber,
-        createdAt: new Date().toISOString(),
-      });
+        year_joined: parsed.yearJoined,
+        year_ending: parsed.yearEnding,
+        roll_number: parsed.rollNumber,
+      };
 
-      // Show success with parsed information
-      Alert.alert(
-        'Success',
-        `Account created successfully!\n\n` +
-        `Name: ${name}\n` +
-        `Registration: ${registrationNumber.toUpperCase()}\n` +
-        `College: ${parsed.college}\n` +
-        `Branch: ${parsed.branch}\n` +
-        `Year: ${parsed.yearJoined} - ${parsed.yearEnding}\n` +
-        `Roll No: ${parsed.rollNumber}`,
-        [
-          {
-            text: 'OK',
-            onPress: () => navigation.navigate('Login'),
-          },
-        ]
-      );
+      // Pass metadata to signUp so auth.users.user_metadata is populated server-side
+      const signupResp = await signUp(email, password, metadata);
+
+      // If signup returned a session (auto sign-in), we can safely upsert from the client.
+      const hasSession = !!(signupResp?.session);
+
+      if (hasSession) {
+        // get the user id from the session/user
+        const uid = signupResp?.user?.id ?? null;
+        if (uid) {
+          await upsertUserProfile({
+            id: uid,
+            name,
+            email,
+            registration_number: registrationNumber.toUpperCase(),
+            college: parsed.college,
+            branch: parsed.branch,
+            year_joined: parsed.yearJoined,
+            year_ending: parsed.yearEnding,
+            roll_number: parsed.rollNumber,
+            created_at: new Date().toISOString(),
+          });
+        }
+      } else {
+        // No session was created (common when email confirmation is required).
+        // The DB trigger (if installed) will sync auth.users.user_metadata -> public.users.
+        // If you don't have the trigger, the profile will be created when the user confirms and signs in.
+        console.log('No session created at signup; rely on DB trigger to populate public.users');
+      }
+
+      Alert.alert('Success', 'Account created successfully!', [
+        { text: 'OK', onPress: () => navigation.navigate('Login') },
+      ]);
     } catch (error: any) {
-      Alert.alert('Signup Error', error.message);
+      Alert.alert('Signup Error', error.message || JSON.stringify(error));
     } finally {
       setLoading(false);
     }

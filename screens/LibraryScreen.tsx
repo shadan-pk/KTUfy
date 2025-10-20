@@ -11,8 +11,6 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LibraryScreenNavigationProp } from '../types/navigation';
-import { db } from '../firebaseConfig';
-import { collection, getDocs, query } from 'firebase/firestore';
 
 // Types
 interface Note {
