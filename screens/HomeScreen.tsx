@@ -10,7 +10,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../auth/AuthProvider';
-import { getUserProfile, getTicklistsForUser, upsertTicklist } from '../supabaseConfig';
+import { getUserProfile, getTicklistsForUser, upsertTicklist, upsertUserProfile } from '../supabaseConfig';
+import { getPendingProfile, deletePendingProfile } from '../auth/secureStore';
 import supabase from '../supabaseClient';
 import { HomeScreenNavigationProp } from '../types/navigation';
 
@@ -61,6 +62,25 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         const sUser = userRes?.user ?? null;
         setSupabaseUser(sUser);
         if (sUser) {
+          // Check for pending profile data (from signup before email confirmation)
+          const pendingProfile = await getPendingProfile();
+          if (pendingProfile) {
+            console.log('Found pending profile; upserting to public.users...');
+            try {
+              await upsertUserProfile({
+                id: sUser.id,
+                ...pendingProfile,
+              });
+              // Clear the pending data after successful upsert
+              await deletePendingProfile();
+              console.log('Pending profile upserted and cleared');
+            } catch (upsertErr) {
+              console.error('Error upserting pending profile:', upsertErr);
+              // Keep the pending data so we can retry later
+            }
+          }
+
+          // Load existing profile from public.users
           const profile = await getUserProfile(sUser.id);
           if (profile) setUserData(profile as UserData);
         }

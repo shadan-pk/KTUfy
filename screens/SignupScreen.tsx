@@ -13,6 +13,7 @@ import {
 import { useAuth } from '../auth/AuthProvider';
 import supabase from '../supabaseClient';
 import { upsertUserProfile } from '../supabaseConfig';
+import { savePendingProfile } from '../auth/secureStore';
 import { SignupScreenNavigationProp } from '../types/navigation';
 
 interface SignupScreenProps {
@@ -122,10 +123,23 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
         roll_number: parsed.rollNumber,
       };
 
+      // Build the pending profile object to store temporarily
+      const pendingProfile = {
+        name,
+        email,
+        registration_number: registrationNumber.toUpperCase(),
+        college: parsed.college,
+        branch: parsed.branch,
+        year_joined: parsed.yearJoined,
+        year_ending: parsed.yearEnding,
+        roll_number: parsed.rollNumber,
+        created_at: new Date().toISOString(),
+      };
+
       // Pass metadata to signUp so auth.users.user_metadata is populated server-side
       const signupResp = await signUp(email, password, metadata);
 
-      // If signup returned a session (auto sign-in), we can safely upsert from the client.
+      // If signup returned a session (auto sign-in), we can safely upsert from the client immediately.
       const hasSession = !!(signupResp?.session);
 
       if (hasSession) {
@@ -134,22 +148,14 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
         if (uid) {
           await upsertUserProfile({
             id: uid,
-            name,
-            email,
-            registration_number: registrationNumber.toUpperCase(),
-            college: parsed.college,
-            branch: parsed.branch,
-            year_joined: parsed.yearJoined,
-            year_ending: parsed.yearEnding,
-            roll_number: parsed.rollNumber,
-            created_at: new Date().toISOString(),
+            ...pendingProfile,
           });
         }
       } else {
-        // No session was created (common when email confirmation is required).
-        // The DB trigger (if installed) will sync auth.users.user_metadata -> public.users.
-        // If you don't have the trigger, the profile will be created when the user confirms and signs in.
-        console.log('No session created at signup; rely on DB trigger to populate public.users');
+        // No session was created (email confirmation is required).
+        // Store the profile data temporarily so HomeScreen can upsert it after login.
+        await savePendingProfile(pendingProfile);
+        console.log('No session created at signup; profile stored temporarily for later upsert');
       }
 
       Alert.alert('Success', 'Account created successfully!', [
