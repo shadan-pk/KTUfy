@@ -1,0 +1,653 @@
+import React from 'react';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  Alert,
+  SafeAreaView,
+} from 'react-native';
+import { signOut, onAuthStateChanged, User } from 'firebase/auth';
+import { auth } from '../firebaseConfig';
+import { HomeScreenNavigationProp } from '../types/navigation';
+
+interface HomeScreenProps {
+  navigation: HomeScreenNavigationProp;
+}
+
+const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
+  const [user, setUser] = React.useState<User | null>(null);
+
+  React.useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setUser(user);
+    });
+
+    return unsubscribe;
+  }, []);
+
+  const handleLogout = async () => {
+    Alert.alert(
+      'Logout',
+      'Are you sure you want to logout?',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Logout',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await signOut(auth);
+              // Navigation will be handled by the main App component
+            } catch (error: any) {
+              Alert.alert('Logout Error', error.message);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  return (
+    <SafeAreaView style={styles.container}>
+        <View style={styles.header}>
+          <Text style={styles.title}>Welcome to KTUfy!</Text>
+          <Text style={styles.subtitle}>Your Academic Dashboard</Text>
+        </View>
+
+        {/* SGPA/CGPA Calculator Card */}
+        <View style={styles.calculatorCard}>
+          <TouchableOpacity 
+            style={styles.calculatorHeader}
+            onPress={() => setShowCalculator(!showCalculator)}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.calculatorTitle}>📊 SGPA / CGPA Calculator</Text>
+            <View style={styles.expandButton}>
+              <Text style={styles.expandButtonText}>{showCalculator ? '−' : '+'}</Text>
+            </View>
+          </TouchableOpacity>
+
+          {showCalculator && (
+            <View style={styles.calculatorContent}>
+              {/* Toggle between SGPA and CGPA */}
+              <View style={styles.calculatorToggle}>
+                <TouchableOpacity
+                  style={[styles.toggleButton, calculatorType === 'sgpa' && styles.toggleButtonActive]}
+                  onPress={() => setCalculatorType('sgpa')}
+                >
+                  <Text style={[styles.toggleButtonText, calculatorType === 'sgpa' && styles.toggleButtonTextActive]}>
+                    SGPA
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.toggleButton, calculatorType === 'cgpa' && styles.toggleButtonActive]}
+                  onPress={() => setCalculatorType('cgpa')}
+                >
+                  <Text style={[styles.toggleButtonText, calculatorType === 'cgpa' && styles.toggleButtonTextActive]}>
+                    CGPA
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView style={styles.calculatorScroll} nestedScrollEnabled>
+                {calculatorType === 'sgpa' ? (
+                  <View>
+                    <Text style={styles.calculatorInstructions}>
+                      Enter subject details and grades to calculate your SGPA
+                    </Text>
+
+                    {/* Grade Reference */}
+                    <View style={styles.gradeReference}>
+                      <Text style={styles.gradeReferenceTitle}>Grade Points:</Text>
+                      <Text style={styles.gradeReferenceText}>S=10, A+=9, A=8.5, B+=8, B=7, C=6, P=5, F=0</Text>
+                    </View>
+
+                    {/* SGPA Input Fields */}
+                    {grades.map((item, index) => (
+                      <View key={index} style={styles.subjectContainer}>
+                        <View style={styles.calculatorItemHeader}>
+                          <Text style={styles.calculatorItemNumber}>Subject {index + 1}</Text>
+                          {grades.length > 1 && (
+                            <TouchableOpacity
+                              style={styles.removeButtonSmall}
+                              onPress={() => removeGradeRow(index)}
+                            >
+                              <Text style={styles.removeButtonTextSmall}>×</Text>
+                            </TouchableOpacity>
+                          )}
+                        </View>
+
+                        {/* Subject Name */}
+                        <View style={styles.subjectNameRow}>
+                          <View style={styles.inputGroup}>
+                            <Text style={styles.inputLabel}>Subject Name (Optional)</Text>
+                            <View style={styles.inputContainer}>
+                              <Text style={styles.inputIcon}>📖</Text>
+                              <TextInput
+                                style={styles.input}
+                                placeholder="e.g., Mathematics"
+                                placeholderTextColor="#9CA3AF"
+                                value={item.subject}
+                                onChangeText={(text) => updateGrade(index, 'subject', text)}
+                              />
+                            </View>
+                          </View>
+                        </View>
+
+                        <View style={styles.inputRow}>
+                          {/* Credits */}
+                          <View style={styles.inputGroup}>
+                            <Text style={styles.inputLabel}>Credits</Text>
+                            <View style={styles.inputContainer}>
+                              <Text style={styles.inputIcon}>📚</Text>
+                              <TextInput
+                                style={styles.input}
+                                placeholder="4"
+                                placeholderTextColor="#9CA3AF"
+                                keyboardType="numeric"
+                                value={item.credit}
+                                onChangeText={(text) => updateGrade(index, 'credit', text)}
+                              />
+                            </View>
+                          </View>
+
+                          {/* Grade */}
+                          <View style={styles.inputGroup}>
+                            <Text style={styles.inputLabel}>Grade</Text>
+                            <TouchableOpacity
+                              style={styles.inputContainer}
+                              onPress={() => {
+                                Alert.alert(
+                                  'Select Grade',
+                                  'Choose your grade',
+                                  [
+                                    { text: 'S (10)', onPress: () => updateGrade(index, 'grade', 'S') },
+                                    { text: 'A+ (9)', onPress: () => updateGrade(index, 'grade', 'A+') },
+                                    { text: 'A (8.5)', onPress: () => updateGrade(index, 'grade', 'A') },
+                                    { text: 'B+ (8)', onPress: () => updateGrade(index, 'grade', 'B+') },
+                                    { text: 'B (7)', onPress: () => updateGrade(index, 'grade', 'B') },
+                                    { text: 'C (6)', onPress: () => updateGrade(index, 'grade', 'C') },
+                                    { text: 'P (5)', onPress: () => updateGrade(index, 'grade', 'P') },
+                                    { text: 'F (0)', onPress: () => updateGrade(index, 'grade', 'F') },
+                                    { text: 'Cancel', style: 'cancel' }
+                                  ]
+                                );
+                              }}
+                            >
+                              <Text style={styles.inputIcon}>🎯</Text>
+                              <Text style={[styles.input, !item.grade && styles.inputPlaceholder]}>
+                                {item.grade || 'Select'}
+                              </Text>
+                            </TouchableOpacity>
+                          </View>
+                        </View>
+                      </View>
+                    ))}
+
+                    {/* Add Subject Button */}
+                    <TouchableOpacity style={styles.addButton} onPress={addGradeRow}>
+                      <Text style={styles.addButtonText}>+ Add Subject</Text>
+                    </TouchableOpacity>
+
+                    {/* SGPA Result */}
+                    {grades.some(g => g.credit && g.grade) && (
+                      <View style={styles.resultCard}>
+                        <Text style={styles.resultLabel}>Your SGPA</Text>
+                        <Text style={styles.resultValue}>{calculateSGPA()}</Text>
+                      </View>
+                    )}
+                  </View>
+                ) : (
+                  <View>
+                    <Text style={styles.calculatorInstructions}>
+                      Enter semester-wise SGPA and credits to calculate your CGPA
+                    </Text>
+
+                    {/* CGPA Input Fields */}
+                    {semesters.map((item, index) => (
+                      <View key={index} style={styles.subjectContainer}>
+                        <View style={styles.calculatorItemHeader}>
+                          <Text style={styles.calculatorItemNumber}>Semester {index + 1}</Text>
+                          {semesters.length > 1 && (
+                            <TouchableOpacity
+                              style={styles.removeButtonSmall}
+                              onPress={() => removeSemesterRow(index)}
+                            >
+                              <Text style={styles.removeButtonTextSmall}>×</Text>
+                            </TouchableOpacity>
+                          )}
+                        </View>
+
+                        {/* Semester Name */}
+                        <View style={styles.subjectNameRow}>
+                          <View style={styles.inputGroup}>
+                            <Text style={styles.inputLabel}>Semester Name (Optional)</Text>
+                            <View style={styles.inputContainer}>
+                              <Text style={styles.inputIcon}>📅</Text>
+                              <TextInput
+                                style={styles.input}
+                                placeholder="e.g., S1, S2"
+                                placeholderTextColor="#9CA3AF"
+                                value={item.name}
+                                onChangeText={(text) => updateSemester(index, 'name', text)}
+                              />
+                            </View>
+                          </View>
+                        </View>
+
+                        <View style={styles.inputRow}>
+                          {/* SGPA */}
+                          <View style={styles.inputGroup}>
+                            <Text style={styles.inputLabel}>SGPA</Text>
+                            <View style={styles.inputContainer}>
+                              <Text style={styles.inputIcon}>📊</Text>
+                              <TextInput
+                                style={styles.input}
+                                placeholder="8.5"
+                                placeholderTextColor="#9CA3AF"
+                                keyboardType="decimal-pad"
+                                value={item.sgpa}
+                                onChangeText={(text) => updateSemester(index, 'sgpa', text)}
+                              />
+                            </View>
+                          </View>
+
+                          {/* Credits */}
+                          <View style={styles.inputGroup}>
+                            <Text style={styles.inputLabel}>Credits</Text>
+                            <View style={styles.inputContainer}>
+                              <Text style={styles.inputIcon}>📚</Text>
+                              <TextInput
+                                style={styles.input}
+                                placeholder="20"
+                                placeholderTextColor="#9CA3AF"
+                                keyboardType="numeric"
+                                value={item.credits}
+                                onChangeText={(text) => updateSemester(index, 'credits', text)}
+                              />
+                            </View>
+                          </View>
+                        </View>
+                      </View>
+                    ))}
+
+                    {/* Add Semester Button */}
+                    <TouchableOpacity style={styles.addButton} onPress={addSemesterRow}>
+                      <Text style={styles.addButtonText}>+ Add Semester</Text>
+                    </TouchableOpacity>
+
+                    {/* CGPA Result */}
+                    {semesters.some(s => s.sgpa && s.credits) && (
+                      <View style={styles.resultCard}>
+                        <Text style={styles.resultLabel}>Your CGPA</Text>
+                        <Text style={styles.resultValue}>{calculateCGPA()}</Text>
+                      </View>
+                    )}
+                  </View>
+                )}
+
+                {/* Reset Button */}
+                <TouchableOpacity style={styles.resetButton} onPress={resetCalculator}>
+                  <Text style={styles.resetButtonText}>🔄 Reset</Text>
+                </TouchableOpacity>
+              </ScrollView>
+            </View>
+          )}
+        </View>
+
+        {/* Quick Actions */}
+        <View style={styles.quickActions}>
+          <Text style={styles.quickActionsTitle}>Quick Actions</Text>
+          <View style={styles.quickActionsGrid}>
+            <TouchableOpacity 
+              style={styles.actionCard}
+              onPress={() => navigation.navigate('Profile')}
+            >
+              <Text style={styles.actionIcon}>👤</Text>
+              <Text style={styles.actionText}>Profile</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={styles.actionCard}
+              onPress={() => navigation.navigate('Schedule')}
+            >
+              <Text style={styles.actionIcon}>📅</Text>
+              <Text style={styles.actionText}>Schedule</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={styles.actionCard}
+              onPress={() => navigation.navigate('Library')}
+            >
+              <Text style={styles.actionIcon}>📚</Text>
+              <Text style={styles.actionText}>Library</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={styles.actionCard}
+              onPress={() => navigation.navigate('Ticklist')}
+            >
+              <Text style={styles.actionIcon}>✓</Text>
+              <Text style={styles.actionText}>Ticklist</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={styles.actionCard}
+              onPress={() => navigation.navigate('Chatbot')}
+            >
+              <Text style={styles.actionIcon}>🤖</Text>
+              <Text style={styles.actionText}>AI Chat</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={styles.actionCard}
+              onPress={() => navigation.navigate('Settings')}
+            >
+              <Text style={styles.actionIcon}>⚙️</Text>
+              <Text style={styles.actionText}>Settings</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        <View style={{ height: 40 }} />
+      </ScrollView>
+    </SafeAreaView>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#F8F9FD',
+  },
+  scrollView: {
+    flex: 1,
+  },
+  header: {
+    padding: 20,
+    paddingTop: 16,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  title: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: '#1A1A2E',
+    textAlign: 'center',
+    marginBottom: 6,
+  },
+  subtitle: {
+    fontSize: 15,
+    color: '#6B7280',
+    textAlign: 'center',
+  },
+  // Calculator Styles
+  calculatorCard: {
+    backgroundColor: '#FFFFFF',
+    marginHorizontal: 16,
+    marginTop: 16,
+    borderRadius: 20,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  calculatorHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#6366F1',
+    padding: 20,
+  },
+  calculatorTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  expandButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  expandButtonText: {
+    fontSize: 24,
+    color: '#FFFFFF',
+    fontWeight: '300',
+  },
+  calculatorContent: {
+    padding: 20,
+  },
+  calculatorToggle: {
+    flexDirection: 'row',
+    backgroundColor: '#F3F4F6',
+    borderRadius: 12,
+    padding: 4,
+    marginBottom: 20,
+  },
+  toggleButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  toggleButtonActive: {
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  toggleButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#6B7280',
+  },
+  toggleButtonTextActive: {
+    color: '#6366F1',
+  },
+  calculatorScroll: {
+    maxHeight: 400,
+  },
+  calculatorInstructions: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  gradeReference: {
+    backgroundColor: '#EEF2FF',
+    padding: 12,
+    borderRadius: 10,
+    marginBottom: 16,
+  },
+  gradeReferenceTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#4338CA',
+    marginBottom: 4,
+  },
+  gradeReferenceText: {
+    fontSize: 12,
+    color: '#6366F1',
+  },
+  inputRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  subjectContainer: {
+    backgroundColor: '#F9FAFB',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  calculatorItemHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  calculatorItemNumber: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#6366F1',
+  },
+  subjectNameRow: {
+    marginBottom: 12,
+  },
+  removeButtonSmall: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#FEE2E2',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  removeButtonTextSmall: {
+    fontSize: 20,
+    color: '#DC2626',
+    fontWeight: '300',
+  },
+  inputGroup: {
+    flex: 1,
+  },
+  inputLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#4B5563',
+    marginBottom: 6,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+  },
+  inputIcon: {
+    fontSize: 16,
+    marginRight: 8,
+  },
+  input: {
+    flex: 1,
+    fontSize: 14,
+    color: '#1A1A2E',
+    padding: 0,
+  },
+  inputPlaceholder: {
+    color: '#9CA3AF',
+  },
+  addButton: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 2,
+    borderColor: '#6366F1',
+    borderStyle: 'dashed',
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+    marginTop: 8,
+    marginBottom: 16,
+  },
+  addButtonText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#6366F1',
+  },
+  resultCard: {
+    backgroundColor: '#10B981',
+    padding: 24,
+    borderRadius: 16,
+    alignItems: 'center',
+    marginTop: 8,
+    shadowColor: '#10B981',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  resultLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: 'rgba(255, 255, 255, 0.9)',
+    marginBottom: 8,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
+  resultValue: {
+    fontSize: 48,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  resetButton: {
+    backgroundColor: '#F3F4F6',
+    padding: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginTop: 16,
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+  },
+  resetButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#6B7280',
+  },
+  // Quick Actions Styles
+  quickActions: {
+    padding: 16,
+    paddingTop: 24,
+  },
+  quickActionsTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#1A1A2E',
+    marginBottom: 16,
+    paddingLeft: 4,
+  },
+  quickActionsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  actionCard: {
+    width: '31%',
+    aspectRatio: 1,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  actionIcon: {
+    fontSize: 32,
+    marginBottom: 8,
+  },
+  actionText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#4B5563',
+  },
+});
+
+export default HomeScreen;

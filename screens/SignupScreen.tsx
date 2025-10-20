@@ -10,23 +10,90 @@ import {
   Platform,
   ScrollView,
 } from 'react-native';
-import { createUserWithEmailAndPassword } from 'firebase/auth';
-import { auth } from '../firebaseConfig';
+import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
+import { doc, setDoc } from 'firebase/firestore';
+import { auth, db } from '../firebaseConfig';
 import { SignupScreenNavigationProp } from '../types/navigation';
 
 interface SignupScreenProps {
   navigation: SignupScreenNavigationProp;
 }
 
+interface ParsedRegistration {
+  college: string;
+  yearJoined: number;
+  yearEnding: number;
+  branch: string;
+  rollNumber: string;
+  isValid: boolean;
+}
+
 const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
+  const [name, setName] = useState('');
+  const [registrationNumber, setRegistrationNumber] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [parsedInfo, setParsedInfo] = useState<ParsedRegistration | null>(null);
+
+  // Parse registration number format: MEA22CS051
+  const parseRegistrationNumber = (regNum: string): ParsedRegistration => {
+    const upperRegNum = regNum.trim().toUpperCase();
+    
+    // Pattern: 3 letters (college) + 2 digits (year) + 2 letters (branch) + digits (roll number)
+    const pattern = /^([A-Z]{3})(\d{2})([A-Z]{2})(\d+)$/;
+    const match = upperRegNum.match(pattern);
+
+    if (!match) {
+      return {
+        college: '',
+        yearJoined: 0,
+        yearEnding: 0,
+        branch: '',
+        rollNumber: '',
+        isValid: false,
+      };
+    }
+
+    const [, college, yearCode, branch, rollNum] = match;
+    const yearJoined = 2000 + parseInt(yearCode, 10);
+    const yearEnding = yearJoined + 4;
+
+    return {
+      college,
+      yearJoined,
+      yearEnding,
+      branch,
+      rollNumber: rollNum,
+      isValid: true,
+    };
+  };
+
+  // Handle registration number change and parse it
+  const handleRegistrationChange = (text: string) => {
+    setRegistrationNumber(text);
+    const parsed = parseRegistrationNumber(text);
+    setParsedInfo(parsed);
+  };
 
   const handleSignup = async () => {
-    if (!email || !password || !confirmPassword) {
+    if (!name || !registrationNumber || !email || !password || !confirmPassword) {
       Alert.alert('Error', 'Please fill in all fields');
+      return;
+    }
+
+    const parsed = parseRegistrationNumber(registrationNumber);
+    if (!parsed.isValid) {
+      Alert.alert(
+        'Invalid Registration Number',
+        'Please enter a valid registration number in the format: MEA22CS051\n\n' +
+        'Format:\n' +
+        '• 3 letters (College code)\n' +
+        '• 2 digits (Year joined)\n' +
+        '• 2 letters (Branch code)\n' +
+        '• Digits (Roll number)'
+      );
       return;
     }
 
@@ -42,13 +109,43 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
 
     setLoading(true);
     try {
-      await createUserWithEmailAndPassword(auth, email, password);
-      Alert.alert('Success', 'Account created successfully!', [
-        {
-          text: 'OK',
-          onPress: () => navigation.navigate('Login'),
-        },
-      ]);
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      
+      // Update user profile with name and registration info
+      await updateProfile(userCredential.user, {
+        displayName: name,
+      });
+
+      // Save user data to Firestore
+      await setDoc(doc(db, 'users', userCredential.user.uid), {
+        name,
+        email,
+        registrationNumber: registrationNumber.toUpperCase(),
+        college: parsed.college,
+        branch: parsed.branch,
+        yearJoined: parsed.yearJoined,
+        yearEnding: parsed.yearEnding,
+        rollNumber: parsed.rollNumber,
+        createdAt: new Date().toISOString(),
+      });
+
+      // Show success with parsed information
+      Alert.alert(
+        'Success',
+        `Account created successfully!\n\n` +
+        `Name: ${name}\n` +
+        `Registration: ${registrationNumber.toUpperCase()}\n` +
+        `College: ${parsed.college}\n` +
+        `Branch: ${parsed.branch}\n` +
+        `Year: ${parsed.yearJoined} - ${parsed.yearEnding}\n` +
+        `Roll No: ${parsed.rollNumber}`,
+        [
+          {
+            text: 'OK',
+            onPress: () => navigation.navigate('Login'),
+          },
+        ]
+      );
     } catch (error: any) {
       Alert.alert('Signup Error', error.message);
     } finally {
@@ -67,6 +164,52 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
           <Text style={styles.subtitle}>Sign up to get started</Text>
 
           <View style={styles.form}>
+            <TextInput
+              style={styles.input}
+              placeholder="Full Name"
+              value={name}
+              onChangeText={setName}
+              autoCapitalize="words"
+              autoCorrect={false}
+            />
+
+            <TextInput
+              style={styles.input}
+              placeholder="Registration Number (e.g., MEA22CS051)"
+              value={registrationNumber}
+              onChangeText={handleRegistrationChange}
+              autoCapitalize="characters"
+              autoCorrect={false}
+            />
+
+            {parsedInfo && parsedInfo.isValid && (
+              <View style={styles.parsedInfo}>
+                <Text style={styles.parsedInfoTitle}>✓ Registration Info:</Text>
+                <View style={styles.infoRow}>
+                  <Text style={styles.infoLabel}>College:</Text>
+                  <Text style={styles.infoValue}>{parsedInfo.college}</Text>
+                </View>
+                <View style={styles.infoRow}>
+                  <Text style={styles.infoLabel}>Branch:</Text>
+                  <Text style={styles.infoValue}>{parsedInfo.branch}</Text>
+                </View>
+                <View style={styles.infoRow}>
+                  <Text style={styles.infoLabel}>Year:</Text>
+                  <Text style={styles.infoValue}>{parsedInfo.yearJoined} - {parsedInfo.yearEnding}</Text>
+                </View>
+                <View style={styles.infoRow}>
+                  <Text style={styles.infoLabel}>Roll No:</Text>
+                  <Text style={styles.infoValue}>{parsedInfo.rollNumber}</Text>
+                </View>
+              </View>
+            )}
+
+            {parsedInfo && !parsedInfo.isValid && registrationNumber.length > 0 && (
+              <View style={styles.errorInfo}>
+                <Text style={styles.errorText}>⚠ Invalid format. Use: MEA22CS051</Text>
+              </View>
+            )}
+
             <TextInput
               style={styles.input}
               placeholder="Email"
@@ -182,6 +325,48 @@ const styles = StyleSheet.create({
   linkText: {
     color: '#007AFF',
     fontSize: 14,
+    fontWeight: '600',
+  },
+  parsedInfo: {
+    backgroundColor: '#E8F5E9',
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 15,
+    borderWidth: 1,
+    borderColor: '#4CAF50',
+  },
+  parsedInfoTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#2E7D32',
+    marginBottom: 8,
+  },
+  infoRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
+  infoLabel: {
+    fontSize: 13,
+    color: '#558B2F',
+    fontWeight: '500',
+  },
+  infoValue: {
+    fontSize: 13,
+    color: '#1B5E20',
+    fontWeight: '700',
+  },
+  errorInfo: {
+    backgroundColor: '#FFEBEE',
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 15,
+    borderWidth: 1,
+    borderColor: '#EF5350',
+  },
+  errorText: {
+    fontSize: 13,
+    color: '#C62828',
     fontWeight: '600',
   },
 });

@@ -11,6 +11,13 @@ import 'react-native-gesture-handler';
 import LoginScreen from './screens/LoginScreen';
 import SignupScreen from './screens/SignupScreen';
 import HomeScreen from './screens/HomeScreen';
+import ProfileScreen from './screens/ProfileScreen';
+import SettingsScreen from './screens/SettingsScreen';
+import HelpScreen from './screens/HelpScreen';
+import ChatbotScreen from './screens/ChatbotScreen';
+import TicklistScreen from './screens/TicklistScreen';
+import LibraryScreen from './screens/LibraryScreen';
+import ScheduleScreen from './screens/ScheduleScreen';
 import { RootStackParamList } from './types/navigation';
 
 const Stack = createStackNavigator<RootStackParamList>();
@@ -41,17 +48,73 @@ export default function App() {
       <StatusBar style="auto" />
       <Stack.Navigator
         screenOptions={{
-          headerShown: false,
+          headerShown: true,
+          headerStyle: {
+            backgroundColor: '#007AFF',
+          },
+          headerTintColor: '#fff',
+          headerTitleStyle: {
+            fontWeight: 'bold',
+          },
         }}
       >
         {user ? (
           // Authenticated stack
-          <Stack.Screen name="Home" component={HomeScreen} />
+          <>
+            <Stack.Screen 
+              name="Home" 
+              component={HomeScreen}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen 
+              name="Chatbot" 
+              component={ChatbotScreen}
+              options={{ title: 'AI Assistant' }}
+            />
+            <Stack.Screen 
+              name="Ticklist" 
+              component={TicklistScreen}
+              options={{ title: 'Study Checklist' }}
+            />
+            <Stack.Screen 
+              name="Library" 
+              component={LibraryScreen}
+              options={{ title: 'Study Library' }}
+            />
+            <Stack.Screen 
+              name="Schedule" 
+              component={ScheduleScreen}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen 
+              name="Profile" 
+              component={ProfileScreen}
+              options={{ title: 'My Profile' }}
+            />
+            <Stack.Screen 
+              name="Settings" 
+              component={SettingsScreen}
+              options={{ title: 'Settings' }}
+            />
+            <Stack.Screen 
+              name="Help" 
+              component={HelpScreen}
+              options={{ title: 'Help & Support' }}
+            />
+          </>
         ) : (
           // Non-authenticated stack
           <>
-            <Stack.Screen name="Login" component={LoginScreen} />
-            <Stack.Screen name="Signup" component={SignupScreen} />
+            <Stack.Screen 
+              name="Login" 
+              component={LoginScreen}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen 
+              name="Signup" 
+              component={SignupScreen}
+              options={{ headerShown: false }}
+            />
           </>
         )}
       </Stack.Navigator>
