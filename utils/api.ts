@@ -46,3 +46,42 @@ export async function apiFetch(input: RequestInfo, init?: RequestInit) {
 
   return res;
 }
+
+/**
+ * API Helper with automatic JSON parsing and error handling
+ * @param input - Full URL or path
+ * @param init - Fetch init options
+ * @returns Parsed JSON response
+ */
+export async function apiRequest<T = any>(input: RequestInfo, init?: RequestInit): Promise<T> {
+  try {
+    console.log('📡 API Request:', input);
+    const response = await apiFetch(input, init);
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      let errorMessage = `API Error: ${response.status} ${response.statusText}`;
+      
+      try {
+        const errorJson = JSON.parse(errorText);
+        errorMessage = errorJson.detail || errorJson.message || errorMessage;
+      } catch {
+        errorMessage = errorText || errorMessage;
+      }
+      
+      console.error('❌ API Error:', errorMessage);
+      throw new Error(errorMessage);
+    }
+    
+    // Handle empty responses
+    const text = await response.text();
+    if (!text) return {} as T;
+    
+    const data = JSON.parse(text);
+    console.log('✅ API Response:', data);
+    return data;
+  } catch (error: any) {
+    console.error('❌ API Request Failed:', error);
+    throw error;
+  }
+}
