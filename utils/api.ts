@@ -26,6 +26,12 @@ export async function apiFetch(input: RequestInfo, init?: RequestInit) {
   const makeRequest = async (t: string | null) => {
     const headers = new Headers(init?.headers as any || {});
     if (t) headers.set('Authorization', `Bearer ${t}`);
+    
+    // Set Content-Type to application/json if body is present and not already set
+    if (init?.body && !headers.has('Content-Type')) {
+      headers.set('Content-Type', 'application/json');
+    }
+    
     const res = await fetch(input, { ...init, headers });
     return res;
   };
@@ -56,20 +62,27 @@ export async function apiFetch(input: RequestInfo, init?: RequestInit) {
 export async function apiRequest<T = any>(input: RequestInfo, init?: RequestInit): Promise<T> {
   try {
     console.log('📡 API Request:', input);
+    console.log('📡 Request Method:', init?.method || 'GET');
+    console.log('📡 Request Body:', init?.body);
+    console.log('📡 Request Headers:', init?.headers);
+    
     const response = await apiFetch(input, init);
     
     if (!response.ok) {
       const errorText = await response.text();
+      console.error('❌ Raw API Error Response:', errorText);
+      
       let errorMessage = `API Error: ${response.status} ${response.statusText}`;
       
       try {
         const errorJson = JSON.parse(errorText);
-        errorMessage = errorJson.detail || errorJson.message || errorMessage;
+        console.error('❌ Parsed API Error:', errorJson);
+        errorMessage = errorJson.detail || errorJson.message || JSON.stringify(errorJson);
       } catch {
         errorMessage = errorText || errorMessage;
       }
       
-      console.error('❌ API Error:', errorMessage);
+      console.error('❌ Final API Error:', errorMessage);
       throw new Error(errorMessage);
     }
     
