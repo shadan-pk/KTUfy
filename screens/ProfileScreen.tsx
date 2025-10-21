@@ -11,9 +11,9 @@ import {
   TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { onAuthStateChanged, User, updateProfile, signOut } from 'firebase/auth';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
-import { auth, db } from '../firebaseConfig';
+import { useAuth } from '../auth/AuthProvider';
+import { getUserProfile, upsertUserProfile } from '../supabaseConfig';
+import supabase from '../supabaseClient';
 import { ProfileScreenNavigationProp } from '../types/navigation';
 
 interface UserData {
@@ -33,7 +33,8 @@ interface ProfileScreenProps {
 }
 
 const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
-  const [user, setUser] = React.useState<User | null>(null);
+  const { user: authUser, getToken, signOut } = useAuth();
+  const [supabaseUser, setSupabaseUser] = React.useState<any | null>(null);
   const [userData, setUserData] = React.useState<UserData | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
@@ -44,46 +45,40 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
   const [savingName, setSavingName] = React.useState(false);
 
   React.useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      setUser(user);
-      if (user) {
-        // Fetch user data from Firestore with timeout and error handling
-        try {
-          const userDoc = await Promise.race([
-            getDoc(doc(db, 'users', user.uid)),
-            new Promise<never>((_, reject) => 
-              setTimeout(() => reject(new Error('Firestore connection timeout')), 5000)
-            )
-          ]);
-          
-          if (userDoc.exists()) {
-            setUserData(userDoc.data() as UserData);
-            setError(null);
-          } else {
-            // No Firestore document, use auth data
-            setUserData({
-              name: user.displayName || 'User',
-              email: user.email || '',
-            });
-          }
-        } catch (error: any) {
-          console.error('Error fetching user data:', error);
-          // Fallback to auth data only
-          setUserData({
-            name: user.displayName || 'User',
-            email: user.email || '',
-          });
-          setError('Using offline mode - limited data available');
+    (async () => {
+      try {
+        // Get user id from supabase session
+        const token = await getToken();
+        if (!token) {
+          setUserData(null);
+          setLoading(false);
+          return;
         }
-      }
-      setLoading(false);
-    });
+        // Get supabase auth user
+        const { data: userRes, error: userErr } = await supabase.auth.getUser();
+        if (userErr) throw userErr;
+        const sUser = userRes?.user ?? null;
+        setSupabaseUser(sUser);
+        const userId = sUser?.id;
+        if (!userId) {
+          setLoading(false);
+          return;
+        }
 
-    return unsubscribe;
+        // Fetch profile
+        const profile = await getUserProfile(userId);
+        if (profile) setUserData(profile as UserData);
+      } catch (err: any) {
+        console.error('Error fetching profile:', err);
+        setError('Using offline mode - limited data available');
+      } finally {
+        setLoading(false);
+      }
+    })();
   }, []);
 
   const handleEditName = () => {
-    setNewName(user?.displayName || '');
+    setNewName(userData?.name || supabaseUser?.email || '');
     setShowEditNameModal(true);
   };
 
@@ -93,39 +88,22 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
       return;
     }
 
-    if (!user) {
-      Alert.alert('Error', 'No user logged in');
-      return;
-    }
-
     setSavingName(true);
     try {
-      // Update Firebase Auth profile
-      await updateProfile(user, {
-        displayName: newName.trim(),
+      // Get user id
+      const { data: userRes, error: userErr } = await supabase.auth.getUser();
+      if (userErr) throw userErr;
+      const userId = userRes?.user?.id;
+      if (!userId) throw new Error('No user session');
+
+      // Upsert user profile into Supabase
+      await upsertUserProfile({
+        id: userId,
+        name: newName.trim(),
+        email: userData?.email ?? userRes?.user?.email,
       });
 
-      // Try to update Firestore with timeout
-      try {
-        await Promise.race([
-          updateDoc(doc(db, 'users', user.uid), {
-            name: newName.trim(),
-          }),
-          new Promise<never>((_, reject) => 
-            setTimeout(() => reject(new Error('Firestore timeout')), 5000)
-          )
-        ]);
-      } catch (firestoreError) {
-        console.warn('Firestore update failed, name saved to auth only:', firestoreError);
-      }
-
-      // Refresh auth state
-      await user.reload();
-      setUser(auth.currentUser);
-
-      // Also update local userData state
-      setUserData(prev => prev ? { ...prev, name: newName.trim() } : null);
-
+      setUserData(prev => prev ? { ...prev, name: newName.trim() } : { name: newName.trim() });
       setShowEditNameModal(false);
       Alert.alert('Success', 'Name updated successfully!');
     } catch (error: any) {
@@ -148,7 +126,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
   };
 
   const handleVerifyEmail = () => {
-    if (user?.emailVerified) {
+    if (supabaseUser?.email_confirmed_at) {
       Alert.alert('Email Verified', 'Your email is already verified!');
     } else {
       Alert.alert(
@@ -173,7 +151,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
           style: 'destructive',
           onPress: async () => {
             try {
-              await signOut(auth);
+              await signOut();
               // Navigation will automatically redirect to Login screen
               // because of the auth state listener in App.tsx
             } catch (error: any) {
@@ -192,14 +170,14 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
           <View style={styles.avatarContainer}>
             <View style={styles.avatar}>
               <Text style={styles.avatarText}>
-                {user?.displayName?.charAt(0).toUpperCase() || user?.email?.charAt(0).toUpperCase() || 'U'}
+                {(userData?.name?.charAt(0) || supabaseUser?.email?.charAt(0) || 'U').toUpperCase()}
               </Text>
             </View>
           </View>
           <Text style={styles.userName}>
-            {user?.displayName || userData?.name || 'User Name'}
+            {userData?.name || supabaseUser?.user_metadata?.name || supabaseUser?.email || 'User Name'}
           </Text>
-          <Text style={styles.userEmail}>{user?.email}</Text>
+          <Text style={styles.userEmail}>{userData?.email || supabaseUser?.email}</Text>
           {userData?.registrationNumber && (
             <Text style={styles.userRegistration}>{userData.registrationNumber}</Text>
           )}
@@ -269,15 +247,15 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
           <View style={styles.infoCard}>
             <View style={styles.infoRow}>
               <Text style={styles.infoLabel}>Email</Text>
-              <Text style={styles.infoValue}>{user?.email}</Text>
+                  <Text style={styles.infoValue}>{userData?.email || supabaseUser?.email}</Text>
             </View>
 
             <View style={styles.divider} />
 
             <View style={styles.infoRow}>
               <Text style={styles.infoLabel}>User ID</Text>
-              <Text style={styles.infoValue} numberOfLines={1}>
-                {user?.uid || 'N/A'}
+                  <Text style={styles.infoValue} numberOfLines={1}>
+                {supabaseUser?.id || 'N/A'}
               </Text>
             </View>
 
@@ -287,10 +265,10 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
               <Text style={styles.infoLabel}>Email Verified</Text>
               <View style={[
                 styles.badge,
-                user?.emailVerified ? styles.badgeSuccess : styles.badgeWarning
+                (supabaseUser?.email_confirmed_at ? styles.badgeSuccess : styles.badgeWarning)
               ]}>
                 <Text style={styles.badgeText}>
-                  {user?.emailVerified ? 'Verified' : 'Not Verified'}
+                  {supabaseUser?.email_confirmed_at ? 'Verified' : 'Not Verified'}
                 </Text>
               </View>
             </View>
@@ -300,8 +278,10 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
             <View style={styles.infoRow}>
               <Text style={styles.infoLabel}>Account Created</Text>
               <Text style={styles.infoValue}>
-                {user?.metadata.creationTime
-                  ? new Date(user.metadata.creationTime).toLocaleDateString()
+                {userData?.createdAt
+                  ? new Date(userData.createdAt).toLocaleDateString()
+                  : supabaseUser?.created_at
+                  ? new Date(supabaseUser.created_at).toLocaleDateString()
                   : 'N/A'}
               </Text>
             </View>
@@ -311,8 +291,8 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
             <View style={styles.infoRow}>
               <Text style={styles.infoLabel}>Last Sign In</Text>
               <Text style={styles.infoValue}>
-                {user?.metadata.lastSignInTime
-                  ? new Date(user.metadata.lastSignInTime).toLocaleDateString()
+                {supabaseUser?.last_sign_in_at
+                  ? new Date(supabaseUser.last_sign_in_at).toLocaleDateString()
                   : 'N/A'}
               </Text>
             </View>
@@ -326,7 +306,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
             <Text style={styles.actionButtonText}>Edit Profile</Text>
           </TouchableOpacity>
 
-          {!user?.emailVerified && (
+          {!supabaseUser?.email_confirmed_at && (
             <TouchableOpacity
               style={[styles.actionButton, styles.actionButtonSecondary]}
               onPress={handleVerifyEmail}

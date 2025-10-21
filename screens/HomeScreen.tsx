@@ -9,9 +9,10 @@ import {
   Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { onAuthStateChanged, User } from 'firebase/auth';
-import { doc, getDoc, collection, onSnapshot, updateDoc } from 'firebase/firestore';
-import { auth, db } from '../firebaseConfig';
+import { useAuth } from '../auth/AuthProvider';
+import { getUserProfile, getTicklistsForUser, upsertTicklist, upsertUserProfile } from '../supabaseConfig';
+import { getPendingProfile, deletePendingProfile } from '../auth/secureStore';
+import supabase from '../supabaseClient';
 import { HomeScreenNavigationProp } from '../types/navigation';
 import { useTheme } from '../contexts/ThemeContext';
 
@@ -56,8 +57,8 @@ interface Challenge {
 
 const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   const { theme, isDark } = useTheme();
-  
-  const [user, setUser] = useState<User | null>(null);
+  const { user: authUser, getToken } = useAuth();
+  const [supabaseUser, setSupabaseUser] = useState<any | null>(null);
   const [userData, setUserData] = useState<UserData | null>(null);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [studyStreak, setStudyStreak] = useState(7);
@@ -96,26 +97,45 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   ]);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      setUser(user);
-      if (user) {
-        try {
-          const userDoc = await getDoc(doc(db, 'users', user.uid));
-          if (userDoc.exists()) {
-            setUserData(userDoc.data() as UserData);
+    (async () => {
+      try {
+        const { data: userRes, error } = await supabase.auth.getUser();
+        if (error) throw error;
+        const sUser = userRes?.user ?? null;
+        setSupabaseUser(sUser);
+        if (sUser) {
+          // Check for pending profile data (from signup before email confirmation)
+          const pendingProfile = await getPendingProfile();
+          if (pendingProfile) {
+            console.log('Found pending profile; upserting to public.users...');
+            try {
+              await upsertUserProfile({
+                id: sUser.id,
+                ...pendingProfile,
+              });
+              // Clear the pending data after successful upsert
+              await deletePendingProfile();
+              console.log('Pending profile upserted and cleared');
+            } catch (upsertErr) {
+              console.error('Error upserting pending profile:', upsertErr);
+              // Keep the pending data so we can retry later
+            }
           }
-        } catch (error) {
-          console.error('Error fetching user data:', error);
+
+          // Load existing profile from public.users
+          const profile = await getUserProfile(sUser.id);
+          if (profile) setUserData(profile as UserData);
         }
+      } catch (err) {
+        console.error('Error loading user profile:', err);
       }
-    });
+    })();
 
     const timeInterval = setInterval(() => {
       setCurrentTime(new Date());
     }, 60000);
 
     return () => {
-      unsubscribe();
       clearInterval(timeInterval);
     };
   }, []);
@@ -143,16 +163,18 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 
   // Load ticklist subjects from Firestore
   useEffect(() => {
-    if (!user) return;
-
-    const subjectsRef = collection(db, 'users', user.uid, 'ticklist');
-    const unsubscribe = onSnapshot(
-      subjectsRef,
-      (snapshot) => {
-        const loadedSubjects: Subject[] = [];
-        snapshot.forEach((doc) => {
-          loadedSubjects.push({ id: doc.id, ...doc.data() } as Subject);
-        });
+    (async () => {
+      if (!supabaseUser) return;
+      try {
+        const lists = await getTicklistsForUser(supabaseUser.id);
+        // Map rows into Subject[]
+        const loadedSubjects: Subject[] = (lists || []).map((r: any) => ({
+          id: r.id,
+          name: r.subject_name,
+          code: r.code,
+          color: r.color,
+          items: r.items || [],
+        }));
         setSubjects(loadedSubjects);
         
         // Update challenge progress based on completed tasks
@@ -163,17 +185,14 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
           }
           return challenge;
         }));
-      },
-      (error) => {
-        console.error('Error loading ticklist:', error);
+      } catch (err) {
+        console.error('Error loading ticklist:', err);
       }
-    );
-
-    return () => unsubscribe();
-  }, [user]);
+    })();
+  }, [supabaseUser]);
 
   const toggleItem = async (subjectId: string, itemId: string) => {
-    if (!user) return;
+    if (!supabaseUser) return;
 
     try {
       const subject = subjects.find(s => s.id === subjectId);
@@ -183,7 +202,12 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         item.id === itemId ? { ...item, completed: !item.completed } : item
       );
 
-      await updateDoc(doc(db, 'users', user.uid, 'ticklist', subjectId), {
+      await upsertTicklist({
+        id: subjectId,
+        user_id: supabaseUser.id,
+        subject_name: subject.name,
+        code: subject.code,
+        color: subject.color,
         items: updatedItems,
       });
     } catch (error) {
@@ -245,7 +269,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         <View style={styles.header}>
           <View>
             <Text style={[styles.greeting, { color: theme.textSecondary }]}>{getGreeting()}</Text>
-            <Text style={[styles.userName, { color: theme.text }]}>{userData?.name || user?.displayName || 'Student'}</Text>
+            <Text style={[styles.userName, { color: theme.text }]}>{userData?.name || supabaseUser?.user_metadata?.name || supabaseUser?.email || authUser?.email || 'Student'}</Text>
           </View>
           <TouchableOpacity
             style={[styles.profileButton, { backgroundColor: theme.primary }]}

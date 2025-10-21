@@ -1,10 +1,10 @@
 # KTUfy
 
-A React Native mobile application built with Expo, featuring Firebase authentication and modern UI design.
+A React Native mobile application built with Expo, now migrated to Supabase for authentication and data storage.
 
 ## Features
 
-- 🔐 Firebase Authentication (Email/Password)
+ - 🔐 Supabase Authentication (Email/Password)
 - 📱 Modern React Native UI
 - 🧭 React Navigation with TypeScript
 - 🎨 Beautiful and responsive design
@@ -14,8 +14,8 @@ A React Native mobile application built with Expo, featuring Firebase authentica
 
 - Node.js (v16 or higher)
 - npm or yarn
-- Expo CLI (`npm install -g @expo/cli`)
-- Firebase project setup
+- Expo CLI (`npm install -g expo-cli`)
+- Supabase project with Auth and Database enabled
 
 ## Installation
 
@@ -30,10 +30,17 @@ cd KTUfy
 npm install
 ```
 
-3. Set up Firebase:
-   - Create a Firebase project at [Firebase Console](https://console.firebase.google.com/)
-   - Enable Authentication with Email/Password provider
-   - Copy your Firebase configuration to `firebaseConfig.ts`
+3. Set up Supabase:
+  - Create a Supabase project at https://app.supabase.com/
+  - Enable Authentication (Email/Password)
+  - Create the following tables (users, ticklists) or use the built-in users table and a `ticklists` table with columns:
+    - id (text, primary key)
+    - user_id (text, references auth.users)
+    - subject_name (text)
+    - code (text)
+    - color (text)
+    - items (jsonb)
+  - Copy your Supabase URL and ANON key into `.env` (see `.env.example`)
 
 4. Start the development server:
 ```bash
@@ -52,7 +59,8 @@ npm start
 ```
 KTUfy/
 ├── App.tsx                 # Main app component
-├── firebaseConfig.ts       # Firebase configuration
+├── supabaseClient.ts       # Supabase client configuration (reads from .env)
+├── supabaseConfig.ts       # Supabase helper functions for profile and ticklists
 ├── index.ts               # App entry point
 ├── screens/               # Screen components
 │   ├── HomeScreen.tsx     # Home screen after login
@@ -68,40 +76,24 @@ KTUfy/
 - **React Native** - Mobile app framework
 - **Expo** - Development platform
 - **TypeScript** - Type safety
-- **Firebase** - Authentication and backend
+- **Supabase** - Authentication and Postgres backend
 - **React Navigation** - Navigation library
 - **React Native Reanimated** - Animations
 - **React Native Gesture Handler** - Gesture handling
 
-## Firebase Setup
+## Supabase Setup
 
-1. Create a new Firebase project
-2. Enable Authentication with Email/Password
-3. Update the Firebase configuration in `firebaseConfig.ts`:
-
-```typescript
-const firebaseConfig = {
-  apiKey: "your-api-key",
-  authDomain: "your-project.firebaseapp.com",
-  projectId: "your-project-id",
-  storageBucket: "your-project.appspot.com",
-  messagingSenderId: "your-sender-id",
-  appId: "your-app-id"
-};
-```
+1. Create a Supabase project
+2. Enable Authentication (Email/Password)
+3. Create the needed tables (see above) or adapt to your preferred schema
 
 ## Environment Variables
 
-Create a `.env` file in the root directory with your Firebase configuration:
+Copy `.env.example` to `.env` and set:
 
 ```
-FIREBASE_API_KEY=your-api-key
-FIREBASE_AUTH_DOMAIN=your-project.firebaseapp.com
-FIREBASE_PROJECT_ID=your-project-id
-FIREBASE_STORAGE_BUCKET=your-project.appspot.com
-FIREBASE_MESSAGING_SENDER_ID=your-sender-id
-FIREBASE_APP_ID=your-app-id
-FIREBASE_MEASUREMENT_ID=your-measurement-id
+SUPABASE_URL=https://your-project-ref.supabase.co
+SUPABASE_ANON_KEY=public-anon-key
 ```
 
 ## Contributing
