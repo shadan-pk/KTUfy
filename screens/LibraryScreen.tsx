@@ -8,10 +8,16 @@ import {
   ActivityIndicator,
   Alert,
   Linking,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import * as DocumentPicker from 'expo-document-picker';
+import * as ExpoFileSystem from 'expo-file-system';
 import { LibraryScreenNavigationProp } from '../types/navigation';
 import { useTheme } from '../contexts/ThemeContext';
+import { supabase } from '../supabaseClient';
+import { useAuth } from '../auth/AuthProvider';
+import { listFiles, getPublicUrl, uploadFile, deleteFile, STORAGE_BUCKET } from '../supabaseStorage';
 
 // Types
 interface Note {
@@ -169,44 +175,52 @@ const LibraryScreen: React.FC<LibraryScreenProps> = ({ navigation }) => {
     try {
       const yearNum = YEARS.indexOf(selectedYear!) + 1;
       const semNum = selectedSemester!.replace('S', '');
-      const path = `Library/Year_${yearNum}/Sem_${semNum}/${selectedBranch}/${selectedSubject}/notes`;
+      const folderPath = `Year_${yearNum}/Sem_${semNum}/${selectedBranch}/${selectedSubject}`;
       
-      // For demo, using mock data. Replace with actual Firestore query:
-      // const notesRef = collection(db, path);
-      // const snapshot = await getDocs(notesRef);
-      // const notesList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Note));
+      console.log('📂 Fetching notes from:', folderPath);
       
-      // Mock notes for demonstration
-      const mockNotes: Note[] = [
-        {
-          id: '1',
-          fileName: 'Introduction to AI.pdf',
-          fileType: 'pdf',
-          fileUrl: 'https://example.com/note1.pdf',
-          uploadedDate: '2025-10-15',
-          size: '2.3 MB',
-        },
-        {
-          id: '2',
-          fileName: 'Neural Networks Basics.pdf',
-          fileType: 'pdf',
-          fileUrl: 'https://example.com/note2.pdf',
-          uploadedDate: '2025-10-10',
-          size: '1.8 MB',
-        },
-        {
-          id: '3',
-          fileName: 'AI Algorithms Diagram.png',
-          fileType: 'image',
-          fileUrl: 'https://example.com/diagram.png',
-          uploadedDate: '2025-10-12',
-          size: '456 KB',
-        },
-      ];
-      setNotes(mockNotes);
+      // List all files in the folder from Supabase Storage
+      const filesList = await listFiles(folderPath);
+
+      if (!filesList || filesList.length === 0) {
+        console.log('No notes found in this folder');
+        setNotes([]);
+        return;
+      }
+
+      // Transform the files into Note objects
+      const notesList: Note[] = filesList
+        .filter(file => file.name !== '.emptyFolderPlaceholder') // Filter out placeholder files
+        .map(file => {
+          const fileExt = file.name.split('.').pop()?.toLowerCase() || '';
+          let fileType: 'pdf' | 'image' | 'doc' | 'ppt' = 'pdf';
+          
+          if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(fileExt)) {
+            fileType = 'image';
+          } else if (['doc', 'docx'].includes(fileExt)) {
+            fileType = 'doc';
+          } else if (['ppt', 'pptx'].includes(fileExt)) {
+            fileType = 'ppt';
+          }
+
+          return {
+            id: file.id || file.name,
+            fileName: file.name,
+            fileType,
+            fileUrl: getPublicUrl(`${folderPath}/${file.name}`),
+            uploadedDate: file.created_at || new Date().toISOString(),
+            size: file.metadata?.size 
+              ? `${(file.metadata.size / 1024 / 1024).toFixed(2)} MB`
+              : undefined,
+          };
+        });
+
+      console.log('✅ Found', notesList.length, 'notes');
+      setNotes(notesList);
     } catch (error) {
       console.error('Error fetching notes:', error);
-      Alert.alert('Error', 'Failed to load notes');
+      Alert.alert('Error', 'Failed to load notes from storage');
+      setNotes([]);
     } finally {
       setLoading(false);
     }
@@ -230,7 +244,7 @@ const LibraryScreen: React.FC<LibraryScreenProps> = ({ navigation }) => {
   const handleNoteOpen = (note: Note) => {
     Alert.alert(
       note.fileName,
-      `Type: ${note.fileType.toUpperCase()}\n${note.size ? `Size: ${note.size}\n` : ''}Uploaded: ${new Date(note.uploadedDate).toLocaleDateString()}\n\nOpen this file?`,
+      `Type: ${note.fileType.toUpperCase()}\n${note.size ? `Size: ${note.size}\n` : ''}Uploaded: ${new Date(note.uploadedDate).toLocaleDateString()}`,
       [
         { text: 'Cancel', style: 'cancel' },
         { 
@@ -242,8 +256,123 @@ const LibraryScreen: React.FC<LibraryScreenProps> = ({ navigation }) => {
             });
           }
         },
-      ]
+        Platform.OS !== 'web' && {
+          text: 'Download',
+          onPress: () => handleDownload(note),
+        },
+      ].filter(Boolean) as any
     );
+  };
+
+  const handleDownload = async (note: Note) => {
+    try {
+      // For all platforms, just open the URL (browser will handle download)
+      Linking.openURL(note.fileUrl);
+      Alert.alert('Opening File', 'The file will open in your browser or default app');
+    } catch (error) {
+      console.error('Download error:', error);
+      Alert.alert('Error', 'Could not open the file');
+    }
+  };
+
+  const handleUploadNote = async () => {
+    if (!selectedYear || !selectedSemester || !selectedBranch || !selectedSubject) {
+      Alert.alert('Error', 'Please select year, semester, branch, and subject first');
+      return;
+    }
+
+    try {
+      // Pick a document
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ['application/pdf', 'image/*', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/vnd.ms-powerpoint', 'application/vnd.openxmlformats-officedocument.presentationml.presentation'],
+        copyToCacheDirectory: true,
+      });
+
+      if (result.canceled || !result.assets || result.assets.length === 0) {
+        return;
+      }
+
+      const file = result.assets[0];
+      console.log('Selected file:', file);
+      console.log('File URI:', file.uri);
+      console.log('File type:', file.mimeType);
+      console.log('File name:', file.name);
+      console.log('File size:', file.size);
+
+      Alert.alert('Uploading', 'Please wait...');
+
+      const yearNum = YEARS.indexOf(selectedYear) + 1;
+      const semNum = selectedSemester.replace('S', '');
+      const filePath = `Year_${yearNum}/Sem_${semNum}/${selectedBranch}/${selectedSubject}/${file.name}`;
+
+      // Helper function to read file data
+      const readFileData = async (): Promise<any> => {
+        try {
+          console.log('Reading file from URI:', file.uri);
+          console.log('Platform:', Platform.OS);
+          console.log('File info:', { name: file.name, mimeType: file.mimeType, size: file.size });
+          
+          // Fetch the file and get blob directly
+          const response = await fetch(file.uri);
+          if (!response.ok) {
+            throw new Error(`Failed to fetch file: ${response.status} ${response.statusText}`);
+          }
+          
+          const blob = await response.blob();
+          console.log('Blob created successfully, size:', blob.size, 'type:', blob.type);
+          return blob;
+        } catch (error) {
+          console.error('Error reading file:', error);
+          throw new Error('Failed to read file: ' + (error instanceof Error ? error.message : String(error)));
+        }
+      };
+
+      // Upload to Supabase Storage
+      try {
+        const fileData = await readFileData();
+        await uploadFile(filePath, fileData, {
+          contentType: file.mimeType || 'application/octet-stream',
+          upsert: false,
+        });
+        
+        Alert.alert('Success', 'File uploaded successfully!');
+        fetchNotes(); // Refresh the list
+      } catch (uploadError: any) {
+        if (uploadError.message && uploadError.message.includes('already exists')) {
+          Alert.alert(
+            'File Exists',
+            'A file with this name already exists. Do you want to replace it?',
+            [
+              { text: 'Cancel', style: 'cancel' },
+              {
+                text: 'Replace',
+                onPress: async () => {
+                  try {
+                    // Delete old file and upload new one
+                    await deleteFile(filePath);
+                    const newFileData = await readFileData();
+                    await uploadFile(filePath, newFileData, {
+                      contentType: file.mimeType || 'application/octet-stream',
+                      upsert: true,
+                    });
+                    
+                    Alert.alert('Success', 'File replaced successfully!');
+                    fetchNotes(); // Refresh the list
+                  } catch (replaceError: any) {
+                    Alert.alert('Upload Failed', replaceError.message);
+                  }
+                },
+              },
+            ]
+          );
+        } else {
+          throw uploadError;
+        }
+      }
+    } catch (error: any) {
+      console.error('Upload error:', error);
+      Alert.alert('Upload Failed', error.message || 'Could not upload the file');
+    }
   };
 
   const handleBack = () => {
@@ -434,8 +563,17 @@ const LibraryScreen: React.FC<LibraryScreenProps> = ({ navigation }) => {
           /* Step 5: Display Notes */
           <View style={styles.notesContainer}>
             <View style={styles.notesHeader}>
-              <Text style={styles.notesTitle}>📄 Available Notes</Text>
-              <Text style={styles.notesCount}>{notes.length} file{notes.length !== 1 ? 's' : ''}</Text>
+              <View>
+                <Text style={[styles.notesTitle, { color: theme.text }]}>📄 Available Notes</Text>
+                <Text style={[styles.notesCount, { color: theme.primary, backgroundColor: theme.primaryLight }]}>{notes.length} file{notes.length !== 1 ? 's' : ''}</Text>
+              </View>
+              <TouchableOpacity
+                style={[styles.uploadButton, { backgroundColor: theme.primary }]}
+                onPress={handleUploadNote}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.uploadButtonText}>📤 Upload</Text>
+              </TouchableOpacity>
             </View>
             
             {notes.length === 0 ? (
@@ -649,6 +787,7 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '700',
     color: '#1F2937',
+    marginBottom: 4,
   },
   notesCount: {
     fontSize: 14,
@@ -658,6 +797,25 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 8,
+    alignSelf: 'flex-start',
+  },
+  uploadButton: {
+    backgroundColor: '#6366F1',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    shadowColor: '#6366F1',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  uploadButtonText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '700',
   },
   noteCard: {
     flexDirection: 'row',
