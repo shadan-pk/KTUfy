@@ -97,44 +97,44 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     }
   ]);
 
-  useEffect(() => {
-    const loadUserData = async () => {
-      if (!authUser) {
-        setSupabaseUser(null);
-        setUserData(null);
-        return;
-      }
+  const loadUserData = React.useCallback(async () => {
+    if (!authUser) {
+      setSupabaseUser(null);
+      setUserData(null);
+      return;
+    }
 
-      try {
-        // Use the authUser from context instead of fetching
-        setSupabaseUser(authUser);
-        
-        // Check for pending profile data (from signup before email confirmation)
-        const pendingProfile = await getPendingProfile();
-        if (pendingProfile) {
-          console.log('Found pending profile; upserting to public.users...');
-          try {
-            await upsertUserProfile({
-              id: authUser.id,
-              ...pendingProfile,
-            });
-            // Clear the pending data after successful upsert
-            await deletePendingProfile();
-            console.log('Pending profile upserted and cleared');
-          } catch (upsertErr) {
-            console.error('Error upserting pending profile:', upsertErr);
-            // Keep the pending data so we can retry later
-          }
+    try {
+      // Use the authUser from context instead of fetching
+      setSupabaseUser(authUser);
+      
+      // Check for pending profile data (from signup before email confirmation)
+      const pendingProfile = await getPendingProfile();
+      if (pendingProfile) {
+        console.log('Found pending profile; upserting to public.users...');
+        try {
+          await upsertUserProfile({
+            id: authUser.id,
+            ...pendingProfile,
+          });
+          // Clear the pending data after successful upsert
+          await deletePendingProfile();
+          console.log('Pending profile upserted and cleared');
+        } catch (upsertErr) {
+          console.error('Error upserting pending profile:', upsertErr);
+          // Keep the pending data so we can retry later
         }
-
-        // Load existing profile from public.users
-        const profile = await getUserProfile(authUser.id);
-        if (profile) setUserData(profile as UserData);
-      } catch (err) {
-        console.error('Error loading user profile:', err);
       }
-    };
 
+      // Load existing profile from public.users
+      const profile = await getUserProfile(authUser.id);
+      if (profile) setUserData(profile as UserData);
+    } catch (err) {
+      console.error('Error loading user profile:', err);
+    }
+  }, [authUser]);
+
+  useEffect(() => {
     loadUserData();
 
     const timeInterval = setInterval(() => {
@@ -144,7 +144,16 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     return () => {
       clearInterval(timeInterval);
     };
-  }, [authUser]);
+  }, [loadUserData]);
+
+  // Refresh user data when screen comes into focus
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', () => {
+      loadUserData();
+    });
+
+    return unsubscribe;
+  }, [navigation, loadUserData]);
 
   useEffect(() => {
     let interval: NodeJS.Timeout;

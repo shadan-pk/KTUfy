@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   Modal,
   TextInput,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../auth/AuthProvider';
@@ -46,35 +47,70 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
     roll_number: '',
   });
   const [savingProfile, setSavingProfile] = React.useState(false);
+  const [refreshing, setRefreshing] = React.useState(false);
+  const [showAllDetails, setShowAllDetails] = React.useState(false);
+
+  const loadProfile = React.useCallback(async () => {
+    try {
+      setError(null);
+      // Get user from supabase session for email verification status
+      const { data: userRes, error: userErr } = await supabase.auth.getUser();
+      if (userErr) throw userErr;
+      const sUser = userRes?.user ?? null;
+      setSupabaseUser(sUser);
+
+      // Get token to verify authentication
+      const token = await getToken();
+      if (!token) {
+        setUserData(null);
+        return;
+      }
+
+      // Fetch profile from backend API
+      const profile = await getCurrentUserProfile();
+      
+      // Backend returns user data in metadata field, extract it properly
+      if (profile.metadata && typeof profile.metadata === 'object') {
+        const extractedProfile: UserProfile = {
+          email: profile.email || profile.metadata.email,
+          name: profile.metadata.name,
+          registration_number: profile.metadata.registration_number,
+          college: profile.metadata.college,
+          branch: profile.metadata.branch,
+          year_joined: profile.metadata.year_joined,
+          year_ending: profile.metadata.year_ending,
+          roll_number: profile.metadata.roll_number,
+          user_id: profile.user_id || profile.metadata.sub || profile.metadata.id,
+          role: profile.role,
+          created_at: profile.created_at || profile.metadata.created_at,
+          metadata: profile.metadata, // Keep original metadata for reference
+        };
+        setUserData(extractedProfile);
+      } else {
+        setUserData(profile);
+      }
+    } catch (err: any) {
+      console.error('Error fetching profile:', err);
+      setError('Unable to load profile data');
+    }
+  }, [getToken]);
 
   React.useEffect(() => {
     (async () => {
-      try {
-        // Get user from supabase session for email verification status
-        const { data: userRes, error: userErr } = await supabase.auth.getUser();
-        if (userErr) throw userErr;
-        const sUser = userRes?.user ?? null;
-        setSupabaseUser(sUser);
-
-        // Get token to verify authentication
-        const token = await getToken();
-        if (!token) {
-          setUserData(null);
-          setLoading(false);
-          return;
-        }
-
-        // Fetch profile from backend API
-        const profile = await getCurrentUserProfile();
-        setUserData(profile);
-      } catch (err: any) {
-        console.error('Error fetching profile:', err);
-        setError('Unable to load profile data');
-      } finally {
-        setLoading(false);
-      }
+      setLoading(true);
+      await loadProfile();
+      setLoading(false);
     })();
-  }, []);
+  }, [loadProfile]);
+
+  // Refresh profile when screen comes into focus
+  React.useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', () => {
+      loadProfile();
+    });
+
+    return unsubscribe;
+  }, [navigation, loadProfile]);
 
   const handleEditProfile = () => {
     // Pre-fill the form with current data
@@ -128,6 +164,10 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
 
       setUserData(updatedProfile);
       setShowEditProfileModal(false);
+      
+      // Refresh profile to get latest data
+      await loadProfile();
+      
       Alert.alert('Success', 'Profile updated successfully!');
     } catch (error: any) {
       Alert.alert('Error', error.message || 'Failed to update profile');
@@ -349,11 +389,167 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
           </View>
         </View>
 
+        {/* Complete User Details Section */}
+        <View style={styles.section}>
+          <TouchableOpacity 
+            style={styles.detailsHeader}
+            onPress={() => setShowAllDetails(!showAllDetails)}
+          >
+            <Text style={styles.sectionTitle}>🔍 Complete User Details</Text>
+            <Text style={styles.expandIcon}>{showAllDetails ? '▼' : '▶'}</Text>
+          </TouchableOpacity>
+
+          {showAllDetails && (
+            <View style={styles.infoCard}>
+              {/* Personal Information */}
+              <Text style={styles.detailsSubheading}>Personal Information</Text>
+              
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Full Name</Text>
+                <Text style={styles.infoValue}>{userData?.name || 'Not set'}</Text>
+              </View>
+              <View style={styles.divider} />
+
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Email</Text>
+                <Text style={styles.infoValue}>{userData?.email || supabaseUser?.email || 'N/A'}</Text>
+              </View>
+              <View style={styles.divider} />
+
+              {/* Academic Information */}
+              <Text style={[styles.detailsSubheading, { marginTop: 15 }]}>Academic Information</Text>
+              
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Registration Number</Text>
+                <Text style={styles.infoValue}>{userData?.registration_number || 'Not set'}</Text>
+              </View>
+              <View style={styles.divider} />
+
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>College</Text>
+                <Text style={styles.infoValue}>{userData?.college || 'Not set'}</Text>
+              </View>
+              <View style={styles.divider} />
+
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Branch</Text>
+                <Text style={styles.infoValue}>{userData?.branch || 'Not set'}</Text>
+              </View>
+              <View style={styles.divider} />
+
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Roll Number</Text>
+                <Text style={styles.infoValue}>{userData?.roll_number || 'Not set'}</Text>
+              </View>
+              <View style={styles.divider} />
+
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Year Joined</Text>
+                <Text style={styles.infoValue}>{userData?.year_joined || 'Not set'}</Text>
+              </View>
+              <View style={styles.divider} />
+
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Year Ending</Text>
+                <Text style={styles.infoValue}>{userData?.year_ending || 'Not set'}</Text>
+              </View>
+              <View style={styles.divider} />
+
+              {/* Account Information */}
+              <Text style={[styles.detailsSubheading, { marginTop: 15 }]}>Account Information</Text>
+              
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>User ID</Text>
+                <Text style={[styles.infoValue, styles.monoText]} numberOfLines={1}>
+                  {userData?.user_id || supabaseUser?.id || 'N/A'}
+                </Text>
+              </View>
+              <View style={styles.divider} />
+
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Role</Text>
+                <Text style={styles.infoValue}>{userData?.role || 'authenticated'}</Text>
+              </View>
+              <View style={styles.divider} />
+
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Email Verified</Text>
+                <Text style={styles.infoValue}>
+                  {supabaseUser?.email_confirmed_at ? '✅ Yes' : '❌ No'}
+                </Text>
+              </View>
+              <View style={styles.divider} />
+
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Account Created</Text>
+                <Text style={styles.infoValue}>
+                  {userData?.created_at 
+                    ? new Date(userData.created_at).toLocaleString()
+                    : supabaseUser?.created_at
+                    ? new Date(supabaseUser.created_at).toLocaleString()
+                    : 'N/A'}
+                </Text>
+              </View>
+              <View style={styles.divider} />
+
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Last Sign In</Text>
+                <Text style={styles.infoValue}>
+                  {supabaseUser?.last_sign_in_at
+                    ? new Date(supabaseUser.last_sign_in_at).toLocaleString()
+                    : 'N/A'}
+                </Text>
+              </View>
+              <View style={styles.divider} />
+
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Phone Verified</Text>
+                <Text style={styles.infoValue}>
+                  {supabaseUser?.phone_confirmed_at ? '✅ Yes' : '❌ No'}
+                </Text>
+              </View>
+
+              {/* Metadata Section - Only show fields not already displayed */}
+              {userData?.metadata && (() => {
+                const excludedKeys = [
+                  'name', 'email', 'registration_number', 'college', 'branch',
+                  'roll_number', 'year_joined', 'year_ending', 'id', 'sub',
+                  'created_at', 'updated_at', 'email_verified', 'phone_verified'
+                ];
+                const additionalFields = Object.entries(userData.metadata).filter(
+                  ([key]) => !excludedKeys.includes(key)
+                );
+                
+                if (additionalFields.length === 0) return null;
+                
+                return (
+                  <>
+                    <View style={styles.divider} />
+                    <Text style={[styles.detailsSubheading, { marginTop: 15 }]}>Additional Data</Text>
+                    
+                    {additionalFields.map(([key, value]) => (
+                      <View key={key}>
+                        <View style={styles.infoRow}>
+                          <Text style={styles.infoLabel}>{key}</Text>
+                          <Text style={styles.infoValue} numberOfLines={2}>
+                            {typeof value === 'object' ? JSON.stringify(value) : String(value)}
+                          </Text>
+                        </View>
+                        <View style={styles.divider} />
+                      </View>
+                    ))}
+                  </>
+                );
+              })()}
+            </View>
+          )}
+        </View>
+
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Actions</Text>
           
           <TouchableOpacity style={styles.actionButton} onPress={handleEditProfile}>
-            <Text style={styles.actionButtonText}>Edit Profile</Text>
+            <Text style={styles.actionButtonText}>✏️ Edit Profile</Text>
           </TouchableOpacity>
 
           {!supabaseUser?.email_confirmed_at && (
@@ -361,7 +557,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
               style={[styles.actionButton, styles.actionButtonSecondary]}
               onPress={handleVerifyEmail}
             >
-              <Text style={styles.actionButtonText}>Verify Email</Text>
+              <Text style={styles.actionButtonText}>📧 Verify Email</Text>
             </TouchableOpacity>
           )}
 
@@ -369,7 +565,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
             style={[styles.actionButton, styles.actionButtonSecondary]}
             onPress={handleChangePassword}
           >
-            <Text style={styles.actionButtonText}>Change Password</Text>
+            <Text style={styles.actionButtonText}>🔐 Change Password</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -635,6 +831,28 @@ const styles = StyleSheet.create({
   divider: {
     height: 1,
     backgroundColor: '#eee',
+  },
+  detailsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 15,
+  },
+  expandIcon: {
+    fontSize: 18,
+    color: '#007AFF',
+    fontWeight: '600',
+  },
+  detailsSubheading: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#007AFF',
+    marginBottom: 10,
+    marginTop: 5,
+  },
+  monoText: {
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+    fontSize: 12,
   },
   badge: {
     paddingHorizontal: 12,
