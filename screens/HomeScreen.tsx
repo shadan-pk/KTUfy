@@ -15,6 +15,7 @@ import { getPendingProfile, deletePendingProfile } from '../auth/secureStore';
 import supabase from '../supabaseClient';
 import { HomeScreenNavigationProp } from '../types/navigation';
 import { useTheme } from '../contexts/ThemeContext';
+import { TestBackendButton } from '../components/TestBackendButton';
 
 const { width } = Dimensions.get('window');
 
@@ -283,6 +284,9 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
             <Text style={styles.profileButtonText}>👤</Text>
           </TouchableOpacity>
         </View>
+
+        {/* Backend Connection Test Button - TEMPORARY */}
+        <TestBackendButton />
 
         {/* Smart Study Dashboard */}
         <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
