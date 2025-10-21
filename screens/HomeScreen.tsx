@@ -13,6 +13,7 @@ import { onAuthStateChanged, User } from 'firebase/auth';
 import { doc, getDoc, collection, onSnapshot, updateDoc } from 'firebase/firestore';
 import { auth, db } from '../firebaseConfig';
 import { HomeScreenNavigationProp } from '../types/navigation';
+import { useTheme } from '../contexts/ThemeContext';
 
 const { width } = Dimensions.get('window');
 
@@ -43,7 +44,19 @@ interface Subject {
   items: TicklistItem[];
 }
 
+interface Challenge {
+  id: string;
+  title: string;
+  description: string;
+  targetCount: number;
+  currentCount: number;
+  points: number;
+  emoji: string;
+}
+
 const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
+  const { theme, isDark } = useTheme();
+  
   const [user, setUser] = useState<User | null>(null);
   const [userData, setUserData] = useState<UserData | null>(null);
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -51,6 +64,36 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   const [focusTime, setFocusTime] = useState(0);
   const [timerRunning, setTimerRunning] = useState(false);
   const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [totalPoints, setTotalPoints] = useState(0);
+  const [dailyChallenges, setDailyChallenges] = useState<Challenge[]>([
+    {
+      id: '1',
+      title: 'Complete 5 Tasks',
+      description: 'Check off 5 items from your ticklist',
+      targetCount: 5,
+      currentCount: 0,
+      points: 50,
+      emoji: '✅'
+    },
+    {
+      id: '2',
+      title: 'Focus Session',
+      description: 'Study for 25 minutes without breaks',
+      targetCount: 25,
+      currentCount: 0,
+      points: 30,
+      emoji: '🎯'
+    },
+    {
+      id: '3',
+      title: 'Early Bird',
+      description: 'Study before 9 AM',
+      targetCount: 1,
+      currentCount: 0,
+      points: 20,
+      emoji: '🌅'
+    }
+  ]);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -81,7 +124,18 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     let interval: NodeJS.Timeout;
     if (timerRunning) {
       interval = setInterval(() => {
-        setFocusTime(prev => prev + 1);
+        setFocusTime(prev => {
+          const newTime = prev + 1;
+          // Update focus challenge progress (convert seconds to minutes)
+          const focusMinutes = Math.floor(newTime / 60);
+          setDailyChallenges(challenges => challenges.map(challenge => {
+            if (challenge.id === '2') {
+              return { ...challenge, currentCount: focusMinutes };
+            }
+            return challenge;
+          }));
+          return newTime;
+        });
       }, 1000);
     }
     return () => clearInterval(interval);
@@ -100,6 +154,15 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
           loadedSubjects.push({ id: doc.id, ...doc.data() } as Subject);
         });
         setSubjects(loadedSubjects);
+        
+        // Update challenge progress based on completed tasks
+        const totalCompleted = getTotalProgress().completed;
+        setDailyChallenges(prev => prev.map(challenge => {
+          if (challenge.id === '1') {
+            return { ...challenge, currentCount: totalCompleted };
+          }
+          return challenge;
+        }));
       },
       (error) => {
         console.error('Error loading ticklist:', error);
@@ -151,6 +214,17 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 
   const totalProgress = getTotalProgress();
 
+  const claimChallengeReward = (challengeId: string) => {
+    setDailyChallenges(prev => prev.map(challenge => {
+      if (challenge.id === challengeId && challenge.currentCount >= challenge.targetCount) {
+        setTotalPoints(points => points + challenge.points);
+        // Mark as claimed by setting currentCount to 0
+        return { ...challenge, currentCount: 0 };
+      }
+      return challenge;
+    }));
+  };
+
   const getGreeting = () => {
     const hour = currentTime.getHours();
     if (hour < 12) return 'Good Morning';
@@ -165,16 +239,16 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['bottom']}>
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['bottom']}>
+      <ScrollView style={[styles.scrollView, { backgroundColor: theme.background }]} showsVerticalScrollIndicator={false}>
         {/* Header */}
         <View style={styles.header}>
           <View>
-            <Text style={styles.greeting}>{getGreeting()}</Text>
-            <Text style={styles.userName}>{userData?.name || user?.displayName || 'Student'}</Text>
+            <Text style={[styles.greeting, { color: theme.textSecondary }]}>{getGreeting()}</Text>
+            <Text style={[styles.userName, { color: theme.text }]}>{userData?.name || user?.displayName || 'Student'}</Text>
           </View>
           <TouchableOpacity
-            style={styles.profileButton}
+            style={[styles.profileButton, { backgroundColor: theme.primary }]}
             onPress={() => navigation.navigate('Profile')}
           >
             <Text style={styles.profileButtonText}>👤</Text>
@@ -182,69 +256,155 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         </View>
 
         {/* Smart Study Dashboard */}
-        <View style={styles.card}>
+        <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
           <View style={styles.cardHeader}>
-            <Text style={styles.cardTitle}>📊 Study Dashboard</Text>
-            <Text style={styles.streakBadge}>🔥 {studyStreak} day streak</Text>
+            <Text style={[styles.cardTitle, { color: theme.text }]}>📊 Study Dashboard</Text>
+            <Text style={[styles.streakBadge, { backgroundColor: theme.warning + '20', color: theme.warning }]}>🔥 {studyStreak} day streak</Text>
           </View>
           <View style={styles.progressContainer}>
             <View style={styles.progressInfo}>
-              <Text style={styles.progressLabel}>Syllabus Completion</Text>
-              <Text style={styles.progressPercent}>{totalProgress.percentage}%</Text>
+              <Text style={[styles.progressLabel, { color: theme.textSecondary }]}>Syllabus Completion</Text>
+              <Text style={[styles.progressPercent, { color: theme.primary }]}>{totalProgress.percentage}%</Text>
             </View>
-            <View style={styles.progressBar}>
-              <View style={[styles.progressFill, { width: `${totalProgress.percentage}%` }]} />
+            <View style={[styles.progressBar, { backgroundColor: theme.divider }]}>
+              <View style={[styles.progressFill, { width: `${totalProgress.percentage}%`, backgroundColor: theme.primary }]} />
             </View>
           </View>
           <View style={styles.statsGrid}>
             <View style={styles.statItem}>
-              <Text style={styles.statValue}>{subjects.length}</Text>
-              <Text style={styles.statLabel}>Subjects</Text>
+              <Text style={[styles.statValue, { color: theme.text }]}>{subjects.length}</Text>
+              <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Subjects</Text>
             </View>
             <View style={styles.statItem}>
-              <Text style={[styles.statValue, styles.examCountdown]}>--</Text>
-              <Text style={styles.statLabel}>Days to Exam</Text>
+              <Text style={[styles.statValue, styles.examCountdown, { color: theme.text }]}>--</Text>
+              <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Days to Exam</Text>
             </View>
             <View style={styles.statItem}>
-              <Text style={styles.statValue}>{totalProgress.completed}/{totalProgress.total}</Text>
-              <Text style={styles.statLabel}>Completed</Text>
+              <Text style={[styles.statValue, { color: theme.text }]}>{totalProgress.completed}/{totalProgress.total}</Text>
+              <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Completed</Text>
             </View>
           </View>
         </View>
 
         {/* AI Assistant Widget */}
-        <View style={styles.card}>
+        <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
           <View style={styles.cardHeader}>
-            <Text style={styles.cardTitle}>🤖 AI Study Assistant</Text>
+            <Text style={[styles.cardTitle, { color: theme.text }]}>🤖 AI Study Assistant</Text>
           </View>
           <TouchableOpacity
-            style={styles.aiButton}
+            style={[styles.aiButton, { backgroundColor: theme.aiAssistant }]}
             onPress={() => navigation.navigate('Chatbot')}
           >
-            <Text style={styles.aiButtonText}>💬 Ask anything about your studies</Text>
-            <Text style={styles.aiButtonArrow}>→</Text>
+            <View style={styles.aiButtonContent}>
+              <Text style={styles.aiButtonText}>💬 Ask anything about your studies</Text>
+            </View>
           </TouchableOpacity>
         </View>
 
-        {/* Tomorrow's Schedule */}
-        <View style={styles.card}>
+        {/* Coding Hub Widget */}
+        <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
           <View style={styles.cardHeader}>
-            <Text style={styles.cardTitle}>📅 Tomorrow's Classes</Text>
+            <Text style={[styles.cardTitle, { color: theme.text }]}>💻 Coding Hub</Text>
+            <Text style={[styles.codingBadge, { backgroundColor: theme.success + '20', color: theme.success }]}>Practice</Text>
+          </View>
+          <TouchableOpacity
+            style={[styles.codingButton, { backgroundColor: theme.codingHub }]}
+            onPress={() => navigation.navigate('CodingHub')}
+          >
+            <View style={styles.codingButtonContent}>
+              <Text style={styles.codingButtonText}>🚀 Start Coding Practice</Text>
+            </View>
+          </TouchableOpacity>
+          <View style={styles.codingStats}>
+            <View style={styles.codingStatItem}>
+              <Text style={[styles.codingStatLabel, { color: theme.textSecondary }]}>8 Problems</Text>
+            </View>
+            <View style={styles.codingStatItem}>
+              <Text style={[styles.codingStatLabel, { color: theme.textSecondary }]}>4 Languages</Text>
+            </View>
+            <View style={styles.codingStatItem}>
+              <Text style={[styles.codingStatLabel, { color: theme.textSecondary }]}>Track Progress</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Group Study Widget */}
+        <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
+          <View style={styles.cardHeader}>
+            <Text style={[styles.cardTitle, { color: theme.text }]}>👥 Group Study</Text>
+            <TouchableOpacity onPress={() => navigation.navigate('GroupStudy')}>
+              <Text style={[styles.viewAllText, { color: theme.primary }]}>View All →</Text>
+            </TouchableOpacity>
+          </View>
+          <TouchableOpacity
+            style={[styles.groupStudyButton, { backgroundColor: theme.groupStudy }]}
+            onPress={() => navigation.navigate('GroupStudy')}
+          >
+            <View style={styles.groupStudyContent}>
+              <Text style={styles.groupStudyText}>📚 Join or Create Study Groups</Text>
+            </View>
+          </TouchableOpacity>
+          <View style={styles.groupFeatures}>
+            <View style={styles.groupFeatureItem}>
+              <Text style={[styles.groupFeatureText, { color: theme.textSecondary }]}>💬 Group Chat</Text>
+            </View>
+            <View style={styles.groupFeatureItem}>
+              <Text style={[styles.groupFeatureText, { color: theme.textSecondary }]}>✅ Shared Checklist</Text>
+            </View>
+            <View style={styles.groupFeatureItem}>
+              <Text style={[styles.groupFeatureText, { color: theme.textSecondary }]}>🔗 Invite Links</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* SGPA & CGPA Calculator */}
+        <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
+          <View style={styles.cardHeader}>
+            <Text style={[styles.cardTitle, { color: theme.text }]}>🎓 GPA Calculator</Text>
+            <TouchableOpacity onPress={() => navigation.navigate('GPACalculator')}>
+              <Text style={[styles.viewAllText, { color: theme.primary }]}>View All →</Text>
+            </TouchableOpacity>
+          </View>
+          <TouchableOpacity 
+            style={[styles.gpaButton, { backgroundColor: theme.gpaCalculator }]}
+            onPress={() => navigation.navigate('GPACalculator')}
+          >
+            <View style={styles.gpaContent}>
+              <Text style={styles.gpaText}>📊 Calculate SGPA & CGPA</Text>
+            </View>
+          </TouchableOpacity>
+          <View style={styles.gpaFeatures}>
+            <View style={styles.gpaFeatureItem}>
+              <Text style={[styles.gpaFeatureText, { color: theme.textSecondary }]}>📈 SGPA</Text>
+            </View>
+            <View style={styles.gpaFeatureItem}>
+              <Text style={[styles.gpaFeatureText, { color: theme.textSecondary }]}>📊 CGPA</Text>
+            </View>
+            <View style={styles.gpaFeatureItem}>
+              <Text style={[styles.gpaFeatureText, { color: theme.textSecondary }]}>🎯 Results</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Tomorrow's Schedule */}
+        <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
+          <View style={styles.cardHeader}>
+            <Text style={[styles.cardTitle, { color: theme.text }]}>📅 Tomorrow's Classes</Text>
             <TouchableOpacity onPress={() => navigation.navigate('Schedule')}>
-              <Text style={styles.viewAllText}>View All →</Text>
+              <Text style={[styles.viewAllText, { color: theme.primary }]}>View All →</Text>
             </TouchableOpacity>
           </View>
           <View style={styles.scheduleList}>
-            <Text style={styles.progressLabel}>No classes scheduled</Text>
+            <Text style={[styles.progressLabel, { color: theme.textSecondary }]}>No classes scheduled</Text>
           </View>
         </View>
 
         {/* Subject Progress */}
-        <View style={styles.card}>
+        <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
           <View style={styles.cardHeader}>
-            <Text style={styles.cardTitle}>📖 Subject Progress</Text>
+            <Text style={[styles.cardTitle, { color: theme.text }]}>📖 Subject Progress</Text>
             <TouchableOpacity onPress={() => navigation.navigate('Ticklist')}>
-              <Text style={styles.viewAllText}>View All →</Text>
+              <Text style={[styles.viewAllText, { color: theme.primary }]}>View All →</Text>
             </TouchableOpacity>
           </View>
           <View style={styles.subjectList}>
@@ -256,10 +416,10 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
                 return (
                   <View key={subject.id} style={styles.subjectItem}>
                     <View style={styles.subjectHeader}>
-                      <Text style={styles.subjectName}>{subject.name}</Text>
-                      <Text style={styles.subjectPercent}>{progress.percentage}%</Text>
+                      <Text style={[styles.subjectName, { color: theme.text }]}>{subject.name}</Text>
+                      <Text style={[styles.subjectPercent, { color: theme.primary }]}>{progress.percentage}%</Text>
                     </View>
-                    <View style={styles.progressBar}>
+                    <View style={[styles.progressBar, { backgroundColor: theme.divider }]}>
                       <View style={[styles.progressFill, { width: `${progress.percentage}%`, backgroundColor: subject.color }]} />
                     </View>
                     {subject.items.length > 0 && (
@@ -272,11 +432,12 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
                           >
                             <View style={[
                               styles.checkboxCircle,
+                              { borderColor: theme.border },
                               item.completed && { backgroundColor: subject.color }
                             ]}>
                               {item.completed && <Text style={styles.checkmark}>✓</Text>}
                             </View>
-                            <Text style={styles.miniItemText} numberOfLines={1}>
+                            <Text style={[styles.miniItemText, { color: theme.textSecondary }]} numberOfLines={1}>
                               {item.title}
                             </Text>
                           </TouchableOpacity>
@@ -294,86 +455,125 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         <View style={styles.card}>
           <View style={styles.cardHeader}>
             <Text style={styles.cardTitle}>🎮 Learning Zone</Text>
+            <Text style={styles.pointsBadge}>⭐ {totalPoints} pts</Text>
           </View>
-          <View style={styles.challengeCard}>
-            <Text style={styles.challengeTitle}>💪 Daily Challenge</Text>
-            <Text style={styles.challengeDesc}>No active challenges</Text>
-            <View style={styles.challengeReward}>
-              <Text style={styles.rewardText}>0 pts</Text>
-              <Text style={styles.challengeProgress}>0/0 completed</Text>
-            </View>
-          </View>
-          <View style={styles.motivationCard}>
-            <Text style={styles.motivationText}>
+          
+          {dailyChallenges.slice(0, 2).map((challenge) => {
+            const isCompleted = challenge.currentCount >= challenge.targetCount;
+            const progress = Math.min((challenge.currentCount / challenge.targetCount) * 100, 100);
+            
+            return (
+              <View key={challenge.id} style={styles.challengeCard}>
+                <View style={styles.challengeHeader}>
+                  <Text style={styles.challengeEmoji}>{challenge.emoji}</Text>
+                  <View style={styles.challengeInfo}>
+                    <Text style={styles.challengeTitle}>{challenge.title}</Text>
+                    <Text style={styles.challengeDesc}>{challenge.description}</Text>
+                  </View>
+                </View>
+                
+                <View style={styles.challengeProgressBar}>
+                  <View style={[styles.challengeProgressFill, { width: `${progress}%` }]} />
+                </View>
+                
+                <View style={styles.challengeFooter}>
+                  <Text style={styles.challengeProgress}>
+                    {challenge.currentCount}/{challenge.targetCount}
+                  </Text>
+                  {isCompleted ? (
+                    <TouchableOpacity 
+                      style={styles.claimButton}
+                      onPress={() => claimChallengeReward(challenge.id)}
+                    >
+                      <Text style={styles.claimButtonText}>Claim +{challenge.points} pts</Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <Text style={styles.rewardText}>+{challenge.points} pts</Text>
+                  )}
+                </View>
+              </View>
+            );
+          })}
+          
+          <TouchableOpacity 
+            style={styles.playGamesButton}
+            onPress={() => navigation.navigate('LearningZone')}
+          >
+            <Text style={styles.playGamesButtonText}>🎮 Play More Games</Text>
+            <Text style={styles.playGamesButtonArrow}>→</Text>
+          </TouchableOpacity>
+          
+          <View style={[styles.motivationCard, { backgroundColor: theme.primaryLight, borderColor: theme.primary }]}>
+            <Text style={[styles.motivationText, { color: theme.text }]}>
               "Success is the sum of small efforts repeated day in and day out."
             </Text>
           </View>
         </View>
 
         {/* AI Recommendations */}
-        <View style={styles.card}>
+        <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
           <View style={styles.cardHeader}>
-            <Text style={styles.cardTitle}>💡 Study Recommendations</Text>
+            <Text style={[styles.cardTitle, { color: theme.text }]}>💡 Study Recommendations</Text>
           </View>
           <View style={styles.recommendationList}>
-            <Text style={styles.progressLabel}>No recommendations available</Text>
+            <Text style={[styles.progressLabel, { color: theme.textSecondary }]}>No recommendations available</Text>
           </View>
         </View>
 
         {/* Analytics Snapshot */}
-        <View style={styles.card}>
+        <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
           <View style={styles.cardHeader}>
-            <Text style={styles.cardTitle}>📈 Analytics</Text>
+            <Text style={[styles.cardTitle, { color: theme.text }]}>📈 Analytics</Text>
           </View>
           <View style={styles.analyticsGrid}>
             <View style={styles.analyticsItem}>
-              <Text style={styles.analyticsValue}>0/0</Text>
-              <Text style={styles.analyticsLabel}>Topics</Text>
+              <Text style={[styles.analyticsValue, { color: theme.text }]}>0/0</Text>
+              <Text style={[styles.analyticsLabel, { color: theme.textSecondary }]}>Topics</Text>
             </View>
             <View style={styles.analyticsItem}>
-              <Text style={styles.analyticsValue}>0%</Text>
-              <Text style={styles.analyticsLabel}>Quiz Accuracy</Text>
+              <Text style={[styles.analyticsValue, { color: theme.text }]}>0%</Text>
+              <Text style={[styles.analyticsLabel, { color: theme.textSecondary }]}>Quiz Accuracy</Text>
             </View>
             <View style={styles.analyticsItem}>
-              <Text style={[styles.analyticsValue, { color: '#10B981' }]}>0%</Text>
-              <Text style={styles.analyticsLabel}>Improvement</Text>
+              <Text style={[styles.analyticsValue, { color: theme.success }]}>0%</Text>
+              <Text style={[styles.analyticsLabel, { color: theme.textSecondary }]}>Improvement</Text>
             </View>
             <View style={styles.analyticsItem}>
-              <Text style={styles.analyticsValue}>0</Text>
-              <Text style={styles.analyticsLabel}>Study Sessions</Text>
+              <Text style={[styles.analyticsValue, { color: theme.text }]}>0</Text>
+              <Text style={[styles.analyticsLabel, { color: theme.textSecondary }]}>Study Sessions</Text>
             </View>
           </View>
         </View>
 
         {/* Recent Uploads */}
-        <View style={styles.card}>
+        <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
           <View style={styles.cardHeader}>
-            <Text style={styles.cardTitle}>📄 Recent Uploads</Text>
+            <Text style={[styles.cardTitle, { color: theme.text }]}>📄 Recent Uploads</Text>
             <TouchableOpacity onPress={() => navigation.navigate('Library')}>
-              <Text style={styles.viewAllText}>View All →</Text>
+              <Text style={[styles.viewAllText, { color: theme.primary }]}>View All →</Text>
             </TouchableOpacity>
           </View>
           <View style={styles.uploadsScroll}>
-            <Text style={styles.progressLabel}>No recent uploads</Text>
+            <Text style={[styles.progressLabel, { color: theme.textSecondary }]}>No recent uploads</Text>
           </View>
         </View>
 
         {/* Focus Mode Timer */}
-        <View style={styles.card}>
+        <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
           <View style={styles.cardHeader}>
-            <Text style={styles.cardTitle}>⏱️ Focus Mode</Text>
+            <Text style={[styles.cardTitle, { color: theme.text }]}>⏱️ Focus Mode</Text>
           </View>
           <View style={styles.timerContainer}>
-            <Text style={styles.timerDisplay}>{formatTime(focusTime)}</Text>
+            <Text style={[styles.timerDisplay, { color: theme.text }]}>{formatTime(focusTime)}</Text>
             <TouchableOpacity
-              style={[styles.timerButton, timerRunning && styles.timerButtonActive]}
+              style={[styles.timerButton, { backgroundColor: timerRunning ? theme.primary : theme.primaryLight }, timerRunning && { backgroundColor: theme.primary }]}
               onPress={() => setTimerRunning(!timerRunning)}
             >
-              <Text style={styles.timerButtonText}>
+              <Text style={[styles.timerButtonText, { color: timerRunning ? '#FFFFFF' : theme.primary }]}>
                 {timerRunning ? '⏸ Pause' : '▶ Start Focus Session'}
               </Text>
             </TouchableOpacity>
-            <Text style={styles.timerHint}>Stay focused and build your streak! 🎯</Text>
+            <Text style={[styles.timerHint, { color: theme.textSecondary }]}>Stay focused and build your streak! 🎯</Text>
           </View>
         </View>
 
@@ -381,11 +581,11 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
       </ScrollView>
 
       {/* Bottom Navigation Bar */}
-      <View style={styles.bottomNavContainer}>
+      <View style={[styles.bottomNavContainer, { backgroundColor: theme.card, borderTopColor: theme.cardBorder }]}>
         <View style={styles.bottomNav}>
           <TouchableOpacity style={styles.navButton}>
             <Text style={styles.navIconActive}>🏠</Text>
-            <Text style={styles.navLabelActive}>Home</Text>
+            <Text style={[styles.navLabelActive, { color: theme.primary }]}>Home</Text>
           </TouchableOpacity>
           
           <TouchableOpacity 
@@ -393,7 +593,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
             onPress={() => navigation.navigate('Chatbot')}
           >
             <Text style={styles.navIcon}>🤖</Text>
-            <Text style={styles.navLabel}>Chatbot</Text>
+            <Text style={[styles.navLabel, { color: theme.textSecondary }]}>Chatbot</Text>
           </TouchableOpacity>
           
           <TouchableOpacity 
@@ -401,7 +601,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
             onPress={() => navigation.navigate('Library')}
           >
             <Text style={styles.navIcon}>📚</Text>
-            <Text style={styles.navLabel}>Library</Text>
+            <Text style={[styles.navLabel, { color: theme.textSecondary }]}>Library</Text>
           </TouchableOpacity>
           
           <TouchableOpacity 
@@ -409,7 +609,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
             onPress={() => navigation.navigate('Settings')}
           >
             <Text style={styles.navIcon}>⚙️</Text>
-            <Text style={styles.navLabel}>Settings</Text>
+            <Text style={[styles.navLabel, { color: theme.textSecondary }]}>Settings</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -534,22 +734,120 @@ const styles = StyleSheet.create({
     color: '#64748B',
   },
   aiButton: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
     backgroundColor: '#6366F1',
     padding: 16,
     borderRadius: 12,
     marginBottom: 12,
   },
+  aiButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   aiButtonText: {
     fontSize: 16,
     color: '#FFFFFF',
     fontWeight: '600',
+    textAlign: 'center',
   },
-  aiButtonArrow: {
-    fontSize: 20,
+  codingBadge: {
+    fontSize: 12,
+    color: '#10B981',
+    fontWeight: '600',
+    backgroundColor: '#D1FAE5',
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  codingButton: {
+    backgroundColor: '#10B981',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 12,
+  },
+  codingButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  codingButtonText: {
+    fontSize: 16,
     color: '#FFFFFF',
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  codingStats: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    paddingTop: 8,
+  },
+  codingStatItem: {
+    alignItems: 'center',
+  },
+  codingStatLabel: {
+    fontSize: 12,
+    color: '#64748B',
+    fontWeight: '500',
+  },
+  groupStudyButton: {
+    backgroundColor: '#F59E0B',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 12,
+  },
+  groupStudyContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  groupStudyText: {
+    fontSize: 16,
+    color: '#FFFFFF',
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  groupFeatures: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    paddingTop: 8,
+  },
+  groupFeatureItem: {
+    alignItems: 'center',
+  },
+  groupFeatureText: {
+    fontSize: 12,
+    color: '#64748B',
+    fontWeight: '500',
+  },
+  gpaButton: {
+    backgroundColor: '#8B5CF6',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 12,
+  },
+  gpaContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  gpaText: {
+    fontSize: 16,
+    color: '#FFFFFF',
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  gpaFeatures: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    paddingTop: 8,
+  },
+  gpaFeatureItem: {
+    alignItems: 'center',
+  },
+  gpaFeatureText: {
+    fontSize: 12,
+    color: '#64748B',
+    fontWeight: '500',
   },
   promptChips: {
     flexDirection: 'row',
@@ -652,24 +950,57 @@ const styles = StyleSheet.create({
     color: '#475569',
     flex: 1,
   },
+  pointsBadge: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#F59E0B',
+  },
   challengeCard: {
     backgroundColor: '#FFFFFF',
     padding: 16,
     borderRadius: 12,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: '#6366F1',
+    borderColor: '#E2E8F0',
+  },
+  challengeHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  challengeEmoji: {
+    fontSize: 32,
+    marginRight: 12,
+  },
+  challengeInfo: {
+    flex: 1,
   },
   challengeTitle: {
     fontSize: 16,
     fontWeight: '700',
     color: '#1E293B',
-    marginBottom: 6,
+    marginBottom: 4,
   },
   challengeDesc: {
-    fontSize: 14,
+    fontSize: 13,
     color: '#64748B',
-    marginBottom: 10,
+  },
+  challengeProgressBar: {
+    height: 8,
+    backgroundColor: '#E2E8F0',
+    borderRadius: 4,
+    overflow: 'hidden',
+    marginBottom: 12,
+  },
+  challengeProgressFill: {
+    height: '100%',
+    backgroundColor: '#6366F1',
+    borderRadius: 4,
+  },
+  challengeFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   challengeReward: {
     flexDirection: 'row',
@@ -677,13 +1008,43 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   rewardText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#10B981',
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#64748B',
   },
   challengeProgress: {
     fontSize: 14,
-    color: '#64748B',
+    fontWeight: '600',
+    color: '#1E293B',
+  },
+  claimButton: {
+    backgroundColor: '#10B981',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  claimButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  playGamesButton: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#10B981',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 12,
+  },
+  playGamesButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  playGamesButtonArrow: {
+    fontSize: 20,
+    color: '#FFFFFF',
   },
   motivationCard: {
     backgroundColor: '#6366F1',

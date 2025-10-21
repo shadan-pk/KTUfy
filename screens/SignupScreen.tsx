@@ -14,6 +14,7 @@ import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
 import { auth, db } from '../firebaseConfig';
 import { SignupScreenNavigationProp } from '../types/navigation';
+import { useTheme } from '../contexts/ThemeContext';
 
 interface SignupScreenProps {
   navigation: SignupScreenNavigationProp;
@@ -29,6 +30,7 @@ interface ParsedRegistration {
 }
 
 const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
+  const { theme, isDark } = useTheme();
   const [name, setName] = useState('');
   const [registrationNumber, setRegistrationNumber] = useState('');
   const [email, setEmail] = useState('');
@@ -155,18 +157,19 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
 
   return (
     <KeyboardAvoidingView
-      style={styles.container}
+      style={[styles.container, { backgroundColor: theme.background }]}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <ScrollView contentContainerStyle={styles.scrollContainer}>
         <View style={styles.content}>
-          <Text style={styles.title}>Create Account</Text>
-          <Text style={styles.subtitle}>Sign up to get started</Text>
+          <Text style={[styles.title, { color: theme.text }]}>Create Account</Text>
+          <Text style={[styles.subtitle, { color: theme.textSecondary }]}>Sign up to get started</Text>
 
           <View style={styles.form}>
             <TextInput
-              style={styles.input}
+              style={[styles.input, { backgroundColor: theme.card, borderColor: theme.border, color: theme.text }]}
               placeholder="Full Name"
+              placeholderTextColor={theme.textSecondary}
               value={name}
               onChangeText={setName}
               autoCapitalize="words"
@@ -174,8 +177,9 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
             />
 
             <TextInput
-              style={styles.input}
+              style={[styles.input, { backgroundColor: theme.card, borderColor: theme.border, color: theme.text }]}
               placeholder="Registration Number (e.g., MEA22CS051)"
+              placeholderTextColor={theme.textSecondary}
               value={registrationNumber}
               onChangeText={handleRegistrationChange}
               autoCapitalize="characters"
@@ -183,36 +187,37 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
             />
 
             {parsedInfo && parsedInfo.isValid && (
-              <View style={styles.parsedInfo}>
-                <Text style={styles.parsedInfoTitle}>✓ Registration Info:</Text>
+              <View style={[styles.parsedInfo, { backgroundColor: theme.success + '20', borderColor: theme.success }]}>
+                <Text style={[styles.parsedInfoTitle, { color: theme.success }]}>✓ Registration Info:</Text>
                 <View style={styles.infoRow}>
-                  <Text style={styles.infoLabel}>College:</Text>
-                  <Text style={styles.infoValue}>{parsedInfo.college}</Text>
+                  <Text style={[styles.infoLabel, { color: theme.textSecondary }]}>College:</Text>
+                  <Text style={[styles.infoValue, { color: theme.text }]}>{parsedInfo.college}</Text>
                 </View>
                 <View style={styles.infoRow}>
-                  <Text style={styles.infoLabel}>Branch:</Text>
-                  <Text style={styles.infoValue}>{parsedInfo.branch}</Text>
+                  <Text style={[styles.infoLabel, { color: theme.textSecondary }]}>Branch:</Text>
+                  <Text style={[styles.infoValue, { color: theme.text }]}>{parsedInfo.branch}</Text>
                 </View>
                 <View style={styles.infoRow}>
-                  <Text style={styles.infoLabel}>Year:</Text>
-                  <Text style={styles.infoValue}>{parsedInfo.yearJoined} - {parsedInfo.yearEnding}</Text>
+                  <Text style={[styles.infoLabel, { color: theme.textSecondary }]}>Year:</Text>
+                  <Text style={[styles.infoValue, { color: theme.text }]}>{parsedInfo.yearJoined} - {parsedInfo.yearEnding}</Text>
                 </View>
                 <View style={styles.infoRow}>
-                  <Text style={styles.infoLabel}>Roll No:</Text>
-                  <Text style={styles.infoValue}>{parsedInfo.rollNumber}</Text>
+                  <Text style={[styles.infoLabel, { color: theme.textSecondary }]}>Roll No:</Text>
+                  <Text style={[styles.infoValue, { color: theme.text }]}>{parsedInfo.rollNumber}</Text>
                 </View>
               </View>
             )}
 
             {parsedInfo && !parsedInfo.isValid && registrationNumber.length > 0 && (
-              <View style={styles.errorInfo}>
-                <Text style={styles.errorText}>⚠ Invalid format. Use: MEA22CS051</Text>
+              <View style={[styles.errorInfo, { backgroundColor: theme.error + '20', borderColor: theme.error }]}>
+                <Text style={[styles.errorText, { color: theme.error }]}>⚠ Invalid format. Use: MEA22CS051</Text>
               </View>
             )}
 
             <TextInput
-              style={styles.input}
+              style={[styles.input, { backgroundColor: theme.card, borderColor: theme.border, color: theme.text }]}
               placeholder="Email"
+              placeholderTextColor={theme.textSecondary}
               value={email}
               onChangeText={setEmail}
               keyboardType="email-address"
@@ -221,8 +226,9 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
             />
 
             <TextInput
-              style={styles.input}
+              style={[styles.input, { backgroundColor: theme.card, borderColor: theme.border, color: theme.text }]}
               placeholder="Password"
+              placeholderTextColor={theme.textSecondary}
               value={password}
               onChangeText={setPassword}
               secureTextEntry
@@ -230,8 +236,9 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
             />
 
             <TextInput
-              style={styles.input}
+              style={[styles.input, { backgroundColor: theme.card, borderColor: theme.border, color: theme.text }]}
               placeholder="Confirm Password"
+              placeholderTextColor={theme.textSecondary}
               value={confirmPassword}
               onChangeText={setConfirmPassword}
               secureTextEntry
@@ -239,7 +246,7 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
             />
 
             <TouchableOpacity
-              style={[styles.button, loading && styles.buttonDisabled]}
+              style={[styles.button, { backgroundColor: theme.primary }, loading && { opacity: 0.6 }]}
               onPress={handleSignup}
               disabled={loading}
             >
@@ -250,9 +257,9 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
           </View>
 
           <View style={styles.footer}>
-            <Text style={styles.footerText}>Already have an account? </Text>
+            <Text style={[styles.footerText, { color: theme.textSecondary }]}>Already have an account? </Text>
             <TouchableOpacity onPress={() => navigation.navigate('Login')}>
-              <Text style={styles.linkText}>Sign In</Text>
+              <Text style={[styles.linkText, { color: theme.primary }]}>Sign In</Text>
             </TouchableOpacity>
           </View>
         </View>

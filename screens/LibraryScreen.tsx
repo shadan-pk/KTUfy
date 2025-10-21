@@ -13,6 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { LibraryScreenNavigationProp } from '../types/navigation';
 import { db } from '../firebaseConfig';
 import { collection, getDocs, query } from 'firebase/firestore';
+import { useTheme } from '../contexts/ThemeContext';
 
 // Types
 interface Note {
@@ -27,6 +28,50 @@ interface Note {
 interface LibraryScreenProps {
   navigation: LibraryScreenNavigationProp;
 }
+
+// Library Features
+const LIBRARY_FEATURES = [
+  {
+    id: 'syllabus',
+    title: 'Syllabus Viewer',
+    description: 'View complete KTU syllabus by branch and semester',
+    icon: '🧾',
+    color: '#6366F1',
+    route: 'SyllabusViewer' as const,
+  },
+  {
+    id: 'pyp',
+    title: 'Previous Year Papers',
+    description: 'Access and download solved and unsolved KTU papers',
+    icon: '📄',
+    color: '#F59E0B',
+    route: 'PYP' as const,
+  },
+  {
+    id: 'notes',
+    title: 'Notes',
+    description: 'Browse and download subject notes',
+    icon: '📝',
+    color: '#10B981',
+    route: null,
+  },
+  {
+    id: 'textbooks',
+    title: 'Textbooks',
+    description: 'Access recommended textbooks and reference materials',
+    icon: '📚',
+    color: '#8B5CF6',
+    route: null,
+  },
+  {
+    id: 'references',
+    title: 'References',
+    description: 'Additional learning resources and references',
+    icon: '📖',
+    color: '#EC4899',
+    route: null,
+  },
+];
 
 // KTU Data
 const YEARS = ['First Year', 'Second Year', 'Third Year', 'Fourth Year'];
@@ -43,6 +88,11 @@ const BRANCHES = [
 ];
 
 const LibraryScreen: React.FC<LibraryScreenProps> = ({ navigation }) => {
+  const { theme, isDark } = useTheme();
+  
+  // View Mode State ('menu' or 'notes')
+  const [viewMode, setViewMode] = useState<'menu' | 'notes'>('menu');
+  
   // Navigation State
   const [selectedYear, setSelectedYear] = useState<string | null>(null);
   const [selectedSemester, setSelectedSemester] = useState<string | null>(null);
@@ -53,6 +103,31 @@ const LibraryScreen: React.FC<LibraryScreenProps> = ({ navigation }) => {
   const [subjects, setSubjects] = useState<string[]>([]);
   const [notes, setNotes] = useState<Note[]>([]);
   const [loading, setLoading] = useState(false);
+
+  const handleFeatureSelect = (feature: typeof LIBRARY_FEATURES[0]) => {
+    if (feature.route) {
+      // @ts-ignore - Navigation types will be updated
+      navigation.navigate(feature.route);
+    } else if (feature.id === 'notes') {
+      setViewMode('notes');
+    } else {
+      Alert.alert(
+        feature.title,
+        `${feature.description}\n\nThis feature will be available soon!`,
+        [{ text: 'OK' }]
+      );
+    }
+  };
+
+  const handleBackToMenu = () => {
+    setViewMode('menu');
+    setSelectedYear(null);
+    setSelectedSemester(null);
+    setSelectedBranch(null);
+    setSelectedSubject(null);
+    setSubjects([]);
+    setNotes([]);
+  };
 
   // Fetch subjects when branch is selected
   useEffect(() => {
@@ -184,6 +259,8 @@ const LibraryScreen: React.FC<LibraryScreenProps> = ({ navigation }) => {
       setSelectedSemester(null);
     } else if (selectedYear) {
       setSelectedYear(null);
+    } else if (viewMode === 'notes') {
+      handleBackToMenu();
     }
   };
 
@@ -197,30 +274,60 @@ const LibraryScreen: React.FC<LibraryScreenProps> = ({ navigation }) => {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['bottom']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['bottom']}>
       {/* Header with Breadcrumb */}
-      <View style={styles.header}>
+      <View style={[styles.header, { backgroundColor: theme.card, borderBottomColor: theme.cardBorder }]}>
         <View style={styles.headerTop}>
-          <Text style={styles.headerTitle}>📚 Library</Text>
-          {(selectedYear || selectedSemester || selectedBranch || selectedSubject) && (
-            <TouchableOpacity style={styles.backButton} onPress={handleBack}>
-              <Text style={styles.backButtonText}>← Back</Text>
+          <Text style={[styles.headerTitle, { color: theme.text }]}>📚 Library</Text>
+          {(viewMode === 'notes' || selectedYear || selectedSemester || selectedBranch || selectedSubject) && (
+            <TouchableOpacity style={[styles.backButton, { backgroundColor: theme.primaryLight }]} onPress={handleBack}>
+              <Text style={[styles.backButtonText, { color: theme.primary }]}>← Back</Text>
             </TouchableOpacity>
           )}
         </View>
         
         {getBreadcrumb() && (
-          <View style={styles.breadcrumbContainer}>
-            <Text style={styles.breadcrumbText}>{getBreadcrumb()}</Text>
+          <View style={[styles.breadcrumbContainer, { backgroundColor: theme.primaryLight }]}>
+            <Text style={[styles.breadcrumbText, { color: theme.primary }]}>{getBreadcrumb()}</Text>
           </View>
         )}
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {loading ? (
+        {viewMode === 'menu' ? (
+          /* Main Library Menu */
+          <View>
+            <View style={[styles.welcomeCard, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
+              <Text style={[styles.welcomeTitle, { color: theme.text }]}>📚 Welcome to KTU Library</Text>
+              <Text style={[styles.welcomeDescription, { color: theme.textSecondary }]}>
+                Access syllabus, question papers, notes, and study materials
+              </Text>
+            </View>
+
+            <Text style={[styles.menuSectionTitle, { color: theme.text }]}>Library Resources</Text>
+
+            {LIBRARY_FEATURES.map((feature) => (
+              <TouchableOpacity
+                key={feature.id}
+                style={[styles.featureCard, { backgroundColor: theme.card, borderLeftColor: feature.color, borderColor: theme.cardBorder }]}
+                onPress={() => handleFeatureSelect(feature)}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.featureIconContainer, { backgroundColor: feature.color + '20' }]}>
+                  <Text style={styles.featureIcon}>{feature.icon}</Text>
+                </View>
+                <View style={styles.featureContent}>
+                  <Text style={[styles.featureTitle, { color: theme.text }]}>{feature.title}</Text>
+                  <Text style={[styles.featureDescription, { color: theme.textSecondary }]}>{feature.description}</Text>
+                </View>
+                <Text style={[styles.featureArrow, { color: theme.textSecondary }]}>›</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        ) : loading ? (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#6366F1" />
-            <Text style={styles.loadingText}>Loading...</Text>
+            <ActivityIndicator size="large" color={theme.primary} />
+            <Text style={[styles.loadingText, { color: theme.textSecondary }]}>Loading...</Text>
           </View>
         ) : !selectedYear ? (
           /* Step 1: Select Year */
@@ -633,6 +740,75 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#6B7280',
     textAlign: 'center',
+  },
+  welcomeCard: {
+    backgroundColor: '#EEF2FF',
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 24,
+    borderLeftWidth: 4,
+    borderLeftColor: '#6366F1',
+  },
+  welcomeTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#1F2937',
+    marginBottom: 8,
+  },
+  welcomeDescription: {
+    fontSize: 14,
+    color: '#6B7280',
+    lineHeight: 20,
+  },
+  menuSectionTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1F2937',
+    marginBottom: 16,
+  },
+  featureCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    borderLeftWidth: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  featureIconContainer: {
+    width: 56,
+    height: 56,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 16,
+  },
+  featureIcon: {
+    fontSize: 28,
+  },
+  featureContent: {
+    flex: 1,
+  },
+  featureTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1F2937',
+    marginBottom: 4,
+  },
+  featureDescription: {
+    fontSize: 13,
+    color: '#64748B',
+    lineHeight: 18,
+  },
+  featureArrow: {
+    fontSize: 24,
+    color: '#CBD5E1',
+    fontWeight: '300',
   },
 });
 

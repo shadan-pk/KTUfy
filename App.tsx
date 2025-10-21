@@ -7,6 +7,9 @@ import { StatusBar } from 'expo-status-bar';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import 'react-native-gesture-handler';
 
+// Import Theme Provider
+import { ThemeProvider, useTheme } from './contexts/ThemeContext';
+
 // Import screens
 import LoginScreen from './screens/LoginScreen';
 import SignupScreen from './screens/SignupScreen';
@@ -18,13 +21,20 @@ import ChatbotScreen from './screens/ChatbotScreen';
 import TicklistScreen from './screens/TicklistScreen';
 import LibraryScreen from './screens/LibraryScreen';
 import ScheduleScreen from './screens/ScheduleScreen';
+import LearningZoneScreen from './screens/LearningZoneScreen';
+import CodingHubScreen from './screens/CodingHubScreen';
+import GroupStudyScreen from './screens/GroupStudyScreen';
+import GPACalculatorScreen from './screens/GPACalculatorScreen';
+import SyllabusViewerScreen from './screens/SyllabusViewerScreen';
+import PYPScreen from './screens/PYPScreen';
 import { RootStackParamList } from './types/navigation';
 
 const Stack = createStackNavigator<RootStackParamList>();
 
-export default function App() {
+function AppContent() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const { isDark, theme } = useTheme();
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -37,15 +47,15 @@ export default function App() {
 
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#007AFF" />
+      <View style={[styles.loadingContainer, { backgroundColor: theme.background }]}>
+        <ActivityIndicator size="large" color={theme.primary} />
       </View>
     );
   }
 
   return (
     <NavigationContainer>
-      <StatusBar style="auto" />
+      <StatusBar style={isDark ? "light" : "dark"} />
       <Stack.Navigator
         screenOptions={{
           headerShown: true,
@@ -87,6 +97,36 @@ export default function App() {
               options={{ headerShown: false }}
             />
             <Stack.Screen 
+              name="LearningZone" 
+              component={LearningZoneScreen}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen 
+              name="CodingHub" 
+              component={CodingHubScreen}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen 
+              name="GroupStudy" 
+              component={GroupStudyScreen}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen 
+              name="GPACalculator" 
+              component={GPACalculatorScreen}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen 
+              name="SyllabusViewer" 
+              component={SyllabusViewerScreen}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen 
+              name="PYP" 
+              component={PYPScreen}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen 
               name="Profile" 
               component={ProfileScreen}
               options={{ title: 'My Profile' }}
@@ -122,11 +162,19 @@ export default function App() {
   );
 }
 
+// Wrap with ThemeProvider
+export default function App() {
+  return (
+    <ThemeProvider>
+      <AppContent />
+    </ThemeProvider>
+  );
+}
+
 const styles = StyleSheet.create({
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f5f5f5',
   },
 });
