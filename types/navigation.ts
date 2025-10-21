@@ -12,6 +12,12 @@ export type RootStackParamList = {
   Ticklist: undefined;
   Library: undefined;
   Schedule: undefined;
+  LearningZone: undefined;
+  CodingHub: undefined;
+  GroupStudy: undefined;
+  GPACalculator: undefined;
+  SyllabusViewer: undefined;
+  PYP: undefined;
 };
 
 export type LoginScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Login'>;
@@ -24,6 +30,12 @@ export type ChatbotScreenNavigationProp = StackNavigationProp<RootStackParamList
 export type TicklistScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Ticklist'>;
 export type LibraryScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Library'>;
 export type ScheduleScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Schedule'>;
+export type LearningZoneScreenNavigationProp = StackNavigationProp<RootStackParamList, 'LearningZone'>;
+export type CodingHubScreenNavigationProp = StackNavigationProp<RootStackParamList, 'CodingHub'>;
+export type GroupStudyScreenNavigationProp = StackNavigationProp<RootStackParamList, 'GroupStudy'>;
+export type GPACalculatorScreenNavigationProp = StackNavigationProp<RootStackParamList, 'GPACalculator'>;
+export type SyllabusViewerScreenNavigationProp = StackNavigationProp<RootStackParamList, 'SyllabusViewer'>;
+export type PYPScreenNavigationProp = StackNavigationProp<RootStackParamList, 'PYP'>;
 
 export type LoginScreenRouteProp = RouteProp<RootStackParamList, 'Login'>;
 export type SignupScreenRouteProp = RouteProp<RootStackParamList, 'Signup'>;
@@ -35,3 +47,9 @@ export type ChatbotScreenRouteProp = RouteProp<RootStackParamList, 'Chatbot'>;
 export type TicklistScreenRouteProp = RouteProp<RootStackParamList, 'Ticklist'>;
 export type LibraryScreenRouteProp = RouteProp<RootStackParamList, 'Library'>;
 export type ScheduleScreenRouteProp = RouteProp<RootStackParamList, 'Schedule'>;
+export type LearningZoneScreenRouteProp = RouteProp<RootStackParamList, 'LearningZone'>;
+export type CodingHubScreenRouteProp = RouteProp<RootStackParamList, 'CodingHub'>;
+export type GroupStudyScreenRouteProp = RouteProp<RootStackParamList, 'GroupStudy'>;
+export type GPACalculatorScreenRouteProp = RouteProp<RootStackParamList, 'GPACalculator'>;
+export type SyllabusViewerScreenRouteProp = RouteProp<RootStackParamList, 'SyllabusViewer'>;
+export type PYPScreenRouteProp = RouteProp<RootStackParamList, 'PYP'>;

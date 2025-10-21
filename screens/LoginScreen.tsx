@@ -12,12 +12,14 @@ import {
 } from 'react-native';
 import { useAuth } from '../auth/AuthProvider';
 import { LoginScreenNavigationProp } from '../types/navigation';
+import { useTheme } from '../contexts/ThemeContext';
 
 interface LoginScreenProps {
   navigation: LoginScreenNavigationProp;
 }
 
 const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
+  const { theme, isDark } = useTheme();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -43,18 +45,19 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
 
   return (
     <KeyboardAvoidingView
-      style={styles.container}
+      style={[styles.container, { backgroundColor: theme.background }]}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <ScrollView contentContainerStyle={styles.scrollContainer}>
         <View style={styles.content}>
-          <Text style={styles.title}>Welcome Back!</Text>
-          <Text style={styles.subtitle}>Sign in to your account</Text>
+          <Text style={[styles.title, { color: theme.text }]}>Welcome Back!</Text>
+          <Text style={[styles.subtitle, { color: theme.textSecondary }]}>Sign in to your account</Text>
 
           <View style={styles.form}>
             <TextInput
-              style={styles.input}
+              style={[styles.input, { backgroundColor: theme.card, borderColor: theme.border, color: theme.text }]}
               placeholder="Email"
+              placeholderTextColor={theme.textSecondary}
               value={email}
               onChangeText={setEmail}
               keyboardType="email-address"
@@ -63,8 +66,9 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
             />
 
             <TextInput
-              style={styles.input}
+              style={[styles.input, { backgroundColor: theme.card, borderColor: theme.border, color: theme.text }]}
               placeholder="Password"
+              placeholderTextColor={theme.textSecondary}
               value={password}
               onChangeText={setPassword}
               secureTextEntry
@@ -72,7 +76,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
             />
 
             <TouchableOpacity
-              style={[styles.button, loading && styles.buttonDisabled]}
+              style={[styles.button, { backgroundColor: theme.primary }, loading && { opacity: 0.6 }]}
               onPress={handleLogin}
               disabled={loading}
             >
@@ -83,9 +87,9 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
           </View>
 
           <View style={styles.footer}>
-            <Text style={styles.footerText}>Don't have an account? </Text>
+            <Text style={[styles.footerText, { color: theme.textSecondary }]}>Don't have an account? </Text>
             <TouchableOpacity onPress={() => navigation.navigate('Signup')}>
-              <Text style={styles.linkText}>Sign Up</Text>
+              <Text style={[styles.linkText, { color: theme.primary }]}>Sign Up</Text>
             </TouchableOpacity>
           </View>
         </View>
