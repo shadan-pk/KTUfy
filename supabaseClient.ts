@@ -7,6 +7,7 @@ import { Platform } from 'react-native';
 let SUPABASE_URL = Constants.expoConfig?.extra?.SUPABASE_URL || '';
 let SUPABASE_ANON_KEY = Constants.expoConfig?.extra?.SUPABASE_ANON_KEY || '';
 
+
 // Fallback for web platform - try process.env
 if (Platform.OS === 'web' && (!SUPABASE_URL || !SUPABASE_ANON_KEY)) {
   SUPABASE_URL = SUPABASE_URL || process.env.SUPABASE_URL || '';
