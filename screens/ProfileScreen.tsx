@@ -12,21 +12,16 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../auth/AuthProvider';
-import { getUserProfile, upsertUserProfile } from '../supabaseConfig';
 import supabase from '../supabaseClient';
 import { ProfileScreenNavigationProp } from '../types/navigation';
-
-interface UserData {
-  name?: string;
-  email?: string;
-  registrationNumber?: string;
-  college?: string;
-  branch?: string;
-  yearJoined?: number;
-  yearEnding?: number;
-  rollNumber?: string;
-  createdAt?: string;
-}
+import { 
+  getCurrentUserProfile, 
+  updateUserProfile, 
+  requestPasswordReset,
+  requestEmailVerification,
+  deleteUserAccount,
+  UserProfile 
+} from '../services/userService';
 
 interface ProfileScreenProps {
   navigation: ProfileScreenNavigationProp;
@@ -35,105 +30,160 @@ interface ProfileScreenProps {
 const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
   const { user: authUser, getToken, signOut } = useAuth();
   const [supabaseUser, setSupabaseUser] = React.useState<any | null>(null);
-  const [userData, setUserData] = React.useState<UserData | null>(null);
+  const [userData, setUserData] = React.useState<UserProfile | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
   
-  // Name edit modal state
-  const [showEditNameModal, setShowEditNameModal] = React.useState(false);
-  const [newName, setNewName] = React.useState('');
-  const [savingName, setSavingName] = React.useState(false);
+  // Full profile edit modal state
+  const [showEditProfileModal, setShowEditProfileModal] = React.useState(false);
+  const [editForm, setEditForm] = React.useState({
+    name: '',
+    registration_number: '',
+    college: '',
+    branch: '',
+    year_joined: '',
+    year_ending: '',
+    roll_number: '',
+  });
+  const [savingProfile, setSavingProfile] = React.useState(false);
 
   React.useEffect(() => {
     (async () => {
       try {
-        // Get user id from supabase session
+        // Get user from supabase session for email verification status
+        const { data: userRes, error: userErr } = await supabase.auth.getUser();
+        if (userErr) throw userErr;
+        const sUser = userRes?.user ?? null;
+        setSupabaseUser(sUser);
+
+        // Get token to verify authentication
         const token = await getToken();
         if (!token) {
           setUserData(null);
           setLoading(false);
           return;
         }
-        // Get supabase auth user
-        const { data: userRes, error: userErr } = await supabase.auth.getUser();
-        if (userErr) throw userErr;
-        const sUser = userRes?.user ?? null;
-        setSupabaseUser(sUser);
-        const userId = sUser?.id;
-        if (!userId) {
-          setLoading(false);
-          return;
-        }
 
-        // Fetch profile
-        const profile = await getUserProfile(userId);
-        if (profile) setUserData(profile as UserData);
+        // Fetch profile from backend API
+        const profile = await getCurrentUserProfile();
+        setUserData(profile);
       } catch (err: any) {
         console.error('Error fetching profile:', err);
-        setError('Using offline mode - limited data available');
+        setError('Unable to load profile data');
       } finally {
         setLoading(false);
       }
     })();
   }, []);
 
-  const handleEditName = () => {
-    setNewName(userData?.name || supabaseUser?.email || '');
-    setShowEditNameModal(true);
+  const handleEditProfile = () => {
+    // Pre-fill the form with current data
+    setEditForm({
+      name: userData?.name || '',
+      registration_number: userData?.registration_number || '',
+      college: userData?.college || '',
+      branch: userData?.branch || '',
+      year_joined: userData?.year_joined?.toString() || '',
+      year_ending: userData?.year_ending?.toString() || '',
+      roll_number: userData?.roll_number || '',
+    });
+    setShowEditProfileModal(true);
   };
 
-  const handleSaveName = async () => {
-    if (!newName.trim()) {
-      Alert.alert('Error', 'Please enter a valid name');
+  const handleSaveProfile = async () => {
+    if (!editForm.name.trim()) {
+      Alert.alert('Error', 'Please enter your name');
       return;
     }
 
-    setSavingName(true);
+    setSavingProfile(true);
     try {
-      // Get user id
-      const { data: userRes, error: userErr } = await supabase.auth.getUser();
-      if (userErr) throw userErr;
-      const userId = userRes?.user?.id;
-      if (!userId) throw new Error('No user session');
+      // Prepare update data
+      const updateData: Partial<UserProfile> = {
+        name: editForm.name.trim(),
+      };
 
-      // Upsert user profile into Supabase
-      await upsertUserProfile({
-        id: userId,
-        name: newName.trim(),
-        email: userData?.email ?? userRes?.user?.email,
-      });
+      // Add optional fields only if they have values
+      if (editForm.registration_number.trim()) {
+        updateData.registration_number = editForm.registration_number.trim();
+      }
+      if (editForm.college.trim()) {
+        updateData.college = editForm.college.trim();
+      }
+      if (editForm.branch.trim()) {
+        updateData.branch = editForm.branch.trim();
+      }
+      if (editForm.year_joined.trim()) {
+        updateData.year_joined = parseInt(editForm.year_joined);
+      }
+      if (editForm.year_ending.trim()) {
+        updateData.year_ending = parseInt(editForm.year_ending);
+      }
+      if (editForm.roll_number.trim()) {
+        updateData.roll_number = editForm.roll_number.trim();
+      }
 
-      setUserData(prev => prev ? { ...prev, name: newName.trim() } : { name: newName.trim() });
-      setShowEditNameModal(false);
-      Alert.alert('Success', 'Name updated successfully!');
+      // Update profile via backend API
+      const updatedProfile = await updateUserProfile(updateData);
+
+      setUserData(updatedProfile);
+      setShowEditProfileModal(false);
+      Alert.alert('Success', 'Profile updated successfully!');
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to update name');
+      Alert.alert('Error', error.message || 'Failed to update profile');
     } finally {
-      setSavingName(false);
+      setSavingProfile(false);
     }
   };
 
-  const handleEditProfile = () => {
-    handleEditName();
-  };
-
   const handleChangePassword = () => {
+    if (!userData?.email && !supabaseUser?.email) {
+      Alert.alert('Error', 'Email not found');
+      return;
+    }
+
     Alert.alert(
-      'Change Password',
-      'Password change functionality coming soon!',
-      [{ text: 'OK' }]
+      'Reset Password',
+      `We'll send a password reset link to ${userData?.email || supabaseUser?.email}`,
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Send Reset Link',
+          onPress: async () => {
+            try {
+              await requestPasswordReset(userData?.email || supabaseUser?.email || '');
+              Alert.alert(
+                'Success',
+                'Password reset email sent! Please check your inbox.',
+                [{ text: 'OK' }]
+              );
+            } catch (error: any) {
+              Alert.alert('Error', error.message || 'Failed to send reset email');
+            }
+          },
+        },
+      ]
     );
   };
 
-  const handleVerifyEmail = () => {
+  const handleVerifyEmail = async () => {
     if (supabaseUser?.email_confirmed_at) {
       Alert.alert('Email Verified', 'Your email is already verified!');
-    } else {
+      return;
+    }
+
+    try {
+      await requestEmailVerification();
       Alert.alert(
-        'Verify Email',
-        'Email verification functionality coming soon!',
+        'Verification Email Sent',
+        'Please check your inbox and click the verification link.',
         [{ text: 'OK' }]
       );
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'Failed to send verification email');
     }
   };
 
@@ -178,8 +228,8 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
             {userData?.name || supabaseUser?.user_metadata?.name || supabaseUser?.email || 'User Name'}
           </Text>
           <Text style={styles.userEmail}>{userData?.email || supabaseUser?.email}</Text>
-          {userData?.registrationNumber && (
-            <Text style={styles.userRegistration}>{userData.registrationNumber}</Text>
+          {userData?.registration_number && (
+            <Text style={styles.userRegistration}>{userData.registration_number}</Text>
           )}
           {error && (
             <View style={styles.errorBanner}>
@@ -196,14 +246,14 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
         ) : (
           <>
             {/* Registration Details Section */}
-            {userData?.registrationNumber && (
+            {userData?.registration_number && (
               <View style={styles.section}>
                 <Text style={styles.sectionTitle}>📚 Registration Details</Text>
                 
                 <View style={styles.infoCard}>
                   <View style={styles.infoRow}>
                     <Text style={styles.infoLabel}>Registration No.</Text>
-                    <Text style={styles.infoValue}>{userData.registrationNumber}</Text>
+                    <Text style={styles.infoValue}>{userData.registration_number}</Text>
                   </View>
 
                   <View style={styles.divider} />
@@ -225,8 +275,8 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
                   <View style={styles.infoRow}>
                     <Text style={styles.infoLabel}>Academic Year</Text>
                     <Text style={styles.infoValue}>
-                      {userData.yearJoined && userData.yearEnding 
-                        ? `${userData.yearJoined} - ${userData.yearEnding}`
+                      {userData.year_joined && userData.year_ending 
+                        ? `${userData.year_joined} - ${userData.year_ending}`
                         : 'N/A'}
                     </Text>
                   </View>
@@ -235,7 +285,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
 
                   <View style={styles.infoRow}>
                     <Text style={styles.infoLabel}>Roll Number</Text>
-                    <Text style={styles.infoValue}>{userData.rollNumber || 'N/A'}</Text>
+                    <Text style={styles.infoValue}>{userData.roll_number || 'N/A'}</Text>
                   </View>
                 </View>
               </View>
@@ -278,8 +328,8 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
             <View style={styles.infoRow}>
               <Text style={styles.infoLabel}>Account Created</Text>
               <Text style={styles.infoValue}>
-                {userData?.createdAt
-                  ? new Date(userData.createdAt).toLocaleDateString()
+                {userData?.created_at
+                  ? new Date(userData.created_at).toLocaleDateString()
                   : supabaseUser?.created_at
                   ? new Date(supabaseUser.created_at).toLocaleDateString()
                   : 'N/A'}
@@ -333,52 +383,135 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
         )}
       </ScrollView>
 
-      {/* Edit Name Modal */}
+      {/* Edit Profile Modal */}
       <Modal
-        visible={showEditNameModal}
+        visible={showEditProfileModal}
         animationType="slide"
         transparent={true}
-        onRequestClose={() => setShowEditNameModal(false)}
+        onRequestClose={() => setShowEditProfileModal(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.editNameModal}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Edit Your Name</Text>
-              <TouchableOpacity onPress={() => setShowEditNameModal(false)}>
-                <Text style={styles.modalClose}>✕</Text>
-              </TouchableOpacity>
-            </View>
+          <ScrollView style={styles.editProfileModalScroll}>
+            <View style={styles.editProfileModal}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Edit Profile</Text>
+                <TouchableOpacity onPress={() => setShowEditProfileModal(false)}>
+                  <Text style={styles.modalClose}>✕</Text>
+                </TouchableOpacity>
+              </View>
 
-            <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>Full Name</Text>
-              <TextInput
-                style={styles.nameInput}
-                placeholder="Enter your full name"
-                value={newName}
-                onChangeText={setNewName}
-                placeholderTextColor="#9CA3AF"
-                autoCapitalize="words"
-              />
-            </View>
+              {/* Name */}
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>Full Name *</Text>
+                <TextInput
+                  style={styles.textInput}
+                  placeholder="Enter your full name"
+                  value={editForm.name}
+                  onChangeText={(text) => setEditForm({ ...editForm, name: text })}
+                  placeholderTextColor="#9CA3AF"
+                  autoCapitalize="words"
+                />
+              </View>
 
-            <View style={styles.modalButtons}>
-              <TouchableOpacity
-                style={styles.modalButtonCancel}
-                onPress={() => setShowEditNameModal(false)}
-              >
-                <Text style={styles.modalButtonCancelText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.modalButtonSave, savingName && styles.modalButtonDisabled]}
-                onPress={handleSaveName}
-                disabled={savingName}
-              >
-                <Text style={styles.modalButtonSaveText}>
-                  {savingName ? 'Saving...' : 'Save'}
-                </Text>
-              </TouchableOpacity>
+              {/* Registration Number */}
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>Registration Number</Text>
+                <TextInput
+                  style={styles.textInput}
+                  placeholder="e.g., MEA22CS084"
+                  value={editForm.registration_number}
+                  onChangeText={(text) => setEditForm({ ...editForm, registration_number: text })}
+                  placeholderTextColor="#9CA3AF"
+                  autoCapitalize="characters"
+                />
+              </View>
+
+              {/* College */}
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>College</Text>
+                <TextInput
+                  style={styles.textInput}
+                  placeholder="e.g., MEA"
+                  value={editForm.college}
+                  onChangeText={(text) => setEditForm({ ...editForm, college: text })}
+                  placeholderTextColor="#9CA3AF"
+                  autoCapitalize="characters"
+                />
+              </View>
+
+              {/* Branch */}
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>Branch</Text>
+                <TextInput
+                  style={styles.textInput}
+                  placeholder="e.g., CS, EC, ME"
+                  value={editForm.branch}
+                  onChangeText={(text) => setEditForm({ ...editForm, branch: text })}
+                  placeholderTextColor="#9CA3AF"
+                  autoCapitalize="characters"
+                />
+              </View>
+
+              {/* Roll Number */}
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>Roll Number</Text>
+                <TextInput
+                  style={styles.textInput}
+                  placeholder="Enter your roll number"
+                  value={editForm.roll_number}
+                  onChangeText={(text) => setEditForm({ ...editForm, roll_number: text })}
+                  placeholderTextColor="#9CA3AF"
+                />
+              </View>
+
+              {/* Academic Years */}
+              <View style={styles.yearContainer}>
+                <View style={[styles.inputContainer, styles.yearInput]}>
+                  <Text style={styles.inputLabel}>Year Joined</Text>
+                  <TextInput
+                    style={styles.textInput}
+                    placeholder="e.g., 2022"
+                    value={editForm.year_joined}
+                    onChangeText={(text) => setEditForm({ ...editForm, year_joined: text })}
+                    placeholderTextColor="#9CA3AF"
+                    keyboardType="numeric"
+                    maxLength={4}
+                  />
+                </View>
+
+                <View style={[styles.inputContainer, styles.yearInput]}>
+                  <Text style={styles.inputLabel}>Year Ending</Text>
+                  <TextInput
+                    style={styles.textInput}
+                    placeholder="e.g., 2026"
+                    value={editForm.year_ending}
+                    onChangeText={(text) => setEditForm({ ...editForm, year_ending: text })}
+                    placeholderTextColor="#9CA3AF"
+                    keyboardType="numeric"
+                    maxLength={4}
+                  />
+                </View>
+              </View>
+
+              <View style={styles.modalButtons}>
+                <TouchableOpacity
+                  style={styles.modalButtonCancel}
+                  onPress={() => setShowEditProfileModal(false)}
+                >
+                  <Text style={styles.modalButtonCancelText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.modalButtonSave, savingProfile && styles.modalButtonDisabled]}
+                  onPress={handleSaveProfile}
+                  disabled={savingProfile}
+                >
+                  <Text style={styles.modalButtonSaveText}>
+                    {savingProfile ? 'Saving...' : 'Save Changes'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
             </View>
-          </View>
+          </ScrollView>
         </View>
       </Modal>
     </SafeAreaView>
@@ -538,19 +671,24 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-  // Edit Name Modal Styles
+  // Edit Profile Modal Styles
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'center',
     alignItems: 'center',
+    padding: 20,
   },
-  editNameModal: {
+  editProfileModalScroll: {
+    flex: 1,
+    width: '100%',
+  },
+  editProfileModal: {
     backgroundColor: '#FFFFFF',
     borderRadius: 20,
     padding: 24,
-    width: '85%',
-    maxWidth: 400,
+    marginVertical: 40,
+    marginHorizontal: 20,
   },
   modalHeader: {
     flexDirection: 'row',
@@ -577,7 +715,7 @@ const styles = StyleSheet.create({
     color: '#1A1A2E',
     marginBottom: 8,
   },
-  nameInput: {
+  textInput: {
     backgroundColor: '#F9FAFB',
     borderRadius: 12,
     padding: 16,
@@ -585,6 +723,15 @@ const styles = StyleSheet.create({
     color: '#1A1A2E',
     borderWidth: 1,
     borderColor: '#E5E7EB',
+  },
+  yearContainer: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 20,
+  },
+  yearInput: {
+    flex: 1,
+    marginBottom: 0,
   },
   modalButtons: {
     flexDirection: 'row',

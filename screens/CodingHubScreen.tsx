@@ -14,8 +14,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../types/navigation';
-import { auth, db } from '../firebaseConfig';
-import { doc, getDoc, setDoc, updateDoc, collection, onSnapshot } from 'firebase/firestore';
+import { useAuth } from '../auth/AuthProvider';
+import supabase from '../supabaseClient';
 
 type CodingHubScreenProps = {
   navigation: StackNavigationProp<RootStackParamList, 'CodingHub'>;
@@ -44,6 +44,7 @@ interface UserProgress {
 }
 
 const CodingHubScreen: React.FC<CodingHubScreenProps> = ({ navigation }) => {
+  const { user } = useAuth();
   const [selectedLanguage, setSelectedLanguage] = useState<'python' | 'c' | 'cpp' | 'java'>('python');
   const [code, setCode] = useState('');
   const [output, setOutput] = useState('');
@@ -189,13 +190,25 @@ const CodingHubScreen: React.FC<CodingHubScreenProps> = ({ navigation }) => {
   }, []);
 
   const loadUserProgress = async () => {
-    const user = auth.currentUser;
     if (!user) return;
 
     try {
-      const progressDoc = await getDoc(doc(db, 'users', user.uid, 'coding', 'progress'));
-      if (progressDoc.exists()) {
-        setUserProgress(progressDoc.data() as UserProgress);
+      const { data, error } = await supabase
+        .from('coding_progress')
+        .select('*')
+        .eq('user_id', user.id)
+        .single();
+
+      if (error && error.code !== 'PGRST116') {
+        throw error;
+      }
+
+      if (data) {
+        setUserProgress({
+          completedProblems: data.completed_problems || [],
+          totalAttempts: data.total_attempts || 0,
+          successfulRuns: data.successful_runs || 0,
+        });
       }
     } catch (error) {
       console.error('Error loading progress:', error);
@@ -203,12 +216,23 @@ const CodingHubScreen: React.FC<CodingHubScreenProps> = ({ navigation }) => {
   };
 
   const saveProgress = async (newProgress: Partial<UserProgress>) => {
-    const user = auth.currentUser;
     if (!user) return;
 
     try {
       const updatedProgress = { ...userProgress, ...newProgress };
-      await setDoc(doc(db, 'users', user.uid, 'coding', 'progress'), updatedProgress);
+      
+      const { error } = await supabase
+        .from('coding_progress')
+        .upsert({
+          user_id: user.id,
+          completed_problems: updatedProgress.completedProblems,
+          total_attempts: updatedProgress.totalAttempts,
+          successful_runs: updatedProgress.successfulRuns,
+          updated_at: new Date().toISOString(),
+        });
+
+      if (error) throw error;
+      
       setUserProgress(updatedProgress);
     } catch (error) {
       console.error('Error saving progress:', error);

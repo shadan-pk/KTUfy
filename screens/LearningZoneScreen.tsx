@@ -13,8 +13,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../types/navigation';
-import { auth, db } from '../firebaseConfig';
-import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
+import { useAuth } from '../auth/AuthProvider';
+import supabase from '../supabaseClient';
 
 type LearningZoneScreenProps = {
   navigation: StackNavigationProp<RootStackParamList, 'LearningZone'>;
@@ -36,6 +36,7 @@ interface QuizQuestion {
 }
 
 const LearningZoneScreen: React.FC<LearningZoneScreenProps> = ({ navigation }) => {
+  const { user } = useAuth();
   const [gameStats, setGameStats] = useState<GameStats>({
     memoryBestScore: 0,
     quizScore: 0,
@@ -114,13 +115,27 @@ const LearningZoneScreen: React.FC<LearningZoneScreenProps> = ({ navigation }) =
   }, []);
 
   const loadGameStats = async () => {
-    const user = auth.currentUser;
     if (!user) return;
 
     try {
-      const statsDoc = await getDoc(doc(db, 'users', user.uid, 'games', 'stats'));
-      if (statsDoc.exists()) {
-        setGameStats(statsDoc.data() as GameStats);
+      const { data, error } = await supabase
+        .from('game_stats')
+        .select('*')
+        .eq('user_id', user.id)
+        .single();
+
+      if (error && error.code !== 'PGRST116') {
+        throw error;
+      }
+
+      if (data) {
+        setGameStats({
+          memoryBestScore: data.memory_best_score || 0,
+          quizScore: data.quiz_score || 0,
+          dailyStreak: data.daily_streak || 0,
+          totalPoints: data.total_points || 0,
+          achievements: data.achievements || [],
+        });
       }
     } catch (error) {
       console.error('Error loading game stats:', error);
@@ -128,12 +143,25 @@ const LearningZoneScreen: React.FC<LearningZoneScreenProps> = ({ navigation }) =
   };
 
   const saveGameStats = async (newStats: Partial<GameStats>) => {
-    const user = auth.currentUser;
     if (!user) return;
 
     try {
       const updatedStats = { ...gameStats, ...newStats };
-      await setDoc(doc(db, 'users', user.uid, 'games', 'stats'), updatedStats);
+      
+      const { error } = await supabase
+        .from('game_stats')
+        .upsert({
+          user_id: user.id,
+          memory_best_score: updatedStats.memoryBestScore,
+          quiz_score: updatedStats.quizScore,
+          daily_streak: updatedStats.dailyStreak,
+          total_points: updatedStats.totalPoints,
+          achievements: updatedStats.achievements,
+          updated_at: new Date().toISOString(),
+        });
+
+      if (error) throw error;
+      
       setGameStats(updatedStats);
     } catch (error) {
       console.error('Error saving game stats:', error);

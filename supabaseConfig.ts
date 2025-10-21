@@ -7,7 +7,14 @@ export async function getUserProfile(userId: string) {
   // use maybeSingle() so that if no row exists we get data === null (no error)
   // instead of an error like PGRST116 (result contains 0 rows)
   const { data, error } = await supabase.from('users').select('*').eq('id', userId).maybeSingle();
-  if (error) throw error;
+  if (error) {
+    // If table doesn't exist yet, return null instead of throwing
+    if (error.code === '42P01' || error.message?.includes('relation') || error.message?.includes('does not exist')) {
+      console.warn('Users table does not exist yet. Run migrations first.');
+      return null;
+    }
+    throw error;
+  }
   return data; // may be null when profile hasn't been created yet
 }
 
@@ -24,7 +31,14 @@ export async function upsertUserProfile(user: any) {
 // Ticklist: we'll store each subject as a row in 'ticklists' table with items JSONB
 export async function getTicklistsForUser(userId: string) {
   const { data, error } = await supabase.from('ticklists').select('*').eq('user_id', userId);
-  if (error) throw error;
+  if (error) {
+    // If table doesn't exist yet, return empty array instead of throwing
+    if (error.code === '42P01' || error.message?.includes('relation') || error.message?.includes('does not exist')) {
+      console.warn('Ticklists table does not exist yet. Run migrations first.');
+      return [];
+    }
+    throw error;
+  }
   return data;
 }
 
