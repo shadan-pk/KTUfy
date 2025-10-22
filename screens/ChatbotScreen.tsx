@@ -8,9 +8,21 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ChatbotScreenNavigationProp } from '../types/navigation';
+import {
+  sendChatMessage,
+  getChatSessions,
+  getChatSession,
+  createChatSession,
+  updateChatSession,
+  deleteChatSession,
+  ChatMessage,
+  ChatSession,
+} from '../services/chatService';
 
 interface Message {
   id: string;
@@ -24,17 +36,80 @@ interface ChatbotScreenProps {
 }
 
 const ChatbotScreen: React.FC<ChatbotScreenProps> = ({ navigation }) => {
-  const [messages, setMessages] = React.useState<Message[]>([
-    {
-      id: '1',
-      text: 'Hello! I\'m your AI Study Assistant. I can help you with:\n\n📚 Summarizing modules\n❓ Explaining concepts\n📝 Creating study notes\n🎯 Answering questions\n\nWhat would you like to learn today?',
-      isUser: false,
-      timestamp: new Date(),
-    },
-  ]);
+  const [messages, setMessages] = React.useState<Message[]>([]);
   const [inputText, setInputText] = React.useState('');
   const [isTyping, setIsTyping] = React.useState(false);
+  const [isLoading, setIsLoading] = React.useState(false);
+  const [currentSessionId, setCurrentSessionId] = React.useState<string | null>(null);
+  const [sessions, setSessions] = React.useState<ChatSession[]>([]);
+  const [error, setError] = React.useState<string | null>(null);
   const scrollViewRef = React.useRef<ScrollView>(null);
+
+  // Load chat sessions on mount
+  React.useEffect(() => {
+    loadChatSessions();
+  }, []);
+
+  // Load chat sessions
+  const loadChatSessions = async () => {
+    try {
+      const sessionList = await getChatSessions();
+      setSessions(sessionList);
+      
+      // If there are sessions, load the most recent one
+      if (sessionList.length > 0) {
+        const latestSession = sessionList[0];
+        await loadChatSession(latestSession.id);
+      } else {
+        // Show welcome message if no sessions
+        setMessages([
+          {
+            id: 'welcome',
+            text: 'Hello! I\'m your AI Study Assistant. I can help you with:\n\n📚 Summarizing modules\n❓ Explaining concepts\n📝 Creating study notes\n🎯 Answering questions\n\nWhat would you like to learn today?',
+            isUser: false,
+            timestamp: new Date(),
+          },
+        ]);
+      }
+    } catch (err: any) {
+      console.error('Error loading chat sessions:', err);
+      setError('Failed to load chat history');
+      // Show welcome message on error
+      setMessages([
+        {
+          id: 'welcome',
+          text: 'Hello! I\'m your AI Study Assistant. I can help you with:\n\n📚 Summarizing modules\n❓ Explaining concepts\n📝 Creating study notes\n🎯 Answering questions\n\nWhat would you like to learn today?',
+          isUser: false,
+          timestamp: new Date(),
+        },
+      ]);
+    }
+  };
+
+  // Load a specific chat session
+  const loadChatSession = async (sessionId: string) => {
+    try {
+      setIsLoading(true);
+      const session = await getChatSession(sessionId);
+      setCurrentSessionId(sessionId);
+      
+      // Convert backend messages to UI format
+      const convertedMessages: Message[] = session.messages.map((msg) => ({
+        id: msg.id,
+        text: msg.content,
+        isUser: msg.role === 'user',
+        timestamp: new Date(msg.created_at),
+      }));
+      
+      setMessages(convertedMessages);
+      setError(null);
+    } catch (err: any) {
+      console.error('Error loading chat session:', err);
+      setError('Failed to load chat session');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const quickQuestions = [
     'Help me understand this topic',
@@ -43,12 +118,15 @@ const ChatbotScreen: React.FC<ChatbotScreenProps> = ({ navigation }) => {
     'Quiz me on a topic',
   ];
 
-  const handleSend = () => {
-    if (inputText.trim() === '') return;
+  const handleSend = async () => {
+    if (inputText.trim() === '' || isTyping) return;
 
+    const messageText = inputText.trim();
+    
+    // Create optimistic user message
     const userMessage: Message = {
-      id: Date.now().toString(),
-      text: inputText,
+      id: `temp-${Date.now()}`,
+      text: messageText,
       isUser: true,
       timestamp: new Date(),
     };
@@ -56,34 +134,84 @@ const ChatbotScreen: React.FC<ChatbotScreenProps> = ({ navigation }) => {
     setMessages(prev => [...prev, userMessage]);
     setInputText('');
     setIsTyping(true);
+    setError(null);
 
-    // Simulate AI response
-    setTimeout(() => {
-      const aiResponse = generateAIResponse(inputText);
-      const aiMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        text: aiResponse,
-        isUser: false,
-        timestamp: new Date(),
-      };
-      setMessages(prev => [...prev, aiMessage]);
+    try {
+      // Send message to backend
+      const response = await sendChatMessage(messageText, currentSessionId || undefined);
+      
+      // Update session ID if it's a new session
+      if (!currentSessionId && response.session_id) {
+        setCurrentSessionId(response.session_id);
+        // Reload sessions to include the new one
+        loadChatSessions();
+      }
+
+      // Remove the temporary user message and add real messages from backend
+      setMessages(prev => {
+        // Remove temp message
+        const withoutTemp = prev.filter(m => m.id !== userMessage.id);
+        
+        // Add real user message and AI response
+        return [
+          ...withoutTemp,
+          {
+            id: response.message.id,
+            text: response.message.content,
+            isUser: true,
+            timestamp: new Date(response.message.created_at),
+          },
+          {
+            id: response.assistant_message.id,
+            text: response.assistant_message.content,
+            isUser: false,
+            timestamp: new Date(response.assistant_message.created_at),
+          },
+        ];
+      });
+
+    } catch (err: any) {
+      console.error('Error sending message:', err);
+      setError('Failed to send message. Please try again.');
+      
+      // Remove the temporary message on error
+      setMessages(prev => prev.filter(m => m.id !== userMessage.id));
+      
+      // Restore input text so user can retry
+      setInputText(messageText);
+      
+      Alert.alert('Error', 'Failed to send message. Please check your connection and try again.');
+    } finally {
       setIsTyping(false);
       
       // Scroll to bottom
       setTimeout(() => {
         scrollViewRef.current?.scrollToEnd({ animated: true });
       }, 100);
-    }, 1500);
-  };
-
-  const generateAIResponse = (question: string): string => {
-    // This is a placeholder. In production, this would call an actual AI API
-    return `I received your question: "${question}"\n\n🤖 AI Assistant Response:\n\nI'm here to help you learn! To provide accurate and helpful responses, I need to be connected to:\n\n• Your syllabus database\n• Course materials\n• An AI model (like GPT-4 or similar)\n\n**How to integrate:**\n1. Connect to an AI API (OpenAI, Google AI, etc.)\n2. Upload your syllabus and study materials\n3. Enable RAG (Retrieval-Augmented Generation)\n\n**For now, you can:**\n• Use this interface to test the chat flow\n• Prepare your study questions\n• Get familiar with the AI assistant features\n\nOnce integrated, I'll be able to provide detailed explanations, summaries, and study assistance!\n\nWhat else would you like to know?`;
+    }
   };
 
   const handleQuickQuestion = (question: string) => {
     setInputText(question);
-    handleSend();
+  };
+
+  const handleNewChat = async () => {
+    try {
+      const newSession = await createChatSession();
+      setCurrentSessionId(newSession.id);
+      setMessages([
+        {
+          id: 'welcome',
+          text: 'Hello! I\'m your AI Study Assistant. What would you like to learn today?',
+          isUser: false,
+          timestamp: new Date(),
+        },
+      ]);
+      await loadChatSessions();
+    } catch (err: any) {
+      console.error('Error creating new chat:', err);
+      Alert.alert('Error', 'Failed to create new chat session.');
+    }
   };
 
   return (
@@ -100,16 +228,27 @@ const ChatbotScreen: React.FC<ChatbotScreenProps> = ({ navigation }) => {
           </View>
           <View style={styles.headerInfo}>
             <Text style={styles.headerTitle}>AI Study Assistant</Text>
-            <Text style={styles.headerSubtitle}>Powered by RAG Technology</Text>
+            <Text style={styles.headerSubtitle}>
+              {currentSessionId ? `Session: ${currentSessionId.slice(0, 8)}...` : 'No active session'}
+            </Text>
           </View>
-          <View style={styles.statusIndicator}>
-            <View style={styles.statusDot} />
-            <Text style={styles.statusText}>Online</Text>
-          </View>
+          <TouchableOpacity style={styles.newChatButton} onPress={handleNewChat}>
+            <Text style={styles.newChatButtonText}>+ New</Text>
+          </TouchableOpacity>
         </View>
 
+        {/* Error Banner */}
+        {error && (
+          <View style={styles.errorBanner}>
+            <Text style={styles.errorText}>⚠️ {error}</Text>
+            <TouchableOpacity onPress={() => setError(null)}>
+              <Text style={styles.errorClose}>✕</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
         {/* Quick Questions */}
-        {messages.length === 1 && (
+        {messages.length <= 1 && !isLoading && (
           <View style={styles.quickQuestionsContainer}>
             <Text style={styles.quickQuestionsTitle}>Quick questions:</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
@@ -123,6 +262,14 @@ const ChatbotScreen: React.FC<ChatbotScreenProps> = ({ navigation }) => {
                 </TouchableOpacity>
               ))}
             </ScrollView>
+          </View>
+        )}
+
+        {/* Loading State */}
+        {isLoading && (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#6366F1" />
+            <Text style={styles.loadingText}>Loading chat history...</Text>
           </View>
         )}
 
@@ -271,6 +418,48 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#22C55E',
     fontWeight: '600',
+  },
+  newChatButton: {
+    backgroundColor: '#6366F1',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  newChatButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  errorBanner: {
+    backgroundColor: '#FEE2E2',
+    padding: 12,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: '#FCA5A5',
+  },
+  errorText: {
+    color: '#DC2626',
+    fontSize: 13,
+    flex: 1,
+  },
+  errorClose: {
+    color: '#DC2626',
+    fontSize: 18,
+    fontWeight: 'bold',
+    paddingHorizontal: 8,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 14,
+    color: '#6B7280',
   },
   quickQuestionsContainer: {
     padding: 16,
