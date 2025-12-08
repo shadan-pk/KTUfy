@@ -14,22 +14,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../types/navigation';
-import { auth, db } from '../firebaseConfig';
-import {
-  collection,
-  doc,
-  getDoc,
-  setDoc,
-  updateDoc,
-  onSnapshot,
-  arrayUnion,
-  arrayRemove,
-  serverTimestamp,
-  query,
-  where,
-  getDocs,
-  addDoc,
-} from 'firebase/firestore';
+import { useAuth } from '../auth/AuthProvider';
+import supabase from '../supabaseClient';
 
 type GroupStudyScreenProps = {
   navigation: StackNavigationProp<RootStackParamList, 'GroupStudy'>;
@@ -75,6 +61,7 @@ interface ChatMessage {
 }
 
 const GroupStudyScreen: React.FC<GroupStudyScreenProps> = ({ navigation }) => {
+  const { user } = useAuth();
   const [myGroups, setMyGroups] = useState<StudyGroup[]>([]);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showJoinModal, setShowJoinModal] = useState(false);
@@ -92,30 +79,35 @@ const GroupStudyScreen: React.FC<GroupStudyScreenProps> = ({ navigation }) => {
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [newMessage, setNewMessage] = useState('');
 
-  const user = auth.currentUser;
   const subjects = ['Mathematics', 'Physics', 'Chemistry', 'Computer Science', 'Electronics', 'English', 'Other'];
 
   useEffect(() => {
     loadMyGroups();
   }, [user]);
 
-  const loadMyGroups = () => {
+  const loadMyGroups = async () => {
     if (!user) return;
 
-    const groupsRef = collection(db, 'studyGroups');
-    const unsubscribe = onSnapshot(groupsRef, (snapshot) => {
-      const groups: StudyGroup[] = [];
-      snapshot.forEach((doc) => {
-        const data = doc.data() as StudyGroup;
-        // Check if current user is a member
-        if (data.members.some(m => m.uid === user.uid)) {
-          groups.push({ id: doc.id, ...data });
-        }
-      });
-      setMyGroups(groups.sort((a, b) => b.createdAt - a.createdAt));
-    });
+    try {
+      // TODO: Implement Supabase realtime subscriptions for study groups
+      const { data, error } = await supabase
+        .from('study_groups')
+        .select(`
+          *,
+          study_group_members!inner(user_id)
+        `)
+        .eq('study_group_members.user_id', user.id);
 
-    return unsubscribe;
+      if (error) throw error;
+
+      if (data) {
+        setMyGroups(data as StudyGroup[]);
+      }
+    } catch (error) {
+      console.error('Error loading groups:', error);
+      // For now, show empty state
+      setMyGroups([]);
+    }
   };
 
   const generateGroupCode = () => {
@@ -131,38 +123,9 @@ const GroupStudyScreen: React.FC<GroupStudyScreenProps> = ({ navigation }) => {
     if (!user) return;
 
     try {
-      const userDoc = await getDoc(doc(db, 'users', user.uid));
-      const userName = userDoc.exists() ? userDoc.data().name : user.displayName || 'Anonymous';
-
-      const groupCode = generateGroupCode();
-      const newGroup: Omit<StudyGroup, 'id'> = {
-        name: groupName,
-        subject: groupSubject,
-        code: groupCode,
-        createdBy: user.uid,
-        creatorName: userName,
-        members: [{
-          uid: user.uid,
-          name: userName,
-          joinedAt: serverTimestamp(),
-        }],
-        checklist: [
-          { id: '1', topic: 'Introduction & Basics', completed: false },
-          { id: '2', topic: 'Core Concepts', completed: false },
-          { id: '3', topic: 'Advanced Topics', completed: false },
-          { id: '4', topic: 'Practice Problems', completed: false },
-          { id: '5', topic: 'Revision & Summary', completed: false },
-        ],
-        createdAt: serverTimestamp(),
-      };
-
-      await addDoc(collection(db, 'studyGroups'), newGroup);
-
-      Alert.alert('Success! 🎉', `Group created!\nShare this code with friends:\n\n${groupCode}`, [
-        { text: 'Share Code', onPress: () => shareGroupCode(groupCode) },
-        { text: 'OK' }
-      ]);
-
+      // TODO: Implement Supabase group creation
+      Alert.alert('Coming Soon', 'Group Study feature is being migrated to Supabase. This will be available soon!');
+      
       setGroupName('');
       setGroupSubject('');
       setShowCreateModal(false);
@@ -181,38 +144,9 @@ const GroupStudyScreen: React.FC<GroupStudyScreenProps> = ({ navigation }) => {
     if (!user) return;
 
     try {
-      const userDoc = await getDoc(doc(db, 'users', user.uid));
-      const userName = userDoc.exists() ? userDoc.data().name : user.displayName || 'Anonymous';
-
-      const groupsRef = collection(db, 'studyGroups');
-      const q = query(groupsRef, where('code', '==', joinCode.toUpperCase()));
-      const querySnapshot = await getDocs(q);
-
-      if (querySnapshot.empty) {
-        Alert.alert('Error', 'Invalid group code. Please check and try again.');
-        return;
-      }
-
-      const groupDoc = querySnapshot.docs[0];
-      const groupData = groupDoc.data() as StudyGroup;
-
-      // Check if already a member
-      if (groupData.members.some(m => m.uid === user.uid)) {
-        Alert.alert('Info', 'You are already a member of this group!');
-        setShowJoinModal(false);
-        return;
-      }
-
-      // Add user to group
-      await updateDoc(doc(db, 'studyGroups', groupDoc.id), {
-        members: arrayUnion({
-          uid: user.uid,
-          name: userName,
-          joinedAt: serverTimestamp(),
-        }),
-      });
-
-      Alert.alert('Success! 🎉', `You joined "${groupData.name}"!`);
+      // TODO: Implement Supabase group joining
+      Alert.alert('Coming Soon', 'Group Study feature is being migrated to Supabase. This will be available soon!');
+      
       setJoinCode('');
       setShowJoinModal(false);
     } catch (error) {
@@ -243,22 +177,8 @@ const GroupStudyScreen: React.FC<GroupStudyScreenProps> = ({ navigation }) => {
           text: 'Leave',
           style: 'destructive',
           onPress: async () => {
-            try {
-              const groupRef = doc(db, 'studyGroups', groupId);
-              const groupDoc = await getDoc(groupRef);
-              const groupData = groupDoc.data() as StudyGroup;
-
-              const updatedMembers = groupData.members.filter(m => m.uid !== user.uid);
-
-              await updateDoc(groupRef, {
-                members: updatedMembers,
-              });
-
-              Alert.alert('Success', 'You left the group');
-            } catch (error) {
-              console.error('Error leaving group:', error);
-              Alert.alert('Error', 'Failed to leave group');
-            }
+            // TODO: Implement Supabase group leave
+            Alert.alert('Coming Soon', 'Group Study feature is being migrated to Supabase.');
           },
         },
       ]
@@ -269,25 +189,8 @@ const GroupStudyScreen: React.FC<GroupStudyScreenProps> = ({ navigation }) => {
     if (!user) return;
 
     try {
-      const groupRef = doc(db, 'studyGroups', groupId);
-      const groupDoc = await getDoc(groupRef);
-      const groupData = groupDoc.data() as StudyGroup;
-
-      const updatedChecklist = groupData.checklist.map(item => {
-        if (item.id === itemId) {
-          return {
-            ...item,
-            completed: !item.completed,
-            completedBy: !item.completed ? user.uid : undefined,
-            completedAt: !item.completed ? serverTimestamp() : undefined,
-          };
-        }
-        return item;
-      });
-
-      await updateDoc(groupRef, {
-        checklist: updatedChecklist,
-      });
+      // TODO: Implement Supabase checklist update
+      console.log('Toggle checklist item:', groupId, itemId);
     } catch (error) {
       console.error('Error updating checklist:', error);
     }
@@ -300,33 +203,16 @@ const GroupStudyScreen: React.FC<GroupStudyScreenProps> = ({ navigation }) => {
   };
 
   const loadChatMessages = (groupId: string) => {
-    const chatRef = collection(db, 'studyGroups', groupId, 'chat');
-    const unsubscribe = onSnapshot(chatRef, (snapshot) => {
-      const messages: ChatMessage[] = [];
-      snapshot.forEach((doc) => {
-        messages.push({ id: doc.id, ...doc.data() } as ChatMessage);
-      });
-      setChatMessages(messages.sort((a, b) => a.timestamp - b.timestamp));
-    });
-
-    return unsubscribe;
+    // TODO: Implement Supabase realtime chat
+    setChatMessages([]);
   };
 
   const sendMessage = async () => {
     if (!newMessage.trim() || !selectedGroup || !user) return;
 
     try {
-      const userDoc = await getDoc(doc(db, 'users', user.uid));
-      const userName = userDoc.exists() ? userDoc.data().name : user.displayName || 'Anonymous';
-
-      const chatRef = collection(db, 'studyGroups', selectedGroup.id, 'chat');
-      await addDoc(chatRef, {
-        senderId: user.uid,
-        senderName: userName,
-        message: newMessage.trim(),
-        timestamp: serverTimestamp(),
-      });
-
+      // TODO: Implement Supabase chat message
+      Alert.alert('Coming Soon', 'Group chat is being migrated to Supabase.');
       setNewMessage('');
     } catch (error) {
       console.error('Error sending message:', error);

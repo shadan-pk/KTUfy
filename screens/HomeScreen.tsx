@@ -15,6 +15,7 @@ import { getPendingProfile, deletePendingProfile } from '../auth/secureStore';
 import supabase from '../supabaseClient';
 import { HomeScreenNavigationProp } from '../types/navigation';
 import { useTheme } from '../contexts/ThemeContext';
+import { TestBackendButton } from '../components/TestBackendButton';
 
 const { width } = Dimensions.get('window');
 
@@ -96,40 +97,45 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     }
   ]);
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const { data: userRes, error } = await supabase.auth.getUser();
-        if (error) throw error;
-        const sUser = userRes?.user ?? null;
-        setSupabaseUser(sUser);
-        if (sUser) {
-          // Check for pending profile data (from signup before email confirmation)
-          const pendingProfile = await getPendingProfile();
-          if (pendingProfile) {
-            console.log('Found pending profile; upserting to public.users...');
-            try {
-              await upsertUserProfile({
-                id: sUser.id,
-                ...pendingProfile,
-              });
-              // Clear the pending data after successful upsert
-              await deletePendingProfile();
-              console.log('Pending profile upserted and cleared');
-            } catch (upsertErr) {
-              console.error('Error upserting pending profile:', upsertErr);
-              // Keep the pending data so we can retry later
-            }
-          }
+  const loadUserData = React.useCallback(async () => {
+    if (!authUser) {
+      setSupabaseUser(null);
+      setUserData(null);
+      return;
+    }
 
-          // Load existing profile from public.users
-          const profile = await getUserProfile(sUser.id);
-          if (profile) setUserData(profile as UserData);
+    try {
+      // Use the authUser from context instead of fetching
+      setSupabaseUser(authUser);
+      
+      // Check for pending profile data (from signup before email confirmation)
+      const pendingProfile = await getPendingProfile();
+      if (pendingProfile) {
+        console.log('Found pending profile; upserting to public.users...');
+        try {
+          await upsertUserProfile({
+            id: authUser.id,
+            ...pendingProfile,
+          });
+          // Clear the pending data after successful upsert
+          await deletePendingProfile();
+          console.log('Pending profile upserted and cleared');
+        } catch (upsertErr) {
+          console.error('Error upserting pending profile:', upsertErr);
+          // Keep the pending data so we can retry later
         }
-      } catch (err) {
-        console.error('Error loading user profile:', err);
       }
-    })();
+
+      // Load existing profile from public.users
+      const profile = await getUserProfile(authUser.id);
+      if (profile) setUserData(profile as UserData);
+    } catch (err) {
+      console.error('Error loading user profile:', err);
+    }
+  }, [authUser]);
+
+  useEffect(() => {
+    loadUserData();
 
     const timeInterval = setInterval(() => {
       setCurrentTime(new Date());
@@ -138,7 +144,16 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     return () => {
       clearInterval(timeInterval);
     };
-  }, []);
+  }, [loadUserData]);
+
+  // Refresh user data when screen comes into focus
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', () => {
+      loadUserData();
+    });
+
+    return unsubscribe;
+  }, [navigation, loadUserData]);
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
@@ -278,6 +293,9 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
             <Text style={styles.profileButtonText}>👤</Text>
           </TouchableOpacity>
         </View>
+
+        {/* Backend Connection Test Button - TEMPORARY */}
+        <TestBackendButton />
 
         {/* Smart Study Dashboard */}
         <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
