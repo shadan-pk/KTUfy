@@ -68,10 +68,13 @@ const ChatbotScreen: React.FC<ChatbotScreenProps> = ({ navigation }) => {
 
   // Show welcome message
   const showWelcomeMessage = () => {
+    const backendStatus = process.env.API_BASE_URL && process.env.API_BASE_URL !== 'undefined' ? 
+      '' : ' (Currently in offline mode)';
+      
     setMessages([
       {
         id: 'welcome',
-        text: 'Hello! 👋 I\'m your AI Study Assistant powered by advanced AI.\n\nI can help you with:\n\n📚 Summarizing study modules\n❓ Explaining complex concepts\n📝 Creating study notes\n💡 Answering questions\n🎯 Exam preparation\n\nWhat would you like to learn today?',
+        text: `Hello! 👋 I'm your AI Study Assistant${backendStatus}.\n\nI can help you with:\n\n📚 Study guidance and tips\n❓ Explaining academic concepts\n📝 Creating study plans\n💡 Answering educational questions\n🎯 Exam preparation strategies\n💻 Programming and technical topics\n📊 KTU university guidance\n\nWhat would you like to learn about today?`,
         isUser: false,
         timestamp: new Date(),
       },
@@ -82,15 +85,22 @@ const ChatbotScreen: React.FC<ChatbotScreenProps> = ({ navigation }) => {
   const loadChatSessions = async () => {
     try {
       setIsLoading(true);
-      const sessionList = await getChatSessions();
-      setSessions(sessionList);
       
-      // If there are sessions, load the most recent one
-      if (sessionList.length > 0) {
-        const latestSession = sessionList[0];
-        await loadChatSession(latestSession.id);
+      // Only try to load sessions if backend is available
+      if (process.env.API_BASE_URL && process.env.API_BASE_URL !== 'undefined') {
+        const sessionList = await getChatSessions();
+        setSessions(sessionList);
+        
+        // If there are sessions, load the most recent one
+        if (sessionList.length > 0) {
+          const latestSession = sessionList[0];
+          await loadChatSession(latestSession.id);
+        } else {
+          // Show welcome message if no sessions
+          showWelcomeMessage();
+        }
       } else {
-        // Show welcome message if no sessions
+        // Backend not available, just show welcome message
         showWelcomeMessage();
       }
     } catch (err: any) {
@@ -141,6 +151,43 @@ const ChatbotScreen: React.FC<ChatbotScreenProps> = ({ navigation }) => {
   };
 
   // Send message
+  // Local fallback chatbot responses
+  const generateLocalResponse = (userMessage: string): string => {
+    const lowerMessage = userMessage.toLowerCase();
+    
+    // Academic responses
+    if (lowerMessage.includes('hello') || lowerMessage.includes('hi')) {
+      return "Hello! 👋 I'm your AI Study Assistant. I'm currently running in offline mode. I can still help you with study questions, explanations, and academic guidance. What would you like to learn about today?";
+    }
+    
+    if (lowerMessage.includes('ktu') || lowerMessage.includes('university')) {
+      return "I can help you with KTU (Kerala Technological University) related queries! This includes syllabus questions, exam patterns, study materials, and academic guidance. What specific topic would you like to explore?";
+    }
+    
+    if (lowerMessage.includes('exam') || lowerMessage.includes('test')) {
+      return "📝 For exam preparation, I recommend:\n\n• Review your syllabus thoroughly\n• Practice previous year questions\n• Create summary notes\n• Form study groups\n• Take regular breaks\n\nWhat subject are you preparing for?";
+    }
+    
+    if (lowerMessage.includes('study') || lowerMessage.includes('learn')) {
+      return "📚 Here are some effective study techniques:\n\n• Active recall - Test yourself frequently\n• Spaced repetition - Review at intervals\n• Pomodoro technique - 25min focused study sessions\n• Mind mapping - Visual organization of concepts\n• Teaching others - Explain concepts to solidify understanding\n\nWhich technique interests you most?";
+    }
+    
+    if (lowerMessage.includes('programming') || lowerMessage.includes('coding')) {
+      return "💻 For programming success:\n\n• Practice coding daily\n• Understand concepts before memorizing syntax\n• Work on projects to apply knowledge\n• Debug systematically\n• Read others' code for learning\n\nWhat programming language are you learning?";
+    }
+    
+    if (lowerMessage.includes('math') || lowerMessage.includes('mathematics')) {
+      return "🔢 Mathematics study tips:\n\n• Practice problems daily\n• Understand the 'why' behind formulas\n• Work step by step\n• Check your answers\n• Learn from mistakes\n\nWhich math topic are you working on?";
+    }
+    
+    if (lowerMessage.includes('time management') || lowerMessage.includes('schedule')) {
+      return "⏰ Time management for students:\n\n• Create a daily schedule\n• Prioritize important tasks\n• Break large tasks into smaller ones\n• Use time-blocking\n• Include breaks and relaxation\n\nWould you like help creating a study schedule?";
+    }
+    
+    // Default helpful response
+    return `I understand you're asking about "${userMessage}". While I'm currently in offline mode, I can offer some general guidance:\n\n• Break down complex topics into smaller parts\n• Use multiple learning resources\n• Practice regularly\n• Ask specific questions\n• Connect concepts to real-world examples\n\nCould you provide more details about what specific help you need?`;
+  };
+
   const handleSend = async () => {
     if (!inputText.trim() || isTyping) return;
 
@@ -148,9 +195,9 @@ const ChatbotScreen: React.FC<ChatbotScreenProps> = ({ navigation }) => {
     setInputText('');
     setError(null);
 
-    // Add user message immediately (optimistic update)
+    // Add user message immediately
     const userMessage: Message = {
-      id: `temp-${Date.now()}`,
+      id: `user-${Date.now()}`,
       text: messageText,
       isUser: true,
       timestamp: new Date(),
@@ -160,51 +207,50 @@ const ChatbotScreen: React.FC<ChatbotScreenProps> = ({ navigation }) => {
     setIsTyping(true);
 
     try {
-      // Send message to backend
-      const response = await sendChatMessage(messageText, currentSessionId || undefined);
-      
-      // Update session ID if it's a new session
-      if (!currentSessionId && response.session_id) {
-        setCurrentSessionId(response.session_id);
-        // Reload sessions to include the new one
-        loadChatSessions();
+      // Try to send to backend first
+      if (process.env.API_BASE_URL && process.env.API_BASE_URL !== 'undefined') {
+        const response = await sendChatMessage(messageText, currentSessionId || undefined);
+        
+        // Update session ID if it's a new session
+        if (!currentSessionId && response.session_id) {
+          setCurrentSessionId(response.session_id);
+          loadChatSessions();
+        }
+
+        // Add AI response
+        const aiMessage: Message = {
+          id: response.assistant_message.id,
+          text: response.assistant_message.content,
+          isUser: false,
+          timestamp: new Date(response.assistant_message.created_at),
+        };
+
+        setMessages(prev => [...prev, aiMessage]);
+      } else {
+        throw new Error('Backend not available');
       }
 
-      // Remove the temporary user message and add real messages from backend
-      setMessages(prev => {
-        // Remove temp message
-        const withoutTemp = prev.filter(m => m.id !== userMessage.id);
-        
-        // Add real user message and AI response
-        return [
-          ...withoutTemp,
-          {
-            id: response.message.id,
-            text: response.message.content,
-            isUser: true,
-            timestamp: new Date(response.message.created_at),
-          },
-          {
-            id: response.assistant_message.id,
-            text: response.assistant_message.content,
-            isUser: false,
-            timestamp: new Date(response.assistant_message.created_at),
-          },
-        ];
-      });
-
     } catch (err: any) {
-      console.error('Error sending message:', err);
-      setError('Failed to send message. Please try again.');
+      console.error('Backend error, using local fallback:', err);
       
-      // Remove the temporary message on error
-      setMessages(prev => prev.filter(m => m.id !== userMessage.id));
+      // Use local fallback response
+      setTimeout(() => {
+        const aiResponse = generateLocalResponse(messageText);
+        const aiMessage: Message = {
+          id: `ai-${Date.now()}`,
+          text: aiResponse,
+          isUser: false,
+          timestamp: new Date(),
+        };
+
+        setMessages(prev => [...prev, aiMessage]);
+        setIsTyping(false);
+      }, 1000); // Simulate thinking time
       
-      // Restore input text so user can retry
-      setInputText(messageText);
-    } finally {
-      setIsTyping(false);
+      return; // Don't set isTyping to false yet, let setTimeout handle it
     }
+
+    setIsTyping(false);
   };
 
   // Delete session
@@ -849,7 +895,7 @@ const styles = StyleSheet.create({
   },
   sessionDate: {
     fontSize: 12,
-    color: '#8e8ea0',0
+    color: '#8e8ea0',
   },
   sessionActions: {
     flexDirection: 'row',
