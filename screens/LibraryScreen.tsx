@@ -55,7 +55,7 @@ const LIBRARY_FEATURES = [
     id: 'quiz',
     title: 'Quiz Session',
     description: 'Test your knowledge with interactive quizzes and assessments',
-    icon: '❓',
+    icon: '📋',
     color: '#06B6D4',
     route: 'QuizSession' as const,
   },
@@ -433,10 +433,7 @@ const LibraryScreen: React.FC<LibraryScreenProps> = ({ navigation }) => {
           /* Main Library Menu */
           <View>
             <View style={[styles.welcomeCard, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
-              <Text style={[styles.welcomeTitle, { color: theme.text }]}>📚 Welcome to KTU Library</Text>
-              <Text style={[styles.welcomeDescription, { color: theme.textSecondary }]}>
-                Access syllabus, question papers, notes, and study materials
-              </Text>
+              <Text style={[styles.welcomeTitle, { color: theme.text }]}>📚 KTUfy Library</Text>
             </View>
 
             <Text style={[styles.menuSectionTitle, { color: theme.text }]}>Library Resources</Text>

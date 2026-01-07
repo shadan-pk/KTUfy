@@ -301,7 +301,7 @@ const QuizSessionScreen: React.FC<QuizSessionProps> = ({ navigation }) => {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['bottom']}>
         <View style={[styles.header, { backgroundColor: theme.card, borderBottomColor: theme.cardBorder }]}>
-          <Text style={[styles.headerTitle, { color: theme.text }]}>❓ Quiz Session</Text>
+          <Text style={[styles.headerTitle, { color: theme.text }]}>📋 Quiz Session</Text>
         </View>
 
         <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
