@@ -52,6 +52,14 @@ const LIBRARY_FEATURES = [
     route: 'PYP' as const,
   },
   {
+    id: 'quiz',
+    title: 'Quiz Session',
+    description: 'Test your knowledge with interactive quizzes and assessments',
+    icon: '❓',
+    color: '#06B6D4',
+    route: 'QuizSession' as const,
+  },
+  {
     id: 'notes',
     title: 'Notes',
     description: 'Browse and download subject notes',

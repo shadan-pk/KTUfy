@@ -11,6 +11,7 @@ export type RootStackParamList = {
   Chatbot: undefined;
   Ticklist: undefined;
   Library: undefined;
+  QuizSession: undefined;
   Schedule: undefined;
   LearningZone: undefined;
   CodingHub: undefined;
@@ -29,6 +30,7 @@ export type HelpScreenNavigationProp = StackNavigationProp<RootStackParamList, '
 export type ChatbotScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Chatbot'>;
 export type TicklistScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Ticklist'>;
 export type LibraryScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Library'>;
+export type QuizSessionScreenNavigationProp = StackNavigationProp<RootStackParamList, 'QuizSession'>;
 export type ScheduleScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Schedule'>;
 export type LearningZoneScreenNavigationProp = StackNavigationProp<RootStackParamList, 'LearningZone'>;
 export type CodingHubScreenNavigationProp = StackNavigationProp<RootStackParamList, 'CodingHub'>;
@@ -46,6 +48,7 @@ export type HelpScreenRouteProp = RouteProp<RootStackParamList, 'Help'>;
 export type ChatbotScreenRouteProp = RouteProp<RootStackParamList, 'Chatbot'>;
 export type TicklistScreenRouteProp = RouteProp<RootStackParamList, 'Ticklist'>;
 export type LibraryScreenRouteProp = RouteProp<RootStackParamList, 'Library'>;
+export type QuizSessionScreenRouteProp = RouteProp<RootStackParamList, 'QuizSession'>;
 export type ScheduleScreenRouteProp = RouteProp<RootStackParamList, 'Schedule'>;
 export type LearningZoneScreenRouteProp = RouteProp<RootStackParamList, 'LearningZone'>;
 export type CodingHubScreenRouteProp = RouteProp<RootStackParamList, 'CodingHub'>;

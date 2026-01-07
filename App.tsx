@@ -19,6 +19,7 @@ import HelpScreen from './screens/HelpScreen';
 import ChatbotScreen from './screens/ChatbotScreen';
 import TicklistScreen from './screens/TicklistScreen';
 import LibraryScreen from './screens/LibraryScreen';
+import QuizSessionScreen from './screens/QuizSessionScreen';
 import ScheduleScreen from './screens/ScheduleScreen';
 import LearningZoneScreen from './screens/LearningZoneScreen';
 import CodingHubScreen from './screens/CodingHubScreen';
@@ -79,6 +80,11 @@ function AppContent() {
               name="Library" 
               component={LibraryScreen}
               options={{ title: 'Study Library' }}
+            />
+            <Stack.Screen 
+              name="QuizSession" 
+              component={QuizSessionScreen}
+              options={{ title: 'Quiz Session' }}
             />
             <Stack.Screen 
               name="Schedule" 
