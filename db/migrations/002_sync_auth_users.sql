@@ -2,9 +2,13 @@
 -- Run this in Supabase SQL editor or apply through your migration tooling.
 
 -- Function: sync new auth users to public.users
+-- SECURITY DEFINER is required so this trigger can write to public.users
+-- even though RLS policies restrict inserts to auth.uid() = id (which isn't
+-- set yet during the signup trigger execution context).
 CREATE OR REPLACE FUNCTION public.on_auth_user_created()
 RETURNS trigger
 LANGUAGE plpgsql
+SECURITY DEFINER
 AS $$
 BEGIN
   INSERT INTO public.users (

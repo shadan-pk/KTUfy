@@ -9,6 +9,10 @@ CREATE TABLE IF NOT EXISTS public.users (
   registration_number TEXT,
   college TEXT,
   branch TEXT,
+  year_joined INTEGER,
+  year_ending INTEGER,
+  roll_number TEXT,
+  metadata JSONB DEFAULT '{}'::jsonb,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );

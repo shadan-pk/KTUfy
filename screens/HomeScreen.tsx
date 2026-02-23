@@ -10,8 +10,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../auth/AuthProvider';
-import { getUserProfile, getTicklistsForUser, upsertTicklist, upsertUserProfile } from '../supabaseConfig';
-import { getPendingProfile, deletePendingProfile } from '../auth/secureStore';
+import { getUserProfile, getTicklistsForUser, upsertTicklist } from '../supabaseConfig';
 import supabase from '../supabaseClient';
 import { HomeScreenNavigationProp } from '../types/navigation';
 import { useTheme } from '../contexts/ThemeContext';
@@ -107,26 +106,9 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     try {
       // Use the authUser from context instead of fetching
       setSupabaseUser(authUser);
-      
-      // Check for pending profile data (from signup before email confirmation)
-      const pendingProfile = await getPendingProfile();
-      if (pendingProfile) {
-        console.log('Found pending profile; upserting to public.users...');
-        try {
-          await upsertUserProfile({
-            id: authUser.id,
-            ...pendingProfile,
-          });
-          // Clear the pending data after successful upsert
-          await deletePendingProfile();
-          console.log('Pending profile upserted and cleared');
-        } catch (upsertErr) {
-          console.error('Error upserting pending profile:', upsertErr);
-          // Keep the pending data so we can retry later
-        }
-      }
 
       // Load existing profile from public.users
+      // (created automatically by the on_auth_user_created trigger at signup)
       const profile = await getUserProfile(authUser.id);
       if (profile) setUserData(profile as UserData);
     } catch (err) {
@@ -191,7 +173,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
           items: r.items || [],
         }));
         setSubjects(loadedSubjects);
-        
+
         // Update challenge progress based on completed tasks
         const totalCompleted = getTotalProgress().completed;
         setDailyChallenges(prev => prev.map(challenge => {
@@ -407,7 +389,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
               <Text style={[styles.viewAllText, { color: theme.primary }]}>View All →</Text>
             </TouchableOpacity>
           </View>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={[styles.gpaButton, { backgroundColor: theme.gpaCalculator }]}
             onPress={() => navigation.navigate('GPACalculator')}
           >
@@ -499,11 +481,11 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
             <Text style={styles.cardTitle}>🎮 Learning Zone</Text>
             <Text style={styles.pointsBadge}>⭐ {totalPoints} pts</Text>
           </View>
-          
+
           {dailyChallenges.slice(0, 2).map((challenge) => {
             const isCompleted = challenge.currentCount >= challenge.targetCount;
             const progress = Math.min((challenge.currentCount / challenge.targetCount) * 100, 100);
-            
+
             return (
               <View key={challenge.id} style={styles.challengeCard}>
                 <View style={styles.challengeHeader}>
@@ -513,17 +495,17 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
                     <Text style={styles.challengeDesc}>{challenge.description}</Text>
                   </View>
                 </View>
-                
+
                 <View style={styles.challengeProgressBar}>
                   <View style={[styles.challengeProgressFill, { width: `${progress}%` }]} />
                 </View>
-                
+
                 <View style={styles.challengeFooter}>
                   <Text style={styles.challengeProgress}>
                     {challenge.currentCount}/{challenge.targetCount}
                   </Text>
                   {isCompleted ? (
-                    <TouchableOpacity 
+                    <TouchableOpacity
                       style={styles.claimButton}
                       onPress={() => claimChallengeReward(challenge.id)}
                     >
@@ -536,15 +518,15 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
               </View>
             );
           })}
-          
-          <TouchableOpacity 
+
+          <TouchableOpacity
             style={styles.playGamesButton}
             onPress={() => navigation.navigate('LearningZone')}
           >
             <Text style={styles.playGamesButtonText}>🎮 Play More Games</Text>
             <Text style={styles.playGamesButtonArrow}>→</Text>
           </TouchableOpacity>
-          
+
           <View style={[styles.motivationCard, { backgroundColor: theme.primaryLight, borderColor: theme.primary }]}>
             <Text style={[styles.motivationText, { color: theme.text }]}>
               "Success is the sum of small efforts repeated day in and day out."
@@ -629,24 +611,24 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
             <Text style={styles.navIconActive}>🏠</Text>
             <Text style={[styles.navLabelActive, { color: theme.primary }]}>Home</Text>
           </TouchableOpacity>
-          
-          <TouchableOpacity 
+
+          <TouchableOpacity
             style={styles.navButton}
             onPress={() => navigation.navigate('Chatbot')}
           >
             <Text style={styles.navIcon}>🤖</Text>
             <Text style={[styles.navLabel, { color: theme.textSecondary }]}>Chatbot</Text>
           </TouchableOpacity>
-          
-          <TouchableOpacity 
+
+          <TouchableOpacity
             style={styles.navButton}
             onPress={() => navigation.navigate('Library')}
           >
             <Text style={styles.navIcon}>📚</Text>
             <Text style={[styles.navLabel, { color: theme.textSecondary }]}>Library</Text>
           </TouchableOpacity>
-          
-          <TouchableOpacity 
+
+          <TouchableOpacity
             style={styles.navButton}
             onPress={() => navigation.navigate('Settings')}
           >

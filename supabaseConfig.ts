@@ -18,15 +18,6 @@ export async function getUserProfile(userId: string) {
   return data; // may be null when profile hasn't been created yet
 }
 
-export async function upsertUserProfile(user: any) {
-  const { data, error } = await supabase.from('users').upsert(user).select();
-  if (error) {
-    // surface more context for debugging
-    console.error('upsertUserProfile error:', { error, user });
-    throw error;
-  }
-  return data;
-}
 
 // Ticklist: we'll store each subject as a row in 'ticklists' table with items JSONB
 export async function getTicklistsForUser(userId: string) {

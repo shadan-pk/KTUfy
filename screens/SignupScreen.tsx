@@ -11,9 +11,6 @@ import {
   ScrollView,
 } from 'react-native';
 import { useAuth } from '../auth/AuthProvider';
-import supabase from '../supabaseClient';
-import { upsertUserProfile } from '../supabaseConfig';
-import { savePendingProfile } from '../auth/secureStore';
 import { SignupScreenNavigationProp } from '../types/navigation';
 import { useTheme } from '../contexts/ThemeContext';
 
@@ -43,7 +40,7 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
   // Parse registration number format: MEA22CS051
   const parseRegistrationNumber = (regNum: string): ParsedRegistration => {
     const upperRegNum = regNum.trim().toUpperCase();
-    
+
     // Pattern: 3 letters (college) + 2 digits (year) + 2 letters (branch) + digits (roll number)
     const pattern = /^([A-Z]{3})(\d{2})([A-Z]{2})(\d+)$/;
     const match = upperRegNum.match(pattern);
@@ -114,7 +111,9 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
 
     setLoading(true);
     try {
-      // Build metadata object with parsed registration details so the auth.user entry contains them
+      // Build metadata object with parsed registration details.
+      // This gets stored in auth.users.raw_user_meta_data, and the
+      // on_auth_user_created trigger automatically creates the public.users row from it.
       const metadata = {
         name,
         registration_number: registrationNumber.toUpperCase(),
@@ -125,40 +124,9 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
         roll_number: parsed.rollNumber,
       };
 
-      // Build the pending profile object to store temporarily
-      const pendingProfile = {
-        name,
-        email,
-        registration_number: registrationNumber.toUpperCase(),
-        college: parsed.college,
-        branch: parsed.branch,
-        year_joined: parsed.yearJoined,
-        year_ending: parsed.yearEnding,
-        roll_number: parsed.rollNumber,
-        created_at: new Date().toISOString(),
-      };
-
-      // Pass metadata to signUp so auth.users.user_metadata is populated server-side
-      const signupResp = await signUp(email, password, metadata);
-
-      // If signup returned a session (auto sign-in), we can safely upsert from the client immediately.
-      const hasSession = !!(signupResp?.session);
-
-      if (hasSession) {
-        // get the user id from the session/user
-        const uid = signupResp?.user?.id ?? null;
-        if (uid) {
-          await upsertUserProfile({
-            id: uid,
-            ...pendingProfile,
-          });
-        }
-      } else {
-        // No session was created (email confirmation is required).
-        // Store the profile data temporarily so HomeScreen can upsert it after login.
-        await savePendingProfile(pendingProfile);
-        console.log('No session created at signup; profile stored temporarily for later upsert');
-      }
+      // Pass metadata to signUp so auth.users.user_metadata is populated server-side.
+      // The DB trigger on_auth_user_created handles creating the public.users profile row.
+      await signUp(email, password, metadata);
 
       Alert.alert('Success', 'Account created successfully!', [
         { text: 'OK', onPress: () => navigation.navigate('Login') },
