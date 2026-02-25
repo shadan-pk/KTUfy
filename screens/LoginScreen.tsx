@@ -26,21 +26,24 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [mode, setMode] = useState<LoginMode>('initial');
+  const [error, setError] = useState<string | null>(null);
 
   const { signIn } = useAuth();
 
   const handleLogin = async () => {
     if (!email || !password) {
-      Alert.alert('Error', 'Please fill in all fields');
+      setError('Please fill in all fields');
       return;
     }
 
+    setError(null);
     setLoading(true);
     try {
       await signIn(email, password);
       // Navigation will be handled by the main App component
     } catch (error: any) {
-      Alert.alert('Login Error', error.message);
+      const errorMessage = error.message || 'Login failed. Please check your email and password.';
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -81,12 +84,9 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
               <View style={styles.actionGroup}>
                 <TouchableOpacity
                   style={styles.googleButton}
-                  activeOpacity={0.9}
+                  activeOpacity={0.85}
                 >
                   <View style={styles.googleContent}>
-                    <View style={styles.googleLogoCircle}>
-                      <Text style={styles.googleLogoText}>G</Text>
-                    </View>
                     <Text style={styles.googleLabel}>Sign in with Google</Text>
                   </View>
                 </TouchableOpacity>
@@ -122,19 +122,28 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
 
                 <Text style={[styles.sectionTitle, { color: '#E5E7EB' }]}>Sign in with email</Text>
 
+                {error && (
+                  <View style={styles.errorContainer}>
+                    <Text style={styles.errorMessage}>{error}</Text>
+                  </View>
+                )}
+
                 <TextInput
                   style={[
                     styles.input,
                     {
                       backgroundColor: theme.backgroundSecondary,
-                      borderColor: theme.border,
+                      borderColor: error ? '#EF4444' : theme.border,
                       color: theme.text,
                     },
                   ]}
                   placeholder="Email"
                   placeholderTextColor={theme.textSecondary}
                   value={email}
-                  onChangeText={setEmail}
+                  onChangeText={(text) => {
+                    setEmail(text);
+                    setError(null);
+                  }}
                   keyboardType="email-address"
                   autoCapitalize="none"
                   autoCorrect={false}
@@ -145,14 +154,17 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
                     styles.input,
                     {
                       backgroundColor: theme.backgroundSecondary,
-                      borderColor: theme.border,
+                      borderColor: error ? '#EF4444' : theme.border,
                       color: theme.text,
                     },
                   ]}
                   placeholder="Password"
                   placeholderTextColor={theme.textSecondary}
                   value={password}
-                  onChangeText={setPassword}
+                  onChangeText={(text) => {
+                    setPassword(text);
+                    setError(null);
+                  }}
                   secureTextEntry
                   autoCapitalize="none"
                 />
@@ -265,13 +277,18 @@ const styles = StyleSheet.create({
   },
   googleButton: {
     borderRadius: 999,
-    paddingVertical: 10,
+    paddingVertical: 12,
     paddingHorizontal: 16,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#1F2937',
     borderWidth: 1,
-    borderColor: '#D1D5DB',
+    borderColor: '#374151',
     justifyContent: 'center',
     marginBottom: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
   googleContent: {
     flexDirection: 'row',
@@ -295,9 +312,9 @@ const styles = StyleSheet.create({
     color: '#4285F4',
   },
   googleLabel: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '600',
-    color: '#3C4043',
+    color: '#F3F4F6',
   },
   dividerRow: {
     flexDirection: 'row',
@@ -315,6 +332,14 @@ const styles = StyleSheet.create({
   form: {
     marginTop: 12,
     marginBottom: 20,
+  },
+  errorContainer: {
+    marginBottom: 12,
+  },
+  errorMessage: {
+    color: '#EF4444',
+    fontSize: 13,
+    fontWeight: '500',
   },
   stepHeader: {
     flexDirection: 'row',

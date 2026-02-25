@@ -39,6 +39,7 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
   const [loading, setLoading] = useState(false);
   const [parsedInfo, setParsedInfo] = useState<ParsedRegistration | null>(null);
   const [registrationError, setRegistrationError] = useState<string | null>(null);
+  const [signupError, setSignupError] = useState<string | null>(null);
   const [step, setStep] = useState<SignupStep>(1);
 
   // Parse registration number format: MEA22CS051
@@ -99,34 +100,27 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
 
   const handleSignup = async () => {
     if (!name || !registrationNumber || !email || !password || !confirmPassword) {
-      Alert.alert('Error', 'Please fill in all fields');
+      setSignupError('Please fill in all fields');
       return;
     }
 
     const parsed = parseRegistrationNumber(registrationNumber);
     if (!parsed.isValid) {
-      Alert.alert(
-        'Invalid Registration Number',
-        'Please enter a valid registration number in the format: MEA22CS051\n\n' +
-        'Format:\n' +
-        '• 3 letters (College code)\n' +
-        '• 2 digits (Year joined)\n' +
-        '• 2 letters (Branch code)\n' +
-        '• Digits (Roll number)'
-      );
+      setSignupError('Invalid registration number. Use format like MEA22CS051');
       return;
     }
 
     if (password !== confirmPassword) {
-      Alert.alert('Error', 'Passwords do not match');
+      setSignupError('Passwords do not match');
       return;
     }
 
     if (password.length < 6) {
-      Alert.alert('Error', 'Password must be at least 6 characters long');
+      setSignupError('Password must be at least 6 characters long');
       return;
     }
 
+    setSignupError(null);
     setLoading(true);
     try {
       // Build metadata object with parsed registration details.
@@ -150,7 +144,8 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
         { text: 'OK', onPress: () => navigation.navigate('Login') },
       ]);
     } catch (error: any) {
-      Alert.alert('Signup Error', error.message || JSON.stringify(error));
+      const errorMessage = error.message || 'Signup failed. Please try again.';
+      setSignupError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -396,12 +391,9 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
                 <View style={styles.signInChoiceColumn}>
                   <TouchableOpacity
                     style={styles.googleButton}
-                    activeOpacity={0.9}
+                    activeOpacity={0.85}
                   >
                     <View style={styles.googleContent}>
-                      <View style={styles.googleLogoCircle}>
-                        <Text style={styles.googleLogoText}>G</Text>
-                      </View>
                       <Text style={styles.googleLabel}>Sign in with Google</Text>
                     </View>
                   </TouchableOpacity>
@@ -443,19 +435,28 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
                   Add an email and password for your account.
                 </Text>
 
+                {signupError && (
+                  <View style={styles.errorContainer}>
+                    <Text style={styles.errorMessage}>{signupError}</Text>
+                  </View>
+                )}
+
                 <TextInput
                   style={[
                     styles.input,
                     {
                       backgroundColor: theme.backgroundSecondary,
-                      borderColor: theme.border,
+                      borderColor: signupError ? '#EF4444' : theme.border,
                       color: theme.text,
                     },
                   ]}
                   placeholder="Email address"
                   placeholderTextColor={theme.textSecondary}
                   value={email}
-                  onChangeText={setEmail}
+                  onChangeText={(text) => {
+                    setEmail(text);
+                    setSignupError(null);
+                  }}
                   keyboardType="email-address"
                   autoCapitalize="none"
                   autoCorrect={false}
@@ -466,14 +467,17 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
                     styles.input,
                     {
                       backgroundColor: theme.backgroundSecondary,
-                      borderColor: theme.border,
+                      borderColor: signupError ? '#EF4444' : theme.border,
                       color: theme.text,
                     },
                   ]}
                   placeholder="Create a password"
                   placeholderTextColor={theme.textSecondary}
                   value={password}
-                  onChangeText={setPassword}
+                  onChangeText={(text) => {
+                    setPassword(text);
+                    setSignupError(null);
+                  }}
                   secureTextEntry
                   autoCapitalize="none"
                 />
@@ -483,14 +487,17 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
                     styles.input,
                     {
                       backgroundColor: theme.backgroundSecondary,
-                      borderColor: theme.border,
+                      borderColor: signupError ? '#EF4444' : theme.border,
                       color: theme.text,
                     },
                   ]}
                   placeholder="Confirm password"
                   placeholderTextColor={theme.textSecondary}
                   value={confirmPassword}
-                  onChangeText={setConfirmPassword}
+                  onChangeText={(text) => {
+                    setConfirmPassword(text);
+                    setSignupError(null);
+                  }}
                   secureTextEntry
                   autoCapitalize="none"
                 />
@@ -637,6 +644,14 @@ const styles = StyleSheet.create({
     fontSize: 15,
     borderWidth: 1,
   },
+  errorContainer: {
+    marginBottom: 12,
+  },
+  errorMessage: {
+    color: '#EF4444',
+    fontSize: 13,
+    fontWeight: '500',
+  },
   parsedInfo: {
     borderRadius: 10,
     padding: 12,
@@ -728,18 +743,19 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   googleButton: {
-    borderRadius: 6,
-    paddingVertical: 10,
+    borderRadius: 999,
+    paddingVertical: 12,
     paddingHorizontal: 16,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#1F2937',
     borderWidth: 1,
-    borderColor: '#D1D5DB',
+    borderColor: '#374151',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
     elevation: 2,
     marginBottom: 10,
+    justifyContent: 'center',
   },
   googleContent: {
     flexDirection: 'row',
@@ -762,9 +778,9 @@ const styles = StyleSheet.create({
     color: '#4285F4',
   },
   googleLabel: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '600',
-    color: '#1F2937',
+    color: '#F3F4F6',
   },
   googleSublabel: {
     fontSize: 11,
