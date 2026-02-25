@@ -52,25 +52,43 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <ScrollView contentContainerStyle={styles.scrollContainer}>
-        <View style={styles.gradientHalo} />
+        <View style={styles.logoContainer}>
+          <Text
+            style={[
+              styles.logoText,
+              { color: theme.primaryLight },
+            ]}
+          >
+            KTUfy
+          </Text>
+        </View>
 
-        <View style={styles.contentWrapper}>
-          <View style={[styles.card, { backgroundColor: theme.card, shadowColor: theme.shadow }]}>
-            <Text style={[styles.appName, { color: theme.primary }]}>KTUfy</Text>
-            <Text style={[styles.title, { color: theme.text }]}>
-              Dive back into your study flow
-            </Text>
-            <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
-              Sign in to sync your timetable, resources and progress.
+        <View style={styles.bottomSheetWrapper}>
+          <View
+            style={[
+              styles.card,
+              {
+                backgroundColor: '#050816',
+                shadowColor: theme.shadow,
+              },
+            ]}
+          >
+            <Text style={[styles.title, { color: '#E5E7EB' }]}>
+              Welcome back
             </Text>
 
             {mode === 'initial' && (
               <View style={styles.actionGroup}>
                 <TouchableOpacity
-                  style={[styles.primaryButton, { backgroundColor: theme.primary }]}
+                  style={styles.googleButton}
                   activeOpacity={0.9}
                 >
-                  <Text style={styles.primaryButtonText}>Continue with Google</Text>
+                  <View style={styles.googleContent}>
+                    <View style={styles.googleLogoCircle}>
+                      <Text style={styles.googleLogoText}>G</Text>
+                    </View>
+                    <Text style={styles.googleLabel}>Sign in with Google</Text>
+                  </View>
                 </TouchableOpacity>
 
                 <View style={styles.dividerRow}>
@@ -95,17 +113,14 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
               <View style={styles.form}>
                 <View style={styles.stepHeader}>
                   <TouchableOpacity onPress={() => setMode('initial')} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-                    <Text style={[styles.backLink, { color: theme.textSecondary }]}>‹ All sign-in options</Text>
+                    <Text style={[styles.backLink, { color: theme.primary }]}>← All sign-in options</Text>
                   </TouchableOpacity>
-                  <Text style={[styles.stepPill, { backgroundColor: theme.primaryLight, color: theme.primaryDark }]}>
+                  <Text style={[styles.stepPill, { backgroundColor: '#1E293B', color: '#E5E7EB' }]}>
                     1 / 1
                   </Text>
                 </View>
 
-                <Text style={[styles.sectionTitle, { color: theme.text }]}>Sign in with email</Text>
-                <Text style={[styles.sectionSubtitle, { color: theme.textSecondary }]}>
-                  Use the email and password you registered with.
-                </Text>
+                <Text style={[styles.sectionTitle, { color: '#E5E7EB' }]}>Sign in with email</Text>
 
                 <TextInput
                   style={[
@@ -160,7 +175,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
             )}
 
             <View style={styles.footer}>
-              <Text style={[styles.footerText, { color: theme.textSecondary }]}>
+              <Text style={[styles.footerText, { color: '#9CA3AF' }]}>
                 New to KTUfy?{' '}
               </Text>
               <TouchableOpacity onPress={() => navigation.navigate('Signup')}>
@@ -180,54 +195,45 @@ const styles = StyleSheet.create({
   },
   scrollContainer: {
     flexGrow: 1,
+    justifyContent: 'flex-end',
+  },
+  logoContainer: {
+    flex: 1,
+    alignItems: 'center',
     justifyContent: 'center',
+    paddingTop: 16,
+    paddingBottom: 24,
   },
-  gradientHalo: {
-    position: 'absolute',
-    top: -120,
-    alignSelf: 'center',
-    width: 320,
-    height: 320,
-    borderRadius: 160,
-    backgroundColor: 'rgba(99, 102, 241, 0.2)',
+  logoText: {
+    fontSize: 44,
+    fontWeight: '800',
+    letterSpacing: 10,
+    opacity: 1,
+    textTransform: 'uppercase',
   },
-  contentWrapper: {
-    paddingHorizontal: 20,
-    paddingVertical: 40,
+  bottomSheetWrapper: {
+    paddingHorizontal: 0,
   },
   card: {
-    borderRadius: 28,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
     paddingHorizontal: 20,
-    paddingVertical: 24,
+    paddingTop: 20,
+    paddingBottom: 28,
     shadowOffset: { width: 0, height: 18 },
     shadowOpacity: 0.18,
     shadowRadius: 32,
     elevation: 12,
   },
-  appName: {
-    fontSize: 18,
-    fontWeight: '700',
-    letterSpacing: 2,
-    textTransform: 'uppercase',
-    marginBottom: 12,
-  },
-  content: {
-    padding: 20,
-  },
   title: {
-    fontSize: 32,
-    fontWeight: 'bold',
+    fontSize: 24,
+    fontWeight: '700',
     textAlign: 'center',
-    marginBottom: 10,
-  },
-  subtitle: {
-    fontSize: 16,
-    textAlign: 'center',
-    marginBottom: 24,
+    marginBottom: 20,
   },
   actionGroup: {
     marginTop: 8,
-    marginBottom: 24,
+    marginBottom: 20,
   },
   primaryButton: {
     borderRadius: 999,
@@ -257,6 +263,42 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '500',
   },
+  googleButton: {
+    borderRadius: 999,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+  googleContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  googleLogoCircle: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 8,
+    backgroundColor: '#FFFFFF',
+  },
+  googleLogoText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#4285F4',
+  },
+  googleLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#3C4043',
+  },
   dividerRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -271,7 +313,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   form: {
-    marginTop: 8,
+    marginTop: 12,
     marginBottom: 20,
   },
   stepHeader: {
@@ -291,13 +333,13 @@ const styles = StyleSheet.create({
     borderRadius: 999,
   },
   sectionTitle: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '600',
-    marginBottom: 4,
+    marginBottom: 6,
   },
   sectionSubtitle: {
     fontSize: 13,
-    marginBottom: 16,
+    marginBottom: 18,
   },
   input: {
     borderRadius: 14,

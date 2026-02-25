@@ -27,7 +27,7 @@ interface ParsedRegistration {
   isValid: boolean;
 }
 
-type SignupStep = 1 | 2 | 3 | 4;
+type SignupStep = 1 | 2 | 3 | 4 | 5;
 
 const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
   const { theme } = useTheme();
@@ -38,6 +38,7 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [parsedInfo, setParsedInfo] = useState<ParsedRegistration | null>(null);
+  const [registrationError, setRegistrationError] = useState<string | null>(null);
   const [step, setStep] = useState<SignupStep>(1);
 
   // Parse registration number format: MEA22CS051
@@ -73,11 +74,25 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
     };
   };
 
-  // Handle registration number change and parse it
+  // Handle registration number change (parse on continue instead)
   const handleRegistrationChange = (text: string) => {
     setRegistrationNumber(text);
-    const parsed = parseRegistrationNumber(text);
+    setParsedInfo(null);
+    setRegistrationError(null);
+  };
+
+  const handleRegistrationContinue = () => {
+    const parsed = parseRegistrationNumber(registrationNumber);
+
+    if (!parsed.isValid) {
+      setParsedInfo(parsed);
+      setRegistrationError('Invalid format. Use something like MEA22CS051.');
+      return;
+    }
+
     setParsedInfo(parsed);
+    setRegistrationError(null);
+    setStep(3);
   };
 
   const { signUp } = useAuth();
@@ -147,14 +162,31 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <ScrollView contentContainerStyle={styles.scrollContainer}>
-        <View style={styles.gradientHalo} />
+        <View style={styles.logoContainer}>
+          <Text
+            style={[
+              styles.logoText,
+              { color: theme.primaryLight },
+            ]}
+          >
+            KTUfy
+          </Text>
+        </View>
 
-        <View style={styles.contentWrapper}>
-          <View style={[styles.card, { backgroundColor: theme.card, shadowColor: theme.shadow }]}>
+        <View style={styles.bottomSheetWrapper}>
+          <View
+            style={[
+              styles.card,
+              {
+                backgroundColor: '#050816',
+                shadowColor: theme.shadow,
+              },
+            ]}
+          >
             <View style={styles.headerRow}>
-              <Text style={[styles.appName, { color: theme.primary }]}>KTUfy</Text>
-              <View style={[styles.stepperPills]}>
-                {[1, 2, 3, 4].map((s) => (
+              <Text style={[styles.appName, { color: '#E5E7EB' }]}>Create account</Text>
+              <View style={styles.stepperPills}>
+                {[1, 2, 3, 4, 5].map((s) => (
                   <View
                     key={s}
                     style={[
@@ -168,19 +200,16 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
               </View>
             </View>
 
-            <Text style={[styles.title, { color: theme.text }]}>
+            <Text style={[styles.title, { color: '#E5E7EB' }]}>
               Tell us about you
-            </Text>
-            <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
-              We’ll personalise your KTUfy experience based on your college, branch and year.
             </Text>
 
             {step === 1 && (
               <View style={styles.form}>
-                <Text style={[styles.sectionTitle, { color: theme.text }]}>
+                <Text style={[styles.sectionTitle, { color: '#E5E7EB' }]}>
                   What should we call you?
                 </Text>
-                <Text style={[styles.sectionSubtitle, { color: theme.textSecondary }]}>
+                <Text style={[styles.sectionSubtitle, { color: '#9CA3AF' }]}>
                   This helps us greet you across the app.
                 </Text>
 
@@ -222,14 +251,14 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
                   onPress={() => setStep(1)}
                   hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 >
-                  <Text style={[styles.backLink, { color: theme.textSecondary }]}>‹ Back</Text>
+                  <Text style={[styles.backLink, { color: theme.primary }]}>← Back</Text>
                 </TouchableOpacity>
 
-                <Text style={[styles.sectionTitle, { color: theme.text }]}>
+                <Text style={[styles.sectionTitle, { color: '#E5E7EB' }]}>
                   What’s your register number?
                 </Text>
-                <Text style={[styles.sectionSubtitle, { color: theme.textSecondary }]}>
-                  We’ll decode this to figure out your college, branch and batch.
+                <Text style={[styles.sectionSubtitle, { color: '#9CA3AF' }]}>
+                  Format: COL (3 letters) + YY (year) + BR (branch) + roll.
                 </Text>
 
                 <TextInput
@@ -249,60 +278,7 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
                   autoCorrect={false}
                 />
 
-                {parsedInfo && parsedInfo.isValid && (
-                  <View
-                    style={[
-                      styles.parsedInfo,
-                      {
-                        backgroundColor: theme.primaryLight,
-                        borderColor: theme.primaryDark,
-                      },
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.parsedInfoTitle,
-                        { color: theme.primaryDark },
-                      ]}
-                    >
-                      We detected your details
-                    </Text>
-                    <View style={styles.infoRow}>
-                      <Text style={[styles.infoLabel, { color: theme.textSecondary }]}>
-                        College
-                      </Text>
-                      <Text style={[styles.infoValue, { color: theme.text }]}>
-                        {parsedInfo.college}
-                      </Text>
-                    </View>
-                    <View style={styles.infoRow}>
-                      <Text style={[styles.infoLabel, { color: theme.textSecondary }]}>
-                        Branch
-                      </Text>
-                      <Text style={[styles.infoValue, { color: theme.text }]}>
-                        {parsedInfo.branch}
-                      </Text>
-                    </View>
-                    <View style={styles.infoRow}>
-                      <Text style={[styles.infoLabel, { color: theme.textSecondary }]}>
-                        Years
-                      </Text>
-                      <Text style={[styles.infoValue, { color: theme.text }]}>
-                        {parsedInfo.yearJoined} – {parsedInfo.yearEnding}
-                      </Text>
-                    </View>
-                    <View style={styles.infoRow}>
-                      <Text style={[styles.infoLabel, { color: theme.textSecondary }]}>
-                        Roll no.
-                      </Text>
-                      <Text style={[styles.infoValue, { color: theme.text }]}>
-                        {parsedInfo.rollNumber}
-                      </Text>
-                    </View>
-                  </View>
-                )}
-
-                {parsedInfo && !parsedInfo.isValid && registrationNumber.length > 0 && (
+                {registrationError && registrationNumber.length > 0 && (
                   <View
                     style={[
                       styles.errorInfo,
@@ -312,9 +288,7 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
                       },
                     ]}
                   >
-                    <Text style={[styles.errorText, { color: theme.error }]}>
-                      Invalid format. Use something like MEA22CS051.
-                    </Text>
+                    <Text style={[styles.errorText, { color: theme.error }]}>{registrationError}</Text>
                   </View>
                 )}
 
@@ -322,11 +296,11 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
                   style={[
                     styles.primaryButton,
                     { backgroundColor: theme.primary },
-                    (!parsedInfo || !parsedInfo.isValid || loading) &&
+                    (!registrationNumber || loading) &&
                       styles.primaryButtonDisabled,
                   ]}
-                  disabled={!parsedInfo || !parsedInfo.isValid || loading}
-                  onPress={() => setStep(3)}
+                  disabled={!registrationNumber || loading}
+                  onPress={handleRegistrationContinue}
                   activeOpacity={0.9}
                 >
                   <Text style={styles.primaryButtonText}>Looks good</Text>
@@ -340,13 +314,13 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
                   onPress={() => setStep(2)}
                   hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 >
-                  <Text style={[styles.backLink, { color: theme.textSecondary }]}>‹ Edit details</Text>
+                  <Text style={[styles.backLink, { color: theme.primary }]}>← Edit details</Text>
                 </TouchableOpacity>
 
-                <Text style={[styles.sectionTitle, { color: theme.text }]}>
+                <Text style={[styles.sectionTitle, { color: '#E5E7EB' }]}>
                   Does this look correct?
                 </Text>
-                <Text style={[styles.sectionSubtitle, { color: theme.textSecondary }]}>
+                <Text style={[styles.sectionSubtitle, { color: '#9CA3AF' }]}>
                   We’ll use this to tailor notes, schedules and resources just for you.
                 </Text>
 
@@ -404,55 +378,70 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
             )}
 
             {step === 4 && (
-              <View className="form" style={styles.form}>
+              <View style={styles.form}>
                 <TouchableOpacity
                   onPress={() => setStep(3)}
                   hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 >
-                  <Text style={[styles.backLink, { color: theme.textSecondary }]}>‹ Back</Text>
+                  <Text style={[styles.backLink, { color: theme.primary }]}>← Back</Text>
                 </TouchableOpacity>
 
-                <Text style={[styles.sectionTitle, { color: theme.text }]}>
+                <Text style={[styles.sectionTitle, { color: '#E5E7EB' }]}>
                   How do you want to sign in?
                 </Text>
-                <Text style={[styles.sectionSubtitle, { color: theme.textSecondary }]}>
-                  We’ll create your KTUfy account with the method you choose.
+                <Text style={[styles.sectionSubtitle, { color: '#9CA3AF' }]}>
+                  Choose your preferred method.
                 </Text>
 
-                <View style={styles.signInChoiceRow}>
+                <View style={styles.signInChoiceColumn}>
                   <TouchableOpacity
-                    style={[
-                      styles.signInChoice,
-                      { backgroundColor: theme.primaryLight, borderColor: theme.primaryDark },
-                    ]}
+                    style={styles.googleButton}
                     activeOpacity={0.9}
                   >
-                    <Text
-                      style={[
-                        styles.signInChoiceText,
-                        { color: theme.primaryDark },
-                      ]}
-                    >
-                      Use email
-                    </Text>
+                    <View style={styles.googleContent}>
+                      <View style={styles.googleLogoCircle}>
+                        <Text style={styles.googleLogoText}>G</Text>
+                      </View>
+                      <Text style={styles.googleLabel}>Sign in with Google</Text>
+                    </View>
                   </TouchableOpacity>
+
                   <TouchableOpacity
                     style={[
-                      styles.signInChoice,
-                      { backgroundColor: theme.backgroundSecondary, borderColor: theme.border },
+                      styles.emailChoiceButton,
+                      { borderColor: theme.primary, backgroundColor: 'transparent' },
                     ]}
                     activeOpacity={0.9}
+                    onPress={() => setStep(5)}
                   >
                     <Text
                       style={[
-                        styles.signInChoiceText,
-                        { color: theme.textSecondary },
+                        styles.emailChoiceText,
+                        { color: theme.primary },
                       ]}
                     >
-                      Google (coming soon)
+                      Use email instead
                     </Text>
                   </TouchableOpacity>
                 </View>
+              </View>
+            )}
+
+            {step === 5 && (
+              <View style={styles.form}>
+                <TouchableOpacity
+                  onPress={() => setStep(4)}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                >
+                  <Text style={[styles.backLink, { color: theme.primary }]}>← Back</Text>
+                </TouchableOpacity>
+
+                <Text style={[styles.sectionTitle, { color: '#E5E7EB' }]}>
+                  Sign in with email
+                </Text>
+                <Text style={[styles.sectionSubtitle, { color: '#9CA3AF' }]}>
+                  Add an email and password for your account.
+                </Text>
 
                 <TextInput
                   style={[
@@ -557,25 +546,31 @@ const styles = StyleSheet.create({
   },
   scrollContainer: {
     flexGrow: 1,
+    justifyContent: 'flex-end',
+  },
+  logoContainer: {
+    flex: 1,
+    alignItems: 'center',
     justifyContent: 'center',
+    paddingTop: 16,
+    paddingBottom: 24,
   },
-  gradientHalo: {
-    position: 'absolute',
-    top: -140,
-    alignSelf: 'center',
-    width: 360,
-    height: 360,
-    borderRadius: 180,
-    backgroundColor: 'rgba(99, 102, 241, 0.22)',
+  logoText: {
+    fontSize: 44,
+    fontWeight: '800',
+    letterSpacing: 10,
+    opacity: 0.5,
+    textTransform: 'uppercase',
   },
-  contentWrapper: {
-    paddingHorizontal: 20,
-    paddingVertical: 40,
+  bottomSheetWrapper: {
+    paddingHorizontal: 0,
   },
   card: {
-    borderRadius: 28,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
     paddingHorizontal: 20,
-    paddingVertical: 24,
+    paddingTop: 20,
+    paddingBottom: 28,
     shadowOffset: { width: 0, height: 18 },
     shadowOpacity: 0.18,
     shadowRadius: 32,
@@ -591,9 +586,9 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   appName: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '700',
-    letterSpacing: 2,
+    letterSpacing: 1.5,
     textTransform: 'uppercase',
   },
   stepperPills: {
@@ -606,10 +601,10 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   title: {
-    fontSize: 32,
-    fontWeight: 'bold',
+    fontSize: 22,
+    fontWeight: '700',
     textAlign: 'center',
-    marginBottom: 10,
+    marginBottom: 20,
   },
   subtitle: {
     fontSize: 16,
@@ -617,20 +612,22 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   form: {
-    marginTop: 8,
-    marginBottom: 20,
+    marginTop: 16,
+    marginBottom: 24,
+    gap: 14,
   },
   sectionTitle: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '600',
-    marginBottom: 4,
+    marginBottom: 6,
   },
   sectionSubtitle: {
     fontSize: 13,
-    marginBottom: 16,
+    marginBottom: 18,
   },
   backLink: {
-    fontSize: 13,
+    fontSize: 14,
+    fontWeight: '600',
     marginBottom: 8,
   },
   input: {
@@ -723,6 +720,65 @@ const styles = StyleSheet.create({
     marginHorizontal: 4,
   },
   signInChoiceText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  signInChoiceColumn: {
+    marginTop: 8,
+    marginBottom: 16,
+  },
+  googleButton: {
+    borderRadius: 6,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 2,
+    marginBottom: 10,
+  },
+  googleContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  googleLogoCircle: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+  googleLogoText: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#4285F4',
+  },
+  googleLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1F2937',
+  },
+  googleSublabel: {
+    fontSize: 11,
+    color: '#6B7280',
+  },
+  emailChoiceButton: {
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emailChoiceText: {
     fontSize: 13,
     fontWeight: '600',
   },
