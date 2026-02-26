@@ -167,29 +167,53 @@ const ChatbotScreen: React.FC<ChatbotScreenProps> = ({ navigation }) => {
   const loadChatSessions = async () => {
     try {
       setIsLoading(true);
-      // Try cache first
+      // Try cache first — show immediately
       const cached = await getCachedChatSessions();
       if (cached && cached.length > 0) {
         setSessions(cached);
-      }
-
-      if (process.env.API_BASE_URL && process.env.API_BASE_URL !== 'undefined') {
-        const sessionList = await getChatSessions();
-        setSessions(sessionList);
-        await setCachedChatSessions(sessionList);
-
-        if (sessionList.length > 0 && !initialPrompt) {
-          await loadChatSession(sessionList[0].id);
+        // Show cached last session if no initial prompt
+        if (!initialPrompt) {
+          const cachedMsgs = await getCachedChatHistory(cached[0].id);
+          if (cachedMsgs && cachedMsgs.length > 0) {
+            setCurrentSessionId(cached[0].id);
+            setMessages(cachedMsgs.map((m: any) => ({
+              ...m, timestamp: new Date(m.timestamp),
+            })));
+            setIsLoading(false);
+          } else {
+            showWelcomeMessage();
+            setIsLoading(false);
+          }
         } else {
           showWelcomeMessage();
+          setIsLoading(false);
         }
       } else {
-        if (!cached || cached.length === 0) showWelcomeMessage();
+        // No cache — show welcome immediately
+        showWelcomeMessage();
+        setIsLoading(false);
+      }
+
+      // Background refresh from network (won't block UI)
+      try {
+        if (process.env.API_BASE_URL && process.env.API_BASE_URL !== 'undefined') {
+          const sessionList = await getChatSessions();
+          setSessions(sessionList);
+          await setCachedChatSessions(sessionList);
+
+          // Only auto-load latest session if we didn't already show cached data
+          // and there's no initial prompt
+          if (sessionList.length > 0 && !initialPrompt && (!cached || cached.length === 0)) {
+            await loadChatSession(sessionList[0].id);
+          }
+        }
+      } catch (networkErr: any) {
+        console.log('[Chat] Network unavailable, using cached data:', networkErr.message);
+        // Already showing cached data or welcome — no need to block
       }
     } catch (err: any) {
       console.error('Error loading chat sessions:', err);
       showWelcomeMessage();
-    } finally {
       setIsLoading(false);
     }
   };

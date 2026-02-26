@@ -8,16 +8,20 @@ async function getSessionToken(): Promise<string | null> {
 export async function apiFetch(input: RequestInfo, init?: RequestInit) {
   let token = await getSessionToken();
 
+  // Timeout: abort after 8 seconds so the app doesn't hang on Expo/Android
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 8000);
+
   const makeRequest = async (t: string | null) => {
     const headers = new Headers(init?.headers as any || {});
     if (t) headers.set('Authorization', `Bearer ${t}`);
-    
+
     // Set Content-Type to application/json if body is present and not already set
     if (init?.body && !headers.has('Content-Type')) {
       headers.set('Content-Type', 'application/json');
     }
-    
-    const res = await fetch(input, { ...init, headers });
+
+    const res = await fetch(input, { ...init, headers, signal: controller.signal });
     return res;
   };
 
@@ -31,10 +35,12 @@ export async function apiFetch(input: RequestInfo, init?: RequestInit) {
       }
     } catch (err) {
       // refresh failed: propagate 401
+      clearTimeout(timeoutId);
       return res;
     }
   }
 
+  clearTimeout(timeoutId);
   return res;
 }
 
@@ -50,15 +56,15 @@ export async function apiRequest<T = any>(input: RequestInfo, init?: RequestInit
     console.log('📡 Request Method:', init?.method || 'GET');
     console.log('📡 Request Body:', init?.body);
     console.log('📡 Request Headers:', init?.headers);
-    
+
     const response = await apiFetch(input, init);
-    
+
     if (!response.ok) {
       const errorText = await response.text();
       console.error('❌ Raw API Error Response:', errorText);
-      
+
       let errorMessage = `API Error: ${response.status} ${response.statusText}`;
-      
+
       try {
         const errorJson = JSON.parse(errorText);
         console.error('❌ Parsed API Error:', errorJson);
@@ -66,15 +72,15 @@ export async function apiRequest<T = any>(input: RequestInfo, init?: RequestInit
       } catch {
         errorMessage = errorText || errorMessage;
       }
-      
+
       console.error('❌ Final API Error:', errorMessage);
       throw new Error(errorMessage);
     }
-    
+
     // Handle empty responses
     const text = await response.text();
     if (!text) return {} as T;
-    
+
     const data = JSON.parse(text);
     console.log('✅ API Response:', data);
     return data;

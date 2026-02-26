@@ -14,6 +14,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { HomeScreenNavigationProp } from '../types/navigation';
 import { useTheme } from '../contexts/ThemeContext';
+import BottomNavBar from '../components/BottomNavBar';
 
 const { width, height } = Dimensions.get('window');
 
@@ -195,22 +196,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
       </View>
 
       {/* Bottom Nav */}
-      <View style={styles.navContainer}>
-        <View style={styles.nav}>
-          <TouchableOpacity style={styles.navBtn}>
-            <Text style={styles.navActiveLabel}>Home</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.navBtn} onPress={() => navigation.navigate('Chatbot')}>
-            <Text style={styles.navLabel}>AI Chat</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.navBtn} onPress={() => navigation.navigate('Library')}>
-            <Text style={styles.navLabel}>Library</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.navBtn} onPress={() => navigation.navigate('Profile')}>
-            <Text style={styles.navLabel}>Profile</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
+      <BottomNavBar activeRoute="Home" />
     </View>
   );
 };

@@ -10,110 +10,137 @@ import {
   Modal,
   TextInput,
   Platform,
+  StatusBar,
+  Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../auth/AuthProvider';
 import supabase from '../supabaseClient';
+import { getUserProfile } from '../supabaseConfig';
 import { ProfileScreenNavigationProp } from '../types/navigation';
-import { 
-  getCurrentUserProfile, 
-  updateUserProfile, 
-  requestPasswordReset,
-  requestEmailVerification,
-  deleteUserAccount,
-  UserProfile 
-} from '../services/userService';
+import { useTheme } from '../contexts/ThemeContext';
+import { getCachedUserProfile, setCachedUserProfile } from '../services/cacheService';
+import BottomNavBar from '../components/BottomNavBar';
+
+const { width } = Dimensions.get('window');
+
+// ─── Blue Theme ───────────────────────────────────────────────────
+const C = {
+  bg900: '#050816',
+  bg850: '#070B1E',
+  bg800: '#0A1128',
+  bg700: '#0F1A3E',
+  surface: '#0F1535',
+  accent: '#2563EB',
+  accentLight: '#3B82F6',
+  accentDim: 'rgba(37, 99, 235, 0.12)',
+  accentBorder: 'rgba(37, 99, 235, 0.25)',
+  textPrimary: '#E6EDF3',
+  textSecondary: '#8B949E',
+  textMuted: '#484F58',
+  cardBorder: 'rgba(71, 85, 105, 0.25)',
+  error: '#F87171',
+  errorBg: 'rgba(248, 113, 113, 0.08)',
+  success: '#34D399',
+  warning: '#FBBF24',
+  white: '#FFFFFF',
+  inputBg: '#0A1128',
+  inputBorder: 'rgba(71, 85, 105, 0.4)',
+};
+
+const FONT = { display: 39, h1: 24, h2: 20, body: 15, caption: 12, micro: 10 };
 
 interface ProfileScreenProps {
   navigation: ProfileScreenNavigationProp;
 }
 
+interface UserData {
+  name?: string;
+  email?: string;
+  registration_number?: string;
+  college?: string;
+  branch?: string;
+  year_joined?: number;
+  year_ending?: number;
+  roll_number?: string;
+  created_at?: string;
+}
+
 const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
-  const { user: authUser, getToken, signOut } = useAuth();
-  const [supabaseUser, setSupabaseUser] = React.useState<any | null>(null);
-  const [userData, setUserData] = React.useState<UserProfile | null>(null);
+  const { user: authUser, signOut } = useAuth();
+  const { theme } = useTheme();
+  const [userData, setUserData] = React.useState<UserData | null>(null);
+  const [supabaseUser, setSupabaseUser] = React.useState<any>(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
-  
-  // Full profile edit modal state
-  const [showEditProfileModal, setShowEditProfileModal] = React.useState(false);
+
+  // Edit modal state
+  const [showEdit, setShowEdit] = React.useState(false);
   const [editForm, setEditForm] = React.useState({
-    name: '',
-    registration_number: '',
-    college: '',
-    branch: '',
-    year_joined: '',
-    year_ending: '',
-    roll_number: '',
+    name: '', registration_number: '', college: '', branch: '',
+    year_joined: '', year_ending: '', roll_number: '',
   });
-  const [savingProfile, setSavingProfile] = React.useState(false);
-  const [refreshing, setRefreshing] = React.useState(false);
-  const [showAllDetails, setShowAllDetails] = React.useState(false);
+  const [saving, setSaving] = React.useState(false);
 
   const loadProfile = React.useCallback(async () => {
     try {
       setError(null);
-      // Get user from supabase session for email verification status
-      const { data: userRes, error: userErr } = await supabase.auth.getUser();
-      if (userErr) throw userErr;
+
+      // Get supabase auth user for email/verification
+      const { data: userRes } = await supabase.auth.getUser();
       const sUser = userRes?.user ?? null;
       setSupabaseUser(sUser);
 
-      // Get token to verify authentication
-      const token = await getToken();
-      if (!token) {
-        setUserData(null);
+      if (!sUser) {
+        setLoading(false);
         return;
       }
 
-      // Fetch profile from backend API
-      const profile = await getCurrentUserProfile();
-      
-      // Backend returns user data in metadata field, extract it properly
-      if (profile.metadata && typeof profile.metadata === 'object') {
-        const extractedProfile: UserProfile = {
-          email: profile.email || profile.metadata.email,
-          name: profile.metadata.name,
-          registration_number: profile.metadata.registration_number,
-          college: profile.metadata.college,
-          branch: profile.metadata.branch,
-          year_joined: profile.metadata.year_joined,
-          year_ending: profile.metadata.year_ending,
-          roll_number: profile.metadata.roll_number,
-          user_id: profile.user_id || profile.metadata.sub || profile.metadata.id,
-          role: profile.role,
-          created_at: profile.created_at || profile.metadata.created_at,
-          metadata: profile.metadata, // Keep original metadata for reference
-        };
-        setUserData(extractedProfile);
+      // Try cache first
+      const cached = await getCachedUserProfile();
+      if (cached) {
+        setUserData(cached);
+        setLoading(false);
+      }
+
+      // Fetch profile directly from Supabase (no backend)
+      const profile = await getUserProfile(sUser.id);
+      if (profile) {
+        setUserData(profile as UserData);
+        await setCachedUserProfile(profile);
       } else {
-        setUserData(profile);
+        // No profile row — use auth metadata
+        const meta = sUser.user_metadata || {};
+        const fallback: UserData = {
+          name: meta.name,
+          email: sUser.email,
+          registration_number: meta.registration_number,
+          college: meta.college,
+          branch: meta.branch,
+          year_joined: meta.year_joined,
+          year_ending: meta.year_ending,
+          roll_number: meta.roll_number,
+        };
+        setUserData(fallback);
       }
     } catch (err: any) {
-      console.error('Error fetching profile:', err);
-      setError('Unable to load profile data');
+      console.error('Error loading profile:', err);
+      setError('Unable to load profile');
+    } finally {
+      setLoading(false);
     }
-  }, [getToken]);
+  }, []);
 
   React.useEffect(() => {
-    (async () => {
-      setLoading(true);
-      await loadProfile();
-      setLoading(false);
-    })();
+    loadProfile();
   }, [loadProfile]);
 
-  // Refresh profile when screen comes into focus
   React.useEffect(() => {
-    const unsubscribe = navigation.addListener('focus', () => {
-      loadProfile();
-    });
-
+    const unsubscribe = navigation.addListener('focus', () => loadProfile());
     return unsubscribe;
   }, [navigation, loadProfile]);
 
-  const handleEditProfile = () => {
-    // Pre-fill the form with current data
+  const handleEdit = () => {
     setEditForm({
       name: userData?.name || '',
       registration_number: userData?.registration_number || '',
@@ -123,866 +150,390 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
       year_ending: userData?.year_ending?.toString() || '',
       roll_number: userData?.roll_number || '',
     });
-    setShowEditProfileModal(true);
+    setShowEdit(true);
   };
 
-  const handleSaveProfile = async () => {
+  const handleSave = async () => {
     if (!editForm.name.trim()) {
-      Alert.alert('Error', 'Please enter your name');
+      Alert.alert('Error', 'Name is required');
       return;
     }
+    if (!supabaseUser) return;
 
-    setSavingProfile(true);
+    setSaving(true);
     try {
-      // Prepare update data
-      const updateData: Partial<UserProfile> = {
+      const updateData: any = {
+        id: supabaseUser.id,
         name: editForm.name.trim(),
       };
+      if (editForm.registration_number.trim()) updateData.registration_number = editForm.registration_number.trim().toUpperCase();
+      if (editForm.college.trim()) updateData.college = editForm.college.trim().toUpperCase();
+      if (editForm.branch.trim()) updateData.branch = editForm.branch.trim().toUpperCase();
+      if (editForm.roll_number.trim()) updateData.roll_number = editForm.roll_number.trim();
+      if (editForm.year_joined.trim()) updateData.year_joined = parseInt(editForm.year_joined);
+      if (editForm.year_ending.trim()) updateData.year_ending = parseInt(editForm.year_ending);
 
-      // Add optional fields only if they have values
-      if (editForm.registration_number.trim()) {
-        updateData.registration_number = editForm.registration_number.trim();
-      }
-      if (editForm.college.trim()) {
-        updateData.college = editForm.college.trim();
-      }
-      if (editForm.branch.trim()) {
-        updateData.branch = editForm.branch.trim();
-      }
-      if (editForm.year_joined.trim()) {
-        updateData.year_joined = parseInt(editForm.year_joined);
-      }
-      if (editForm.year_ending.trim()) {
-        updateData.year_ending = parseInt(editForm.year_ending);
-      }
-      if (editForm.roll_number.trim()) {
-        updateData.roll_number = editForm.roll_number.trim();
-      }
+      // Update directly in Supabase
+      const { error: updateErr } = await supabase
+        .from('users')
+        .update(updateData)
+        .eq('id', supabaseUser.id);
 
-      // Update profile via backend API
-      const updatedProfile = await updateUserProfile(updateData);
+      if (updateErr) throw updateErr;
 
-      setUserData(updatedProfile);
-      setShowEditProfileModal(false);
-      
-      // Refresh profile to get latest data
-      await loadProfile();
-      
-      Alert.alert('Success', 'Profile updated successfully!');
-    } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to update profile');
+      setUserData({ ...userData, ...updateData } as UserData);
+      await setCachedUserProfile({ ...userData, ...updateData });
+      setShowEdit(false);
+      Alert.alert('Success', 'Profile updated!');
+    } catch (err: any) {
+      Alert.alert('Error', err.message || 'Failed to update');
     } finally {
-      setSavingProfile(false);
-    }
-  };
-
-  const handleChangePassword = () => {
-    if (!userData?.email && !supabaseUser?.email) {
-      Alert.alert('Error', 'Email not found');
-      return;
-    }
-
-    Alert.alert(
-      'Reset Password',
-      `We'll send a password reset link to ${userData?.email || supabaseUser?.email}`,
-      [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
-        {
-          text: 'Send Reset Link',
-          onPress: async () => {
-            try {
-              await requestPasswordReset(userData?.email || supabaseUser?.email || '');
-              Alert.alert(
-                'Success',
-                'Password reset email sent! Please check your inbox.',
-                [{ text: 'OK' }]
-              );
-            } catch (error: any) {
-              Alert.alert('Error', error.message || 'Failed to send reset email');
-            }
-          },
-        },
-      ]
-    );
-  };
-
-  const handleVerifyEmail = async () => {
-    if (supabaseUser?.email_confirmed_at) {
-      Alert.alert('Email Verified', 'Your email is already verified!');
-      return;
-    }
-
-    try {
-      await requestEmailVerification();
-      Alert.alert(
-        'Verification Email Sent',
-        'Please check your inbox and click the verification link.',
-        [{ text: 'OK' }]
-      );
-    } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to send verification email');
+      setSaving(false);
     }
   };
 
   const handleLogout = () => {
-    Alert.alert(
-      'Logout',
-      'Are you sure you want to logout?',
-      [
-        {
-          text: 'Cancel',
-          style: 'cancel',
+    Alert.alert('Logout', 'Are you sure?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Logout', style: 'destructive',
+        onPress: async () => {
+          try { await signOut(); } catch (e: any) { Alert.alert('Error', e.message); }
         },
-        {
-          text: 'Logout',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await signOut();
-              // Navigation will automatically redirect to Login screen
-              // because of the auth state listener in App.tsx
-            } catch (error: any) {
-              Alert.alert('Logout Error', error.message);
-            }
-          },
+      },
+    ]);
+  };
+
+  const handleResetPassword = () => {
+    const email = userData?.email || supabaseUser?.email;
+    if (!email) return;
+    Alert.alert('Reset Password', `Send reset link to ${email}?`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Send', onPress: async () => {
+          try {
+            await supabase.auth.resetPasswordForEmail(email);
+            Alert.alert('Sent', 'Check your email for the reset link.');
+          } catch (e: any) { Alert.alert('Error', e.message); }
         },
-      ]
-    );
+      },
+    ]);
+  };
+
+  const getInitial = () =>
+    (userData?.name?.charAt(0) || supabaseUser?.email?.charAt(0) || 'U').toUpperCase();
+
+  const getBatch = () => {
+    if (userData?.year_joined && userData?.year_ending)
+      return `${userData.year_joined} – ${userData.year_ending}`;
+    return null;
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['bottom']}>
-      <ScrollView style={styles.scrollView}>
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor={C.bg900} />
+
+      <SafeAreaView edges={['top']} style={{ backgroundColor: C.bg900 }}>
+        {/* Minimal header */}
         <View style={styles.header}>
-          <View style={styles.avatarContainer}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerBtn}>
+            <Text style={styles.headerBtnText}>←</Text>
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Profile</Text>
+          <TouchableOpacity onPress={() => navigation.navigate('Settings')} style={styles.headerBtn}>
+            <Text style={styles.headerBtnText}>⚙</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+
+      {loading ? (
+        <View style={styles.loadWrap}>
+          <ActivityIndicator size="large" color={C.accent} />
+        </View>
+      ) : (
+        <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
+          {/* Avatar + Name Card */}
+          <View style={styles.profileCard}>
             <View style={styles.avatar}>
-              <Text style={styles.avatarText}>
-                {(userData?.name?.charAt(0) || supabaseUser?.email?.charAt(0) || 'U').toUpperCase()}
-              </Text>
+              <Text style={styles.avatarLetter}>{getInitial()}</Text>
+            </View>
+            <Text style={styles.name}>
+              {userData?.name || supabaseUser?.email || 'Student'}
+            </Text>
+            <Text style={styles.email}>{userData?.email || supabaseUser?.email}</Text>
+
+            {/* Quick info badges */}
+            <View style={styles.badges}>
+              {userData?.branch && (
+                <View style={styles.badge}>
+                  <Text style={styles.badgeText}>{userData.branch}</Text>
+                </View>
+              )}
+              {getBatch() && (
+                <View style={styles.badge}>
+                  <Text style={styles.badgeText}>{getBatch()}</Text>
+                </View>
+              )}
+              {userData?.college && (
+                <View style={styles.badge}>
+                  <Text style={styles.badgeText}>{userData.college}</Text>
+                </View>
+              )}
             </View>
           </View>
-          <Text style={styles.userName}>
-            {userData?.name || supabaseUser?.user_metadata?.name || supabaseUser?.email || 'User Name'}
-          </Text>
-          <Text style={styles.userEmail}>{userData?.email || supabaseUser?.email}</Text>
-          {userData?.registration_number && (
-            <Text style={styles.userRegistration}>{userData.registration_number}</Text>
-          )}
+
           {error && (
             <View style={styles.errorBanner}>
-              <Text style={styles.errorText}>⚠️ {error}</Text>
+              <Text style={styles.errorText}>⚠ {error}</Text>
             </View>
           )}
-        </View>
 
-        {loading ? (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#007AFF" />
-            <Text style={styles.loadingText}>Loading profile...</Text>
-          </View>
-        ) : (
-          <>
-            {/* Registration Details Section */}
-            {userData?.registration_number && (
-              <View style={styles.section}>
-                <Text style={styles.sectionTitle}>📚 Registration Details</Text>
-                
-                <View style={styles.infoCard}>
-                  <View style={styles.infoRow}>
-                    <Text style={styles.infoLabel}>Registration No.</Text>
-                    <Text style={styles.infoValue}>{userData.registration_number}</Text>
-                  </View>
-
-                  <View style={styles.divider} />
-
-                  <View style={styles.infoRow}>
-                    <Text style={styles.infoLabel}>College</Text>
-                    <Text style={styles.infoValue}>{userData.college || 'N/A'}</Text>
-                  </View>
-
-                  <View style={styles.divider} />
-
-                  <View style={styles.infoRow}>
-                    <Text style={styles.infoLabel}>Branch</Text>
-                    <Text style={styles.infoValue}>{userData.branch || 'N/A'}</Text>
-                  </View>
-
-                  <View style={styles.divider} />
-
-                  <View style={styles.infoRow}>
-                    <Text style={styles.infoLabel}>Academic Year</Text>
-                    <Text style={styles.infoValue}>
-                      {userData.year_joined && userData.year_ending 
-                        ? `${userData.year_joined} - ${userData.year_ending}`
-                        : 'N/A'}
-                    </Text>
-                  </View>
-
-                  <View style={styles.divider} />
-
-                  <View style={styles.infoRow}>
-                    <Text style={styles.infoLabel}>Roll Number</Text>
-                    <Text style={styles.infoValue}>{userData.roll_number || 'N/A'}</Text>
-                  </View>
+          {/* Academic Info */}
+          {userData?.registration_number && (
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>Academic</Text>
+              <View style={styles.row}>
+                <Text style={styles.rowLabel}>Registration</Text>
+                <Text style={styles.rowValue}>{userData.registration_number}</Text>
+              </View>
+              {userData?.roll_number && (
+                <View style={styles.row}>
+                  <Text style={styles.rowLabel}>Roll Number</Text>
+                  <Text style={styles.rowValue}>{userData.roll_number}</Text>
                 </View>
-              </View>
-            )}
-
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Account Information</Text>
-          
-          <View style={styles.infoCard}>
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Email</Text>
-                  <Text style={styles.infoValue}>{userData?.email || supabaseUser?.email}</Text>
+              )}
             </View>
+          )}
 
-            <View style={styles.divider} />
-
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>User ID</Text>
-                  <Text style={styles.infoValue} numberOfLines={1}>
-                {supabaseUser?.id || 'N/A'}
-              </Text>
-            </View>
-
-            <View style={styles.divider} />
-
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Email Verified</Text>
-              <View style={[
-                styles.badge,
-                (supabaseUser?.email_confirmed_at ? styles.badgeSuccess : styles.badgeWarning)
-              ]}>
-                <Text style={styles.badgeText}>
-                  {supabaseUser?.email_confirmed_at ? 'Verified' : 'Not Verified'}
+          {/* Account Info */}
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Account</Text>
+            <View style={styles.row}>
+              <Text style={styles.rowLabel}>Email Verified</Text>
+              <View style={[styles.statusBadge, supabaseUser?.email_confirmed_at ? styles.statusOk : styles.statusWarn]}>
+                <Text style={styles.statusText}>
+                  {supabaseUser?.email_confirmed_at ? 'Verified' : 'Pending'}
                 </Text>
               </View>
             </View>
-
-            <View style={styles.divider} />
-
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Account Created</Text>
-              <Text style={styles.infoValue}>
-                {userData?.created_at
-                  ? new Date(userData.created_at).toLocaleDateString()
-                  : supabaseUser?.created_at
-                  ? new Date(supabaseUser.created_at).toLocaleDateString()
-                  : 'N/A'}
-              </Text>
-            </View>
-
-            <View style={styles.divider} />
-
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Last Sign In</Text>
-              <Text style={styles.infoValue}>
-                {supabaseUser?.last_sign_in_at
-                  ? new Date(supabaseUser.last_sign_in_at).toLocaleDateString()
-                  : 'N/A'}
+            <View style={styles.row}>
+              <Text style={styles.rowLabel}>Member Since</Text>
+              <Text style={styles.rowValue}>
+                {supabaseUser?.created_at
+                  ? new Date(supabaseUser.created_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
+                  : '—'}
               </Text>
             </View>
           </View>
-        </View>
 
-        {/* Complete User Details Section */}
-        <View style={styles.section}>
-          <TouchableOpacity 
-            style={styles.detailsHeader}
-            onPress={() => setShowAllDetails(!showAllDetails)}
-          >
-            <Text style={styles.sectionTitle}>🔍 Complete User Details</Text>
-            <Text style={styles.expandIcon}>{showAllDetails ? '▼' : '▶'}</Text>
-          </TouchableOpacity>
-
-          {showAllDetails && (
-            <View style={styles.infoCard}>
-              {/* Personal Information */}
-              <Text style={styles.detailsSubheading}>Personal Information</Text>
-              
-              <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>Full Name</Text>
-                <Text style={styles.infoValue}>{userData?.name || 'Not set'}</Text>
-              </View>
-              <View style={styles.divider} />
-
-              <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>Email</Text>
-                <Text style={styles.infoValue}>{userData?.email || supabaseUser?.email || 'N/A'}</Text>
-              </View>
-              <View style={styles.divider} />
-
-              {/* Academic Information */}
-              <Text style={[styles.detailsSubheading, { marginTop: 15 }]}>Academic Information</Text>
-              
-              <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>Registration Number</Text>
-                <Text style={styles.infoValue}>{userData?.registration_number || 'Not set'}</Text>
-              </View>
-              <View style={styles.divider} />
-
-              <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>College</Text>
-                <Text style={styles.infoValue}>{userData?.college || 'Not set'}</Text>
-              </View>
-              <View style={styles.divider} />
-
-              <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>Branch</Text>
-                <Text style={styles.infoValue}>{userData?.branch || 'Not set'}</Text>
-              </View>
-              <View style={styles.divider} />
-
-              <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>Roll Number</Text>
-                <Text style={styles.infoValue}>{userData?.roll_number || 'Not set'}</Text>
-              </View>
-              <View style={styles.divider} />
-
-              <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>Year Joined</Text>
-                <Text style={styles.infoValue}>{userData?.year_joined || 'Not set'}</Text>
-              </View>
-              <View style={styles.divider} />
-
-              <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>Year Ending</Text>
-                <Text style={styles.infoValue}>{userData?.year_ending || 'Not set'}</Text>
-              </View>
-              <View style={styles.divider} />
-
-              {/* Account Information */}
-              <Text style={[styles.detailsSubheading, { marginTop: 15 }]}>Account Information</Text>
-              
-              <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>User ID</Text>
-                <Text style={[styles.infoValue, styles.monoText]} numberOfLines={1}>
-                  {userData?.user_id || supabaseUser?.id || 'N/A'}
-                </Text>
-              </View>
-              <View style={styles.divider} />
-
-              <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>Role</Text>
-                <Text style={styles.infoValue}>{userData?.role || 'authenticated'}</Text>
-              </View>
-              <View style={styles.divider} />
-
-              <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>Email Verified</Text>
-                <Text style={styles.infoValue}>
-                  {supabaseUser?.email_confirmed_at ? '✅ Yes' : '❌ No'}
-                </Text>
-              </View>
-              <View style={styles.divider} />
-
-              <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>Account Created</Text>
-                <Text style={styles.infoValue}>
-                  {userData?.created_at 
-                    ? new Date(userData.created_at).toLocaleString()
-                    : supabaseUser?.created_at
-                    ? new Date(supabaseUser.created_at).toLocaleString()
-                    : 'N/A'}
-                </Text>
-              </View>
-              <View style={styles.divider} />
-
-              <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>Last Sign In</Text>
-                <Text style={styles.infoValue}>
-                  {supabaseUser?.last_sign_in_at
-                    ? new Date(supabaseUser.last_sign_in_at).toLocaleString()
-                    : 'N/A'}
-                </Text>
-              </View>
-              <View style={styles.divider} />
-
-              <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>Phone Verified</Text>
-                <Text style={styles.infoValue}>
-                  {supabaseUser?.phone_confirmed_at ? '✅ Yes' : '❌ No'}
-                </Text>
-              </View>
-
-              {/* Metadata Section - Only show fields not already displayed */}
-              {userData?.metadata && (() => {
-                const excludedKeys = [
-                  'name', 'email', 'registration_number', 'college', 'branch',
-                  'roll_number', 'year_joined', 'year_ending', 'id', 'sub',
-                  'created_at', 'updated_at', 'email_verified', 'phone_verified'
-                ];
-                const additionalFields = Object.entries(userData.metadata).filter(
-                  ([key]) => !excludedKeys.includes(key)
-                );
-                
-                if (additionalFields.length === 0) return null;
-                
-                return (
-                  <>
-                    <View style={styles.divider} />
-                    <Text style={[styles.detailsSubheading, { marginTop: 15 }]}>Additional Data</Text>
-                    
-                    {additionalFields.map(([key, value]) => (
-                      <View key={key}>
-                        <View style={styles.infoRow}>
-                          <Text style={styles.infoLabel}>{key}</Text>
-                          <Text style={styles.infoValue} numberOfLines={2}>
-                            {typeof value === 'object' ? JSON.stringify(value) : String(value)}
-                          </Text>
-                        </View>
-                        <View style={styles.divider} />
-                      </View>
-                    ))}
-                  </>
-                );
-              })()}
-            </View>
-          )}
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Actions</Text>
-          
-          <TouchableOpacity style={styles.actionButton} onPress={handleEditProfile}>
-            <Text style={styles.actionButtonText}>✏️ Edit Profile</Text>
-          </TouchableOpacity>
-
-          {!supabaseUser?.email_confirmed_at && (
-            <TouchableOpacity
-              style={[styles.actionButton, styles.actionButtonSecondary]}
-              onPress={handleVerifyEmail}
-            >
-              <Text style={styles.actionButtonText}>📧 Verify Email</Text>
+          {/* Actions */}
+          <View style={styles.actions}>
+            <TouchableOpacity style={styles.actionBtn} onPress={handleEdit}>
+              <Text style={styles.actionText}>Edit Profile</Text>
+              <Text style={styles.actionArrow}>›</Text>
             </TouchableOpacity>
-          )}
+            <TouchableOpacity style={styles.actionBtn} onPress={handleResetPassword}>
+              <Text style={styles.actionText}>Change Password</Text>
+              <Text style={styles.actionArrow}>›</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.actionBtn, styles.actionDanger]} onPress={handleLogout}>
+              <Text style={[styles.actionText, { color: C.error }]}>Logout</Text>
+              <Text style={[styles.actionArrow, { color: C.error }]}>›</Text>
+            </TouchableOpacity>
+          </View>
 
-          <TouchableOpacity
-            style={[styles.actionButton, styles.actionButtonSecondary]}
-            onPress={handleChangePassword}
-          >
-            <Text style={styles.actionButtonText}>🔐 Change Password</Text>
-          </TouchableOpacity>
+          <View style={{ height: 24 }} />
+        </ScrollView>
+      )}
 
-          <TouchableOpacity
-            style={[styles.actionButton, styles.actionButtonDanger]}
-            onPress={handleLogout}
-          >
-            <Text style={styles.actionButtonText}>🚪 Logout</Text>
-          </TouchableOpacity>
-        </View>
-          </>
-        )}
-      </ScrollView>
+      {/* Bottom Nav */}
+      <BottomNavBar activeRoute="Profile" />
 
-      {/* Edit Profile Modal */}
-      <Modal
-        visible={showEditProfileModal}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => setShowEditProfileModal(false)}
-      >
+      {/* Edit Modal */}
+      <Modal visible={showEdit} animationType="slide" transparent onRequestClose={() => setShowEdit(false)}>
         <View style={styles.modalOverlay}>
-          <ScrollView style={styles.editProfileModalScroll}>
-            <View style={styles.editProfileModal}>
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Edit Profile</Text>
-                <TouchableOpacity onPress={() => setShowEditProfileModal(false)}>
-                  <Text style={styles.modalClose}>✕</Text>
-                </TouchableOpacity>
-              </View>
-
-              {/* Name */}
-              <View style={styles.inputContainer}>
-                <Text style={styles.inputLabel}>Full Name *</Text>
-                <TextInput
-                  style={styles.textInput}
-                  placeholder="Enter your full name"
-                  value={editForm.name}
-                  onChangeText={(text) => setEditForm({ ...editForm, name: text })}
-                  placeholderTextColor="#9CA3AF"
-                  autoCapitalize="words"
-                />
-              </View>
-
-              {/* Registration Number */}
-              <View style={styles.inputContainer}>
-                <Text style={styles.inputLabel}>Registration Number</Text>
-                <TextInput
-                  style={styles.textInput}
-                  placeholder="e.g., MEA22CS084"
-                  value={editForm.registration_number}
-                  onChangeText={(text) => setEditForm({ ...editForm, registration_number: text })}
-                  placeholderTextColor="#9CA3AF"
-                  autoCapitalize="characters"
-                />
-              </View>
-
-              {/* College */}
-              <View style={styles.inputContainer}>
-                <Text style={styles.inputLabel}>College</Text>
-                <TextInput
-                  style={styles.textInput}
-                  placeholder="e.g., MEA"
-                  value={editForm.college}
-                  onChangeText={(text) => setEditForm({ ...editForm, college: text })}
-                  placeholderTextColor="#9CA3AF"
-                  autoCapitalize="characters"
-                />
-              </View>
-
-              {/* Branch */}
-              <View style={styles.inputContainer}>
-                <Text style={styles.inputLabel}>Branch</Text>
-                <TextInput
-                  style={styles.textInput}
-                  placeholder="e.g., CS, EC, ME"
-                  value={editForm.branch}
-                  onChangeText={(text) => setEditForm({ ...editForm, branch: text })}
-                  placeholderTextColor="#9CA3AF"
-                  autoCapitalize="characters"
-                />
-              </View>
-
-              {/* Roll Number */}
-              <View style={styles.inputContainer}>
-                <Text style={styles.inputLabel}>Roll Number</Text>
-                <TextInput
-                  style={styles.textInput}
-                  placeholder="Enter your roll number"
-                  value={editForm.roll_number}
-                  onChangeText={(text) => setEditForm({ ...editForm, roll_number: text })}
-                  placeholderTextColor="#9CA3AF"
-                />
-              </View>
-
-              {/* Academic Years */}
-              <View style={styles.yearContainer}>
-                <View style={[styles.inputContainer, styles.yearInput]}>
-                  <Text style={styles.inputLabel}>Year Joined</Text>
-                  <TextInput
-                    style={styles.textInput}
-                    placeholder="e.g., 2022"
-                    value={editForm.year_joined}
-                    onChangeText={(text) => setEditForm({ ...editForm, year_joined: text })}
-                    placeholderTextColor="#9CA3AF"
-                    keyboardType="numeric"
-                    maxLength={4}
-                  />
-                </View>
-
-                <View style={[styles.inputContainer, styles.yearInput]}>
-                  <Text style={styles.inputLabel}>Year Ending</Text>
-                  <TextInput
-                    style={styles.textInput}
-                    placeholder="e.g., 2026"
-                    value={editForm.year_ending}
-                    onChangeText={(text) => setEditForm({ ...editForm, year_ending: text })}
-                    placeholderTextColor="#9CA3AF"
-                    keyboardType="numeric"
-                    maxLength={4}
-                  />
-                </View>
-              </View>
-
-              <View style={styles.modalButtons}>
-                <TouchableOpacity
-                  style={styles.modalButtonCancel}
-                  onPress={() => setShowEditProfileModal(false)}
-                >
-                  <Text style={styles.modalButtonCancelText}>Cancel</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.modalButtonSave, savingProfile && styles.modalButtonDisabled]}
-                  onPress={handleSaveProfile}
-                  disabled={savingProfile}
-                >
-                  <Text style={styles.modalButtonSaveText}>
-                    {savingProfile ? 'Saving...' : 'Save Changes'}
-                  </Text>
-                </TouchableOpacity>
-              </View>
+          <View style={styles.modal}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Edit Profile</Text>
+              <TouchableOpacity onPress={() => setShowEdit(false)}>
+                <Text style={styles.modalClose}>✕</Text>
+              </TouchableOpacity>
             </View>
-          </ScrollView>
+
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {[
+                { label: 'Full Name *', key: 'name', cap: 'words' as const },
+                { label: 'Registration No.', key: 'registration_number', cap: 'characters' as const },
+                { label: 'College', key: 'college', cap: 'characters' as const },
+                { label: 'Branch', key: 'branch', cap: 'characters' as const },
+                { label: 'Roll Number', key: 'roll_number', cap: 'none' as const },
+              ].map(({ label, key, cap }) => (
+                <View key={key} style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>{label}</Text>
+                  <TextInput
+                    style={styles.textInput}
+                    value={(editForm as any)[key]}
+                    onChangeText={(t) => setEditForm({ ...editForm, [key]: t })}
+                    placeholderTextColor={C.textMuted}
+                    autoCapitalize={cap}
+                  />
+                </View>
+              ))}
+
+              <View style={{ flexDirection: 'row', gap: 12 }}>
+                {[
+                  { label: 'Year Joined', key: 'year_joined' },
+                  { label: 'Year Ending', key: 'year_ending' },
+                ].map(({ label, key }) => (
+                  <View key={key} style={[styles.inputGroup, { flex: 1 }]}>
+                    <Text style={styles.inputLabel}>{label}</Text>
+                    <TextInput
+                      style={styles.textInput}
+                      value={(editForm as any)[key]}
+                      onChangeText={(t) => setEditForm({ ...editForm, [key]: t })}
+                      placeholderTextColor={C.textMuted}
+                      keyboardType="numeric"
+                      maxLength={4}
+                    />
+                  </View>
+                ))}
+              </View>
+
+              <View style={styles.modalActions}>
+                <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowEdit(false)}>
+                  <Text style={styles.cancelText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.saveBtn, saving && { opacity: 0.5 }]}
+                  onPress={handleSave}
+                  disabled={saving}
+                >
+                  <Text style={styles.saveText}>{saving ? 'Saving...' : 'Save'}</Text>
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
+          </View>
         </View>
       </Modal>
-    </SafeAreaView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f5f5f5',
-  },
-  scrollView: {
-    flex: 1,
-  },
+  container: { flex: 1, backgroundColor: C.bg900 },
+  // Header
   header: {
-    backgroundColor: '#fff',
-    padding: 30,
-    alignItems: 'center',
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 16, paddingVertical: 10,
+    borderBottomWidth: 1, borderBottomColor: C.cardBorder,
   },
-  avatarContainer: {
-    marginBottom: 15,
+  headerBtn: { width: 40, height: 40, justifyContent: 'center', alignItems: 'center', borderRadius: 10 },
+  headerBtnText: { fontSize: 20, color: C.textPrimary },
+  headerTitle: { fontSize: FONT.body, fontWeight: '700', color: C.textPrimary },
+  // Loading
+  loadWrap: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  // Scroll
+  scroll: { flex: 1, paddingHorizontal: 16 },
+  // Profile card
+  profileCard: {
+    alignItems: 'center', paddingVertical: 28,
+    borderBottomWidth: 1, borderBottomColor: C.cardBorder,
+    marginBottom: 16,
   },
   avatar: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: '#007AFF',
-    alignItems: 'center',
-    justifyContent: 'center',
+    width: 80, height: 80, borderRadius: 40,
+    backgroundColor: C.accent,
+    justifyContent: 'center', alignItems: 'center',
+    marginBottom: 14,
   },
-  avatarText: {
-    fontSize: 40,
-    fontWeight: 'bold',
-    color: '#fff',
-  },
-  userName: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 5,
-  },
-  userEmail: {
-    fontSize: 16,
-    color: '#666',
-  },
-  userRegistration: {
-    fontSize: 14,
-    color: '#007AFF',
-    fontWeight: '600',
-    marginTop: 4,
-  },
-  errorBanner: {
-    marginTop: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    backgroundColor: '#FEF2F2',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#FCA5A5',
-  },
-  errorText: {
-    fontSize: 12,
-    color: '#DC2626',
-    textAlign: 'center',
-    fontWeight: '500',
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 40,
-  },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 16,
-    color: '#666',
-  },
-  section: {
-    padding: 20,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 15,
-  },
-  infoCard: {
-    backgroundColor: '#fff',
-    borderRadius: 15,
-    padding: 15,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  infoRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 12,
-  },
-  infoLabel: {
-    fontSize: 14,
-    color: '#666',
-    fontWeight: '500',
-  },
-  infoValue: {
-    fontSize: 14,
-    color: '#333',
-    fontWeight: '600',
-    flex: 1,
-    textAlign: 'right',
-    marginLeft: 10,
-  },
-  divider: {
-    height: 1,
-    backgroundColor: '#eee',
-  },
-  detailsHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 15,
-  },
-  expandIcon: {
-    fontSize: 18,
-    color: '#007AFF',
-    fontWeight: '600',
-  },
-  detailsSubheading: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#007AFF',
-    marginBottom: 10,
-    marginTop: 5,
-  },
-  monoText: {
-    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
-    fontSize: 12,
-  },
+  avatarLetter: { fontSize: 32, fontWeight: '700', color: C.white },
+  name: { fontSize: FONT.h1, fontWeight: '700', color: C.textPrimary, marginBottom: 4 },
+  email: { fontSize: FONT.caption, color: C.textSecondary, marginBottom: 12 },
+  badges: { flexDirection: 'row', gap: 8, flexWrap: 'wrap', justifyContent: 'center' },
   badge: {
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 12,
+    paddingHorizontal: 12, paddingVertical: 5, borderRadius: 10,
+    backgroundColor: C.accentDim, borderWidth: 1, borderColor: C.accentBorder,
   },
-  badgeSuccess: {
-    backgroundColor: '#34C759',
+  badgeText: { fontSize: FONT.micro, fontWeight: '600', color: C.accentLight },
+  // Error
+  errorBanner: {
+    backgroundColor: C.errorBg, borderLeftWidth: 3, borderLeftColor: C.error,
+    paddingHorizontal: 16, paddingVertical: 10, borderRadius: 8, marginBottom: 16,
   },
-  badgeWarning: {
-    backgroundColor: '#FF9500',
+  errorText: { color: C.error, fontSize: FONT.caption },
+  // Cards
+  card: {
+    backgroundColor: C.surface, borderRadius: 14,
+    padding: 16, marginBottom: 12,
+    borderWidth: 1, borderColor: C.cardBorder,
   },
-  badgeText: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: '600',
+  cardTitle: {
+    fontSize: FONT.caption, fontWeight: '700', color: C.textMuted,
+    textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 12,
   },
-  actionButton: {
-    backgroundColor: '#007AFF',
-    borderRadius: 10,
-    padding: 15,
-    marginBottom: 10,
-    alignItems: 'center',
+  row: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingVertical: 8,
+    borderBottomWidth: 1, borderBottomColor: 'rgba(71,85,105,0.12)',
   },
-  actionButtonSecondary: {
-    backgroundColor: '#5856D6',
+  rowLabel: { fontSize: FONT.body, color: C.textSecondary },
+  rowValue: { fontSize: FONT.body, color: C.textPrimary, fontWeight: '500' },
+  statusBadge: { paddingHorizontal: 10, paddingVertical: 3, borderRadius: 8 },
+  statusOk: { backgroundColor: 'rgba(52, 211, 153, 0.15)' },
+  statusWarn: { backgroundColor: 'rgba(251, 191, 36, 0.15)' },
+  statusText: { fontSize: FONT.micro, fontWeight: '600', color: C.success },
+  // Actions
+  actions: { marginTop: 8 },
+  actionBtn: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    backgroundColor: C.surface, borderRadius: 12,
+    paddingHorizontal: 16, paddingVertical: 14,
+    marginBottom: 8, borderWidth: 1, borderColor: C.cardBorder,
   },
-  actionButtonDanger: {
-    backgroundColor: '#FF3B30',
-    marginTop: 10,
-  },
-  actionButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  // Edit Profile Modal Styles
+  actionDanger: { borderColor: 'rgba(248, 113, 113, 0.2)' },
+  actionText: { fontSize: FONT.body, color: C.textPrimary, fontWeight: '500' },
+  actionArrow: { fontSize: 20, color: C.textMuted, fontWeight: '300' },
+  // Modal
   modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'flex-end',
   },
-  editProfileModalScroll: {
-    flex: 1,
-    width: '100%',
-  },
-  editProfileModal: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 24,
-    marginVertical: 40,
-    marginHorizontal: 20,
+  modal: {
+    backgroundColor: C.bg800, borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    paddingHorizontal: 20, paddingTop: 20, paddingBottom: Platform.OS === 'ios' ? 40 : 24,
+    maxHeight: '85%',
   },
   modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     marginBottom: 20,
   },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#1A1A2E',
-  },
-  modalClose: {
-    fontSize: 24,
-    color: '#6B7280',
-    fontWeight: '300',
-  },
-  inputContainer: {
-    marginBottom: 20,
-  },
+  modalTitle: { fontSize: FONT.h2, fontWeight: '700', color: C.textPrimary },
+  modalClose: { fontSize: 18, color: C.textSecondary, fontWeight: '600' },
+  inputGroup: { marginBottom: 14 },
   inputLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#1A1A2E',
-    marginBottom: 8,
+    fontSize: FONT.caption, fontWeight: '600', color: C.textSecondary,
+    marginBottom: 6, letterSpacing: 0.3,
   },
   textInput: {
-    backgroundColor: '#F9FAFB',
-    borderRadius: 12,
-    padding: 16,
-    fontSize: 16,
-    color: '#1A1A2E',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
+    backgroundColor: C.inputBg, borderRadius: 12,
+    paddingHorizontal: 14, paddingVertical: 12,
+    fontSize: FONT.body, color: C.textPrimary,
+    borderWidth: 1, borderColor: C.inputBorder,
   },
-  yearContainer: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 20,
+  modalActions: {
+    flexDirection: 'row', gap: 12, marginTop: 20,
   },
-  yearInput: {
-    flex: 1,
-    marginBottom: 0,
-  },
-  modalButtons: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  modalButtonCancel: {
-    flex: 1,
-    padding: 14,
-    borderRadius: 12,
-    backgroundColor: '#F3F4F6',
+  cancelBtn: {
+    flex: 1, paddingVertical: 14, borderRadius: 12,
+    borderWidth: 1, borderColor: C.cardBorder,
     alignItems: 'center',
   },
-  modalButtonCancelText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#6B7280',
+  cancelText: { fontSize: FONT.body, color: C.textSecondary, fontWeight: '500' },
+  saveBtn: {
+    flex: 1, paddingVertical: 14, borderRadius: 12,
+    backgroundColor: C.accent, alignItems: 'center',
   },
-  modalButtonSave: {
-    flex: 1,
-    padding: 14,
-    borderRadius: 12,
-    backgroundColor: '#007AFF',
-    alignItems: 'center',
-  },
-  modalButtonSaveText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  modalButtonDisabled: {
-    backgroundColor: '#9CA3AF',
-    opacity: 0.6,
-  },
+  saveText: { fontSize: FONT.body, color: C.white, fontWeight: '600' },
 });
 
 export default ProfileScreen;
