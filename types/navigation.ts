@@ -8,7 +8,7 @@ export type RootStackParamList = {
   Profile: undefined;
   Settings: undefined;
   Help: undefined;
-  Chatbot: undefined;
+  Chatbot: { initialPrompt?: string } | undefined;
   Ticklist: undefined;
   Library: undefined;
   QuizSession: undefined;

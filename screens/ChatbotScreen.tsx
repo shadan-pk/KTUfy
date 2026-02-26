@@ -14,15 +14,14 @@ import {
   Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ChatbotScreenNavigationProp } from '../types/navigation';
+import { ChatbotScreenNavigationProp, ChatbotScreenRouteProp } from '../types/navigation';
+import { useTheme } from '../contexts/ThemeContext';
 import {
   sendChatMessage,
   getChatSessions,
   getChatSession,
-  createChatSession,
   updateChatSession,
   deleteChatSession,
-  ChatMessage as BackendChatMessage,
   ChatSession,
 } from '../services/chatService';
 
@@ -37,9 +36,30 @@ interface Message {
 
 interface ChatbotScreenProps {
   navigation: ChatbotScreenNavigationProp;
+  route: ChatbotScreenRouteProp;
 }
 
-const ChatbotScreen: React.FC<ChatbotScreenProps> = ({ navigation }) => {
+interface ColorTokens {
+  background: string;
+  card: string;
+  cardBorder: string;
+  text: string;
+  muted: string;
+  primary: string;
+  error: string;
+  inputBackground: string;
+  inputBorder: string;
+  overlay: string;
+  sidebarBackground: string;
+  userBubble: string;
+  aiBubble: string;
+  userText: string;
+  aiText: string;
+  timestamp: string;
+}
+
+const ChatbotScreen: React.FC<ChatbotScreenProps> = ({ navigation, route }) => {
+  const { theme, isDark } = useTheme();
   const [messages, setMessages] = React.useState<Message[]>([]);
   const [inputText, setInputText] = React.useState('');
   const [isTyping, setIsTyping] = React.useState(false);
@@ -51,6 +71,31 @@ const ChatbotScreen: React.FC<ChatbotScreenProps> = ({ navigation }) => {
   const [editingSessionId, setEditingSessionId] = React.useState<string | null>(null);
   const [editingTitle, setEditingTitle] = React.useState('');
   const scrollViewRef = React.useRef<ScrollView>(null);
+  const initialPromptRef = React.useRef<string | null>(null);
+
+  const colors = React.useMemo<ColorTokens>(() => {
+    const cardBase = isDark ? '#050816' : theme.backgroundSecondary;
+    return {
+      background: theme.background,
+      card: cardBase,
+      cardBorder: isDark ? '#0F172A' : theme.border,
+      text: isDark ? '#E5E7EB' : theme.text,
+      muted: isDark ? '#94A3B8' : theme.textSecondary,
+      primary: theme.primary,
+      error: theme.error,
+      inputBackground: isDark ? '#0F172A' : theme.background,
+      inputBorder: isDark ? '#1F2937' : theme.border,
+      overlay: theme.overlay,
+      sidebarBackground: isDark ? '#0B1224' : theme.background,
+      userBubble: theme.primary,
+      aiBubble: isDark ? '#0F172A' : theme.backgroundSecondary,
+      userText: '#FFFFFF',
+      aiText: isDark ? '#E5E7EB' : theme.text,
+      timestamp: isDark ? '#94A3B8' : theme.textTertiary,
+    };
+  }, [theme, isDark]);
+
+  const styles = React.useMemo(() => createStyles(colors), [colors]);
 
   // Load chat sessions on mount
   React.useEffect(() => {
@@ -188,10 +233,10 @@ const ChatbotScreen: React.FC<ChatbotScreenProps> = ({ navigation }) => {
     return `I understand you're asking about "${userMessage}". While I'm currently in offline mode, I can offer some general guidance:\n\n• Break down complex topics into smaller parts\n• Use multiple learning resources\n• Practice regularly\n• Ask specific questions\n• Connect concepts to real-world examples\n\nCould you provide more details about what specific help you need?`;
   };
 
-  const handleSend = async () => {
-    if (!inputText.trim() || isTyping) return;
+  const submitPrompt = React.useCallback(async (rawText: string) => {
+    const messageText = rawText.trim();
+    if (!messageText || isTyping) return;
 
-    const messageText = inputText.trim();
     setInputText('');
     setError(null);
 
@@ -251,7 +296,19 @@ const ChatbotScreen: React.FC<ChatbotScreenProps> = ({ navigation }) => {
     }
 
     setIsTyping(false);
+  }, [currentSessionId, isTyping]);
+
+  const handleSend = () => {
+    submitPrompt(inputText);
   };
+
+  React.useEffect(() => {
+    const initialPrompt = route.params?.initialPrompt?.trim();
+    if (!initialPrompt) return;
+    if (initialPromptRef.current === initialPrompt) return;
+    initialPromptRef.current = initialPrompt;
+    submitPrompt(initialPrompt);
+  }, [route.params?.initialPrompt, submitPrompt]);
 
   // Delete session
   const handleDeleteSession = async (sessionId: string) => {
@@ -366,7 +423,6 @@ const ChatbotScreen: React.FC<ChatbotScreenProps> = ({ navigation }) => {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity
           style={styles.menuButton}
@@ -375,10 +431,11 @@ const ChatbotScreen: React.FC<ChatbotScreenProps> = ({ navigation }) => {
           <Text style={styles.menuIcon}>☰</Text>
         </TouchableOpacity>
         <View style={styles.headerCenter}>
-          {/* Removed title text to match ChatGPT */}
+          <Text style={styles.headerTitle}>KTUfy AI</Text>
+          <Text style={styles.headerSubtitle}>KG-RAG assistant</Text>
         </View>
         <TouchableOpacity style={styles.newChatButton} onPress={handleNewChat}>
-          <Text style={styles.newChatIcon}>✏️</Text>
+          <Text style={styles.newChatIcon}>＋</Text>
         </TouchableOpacity>
       </View>
 
@@ -400,7 +457,7 @@ const ChatbotScreen: React.FC<ChatbotScreenProps> = ({ navigation }) => {
       >
         {isLoading && messages.length === 0 ? (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#19C37D" />
+            <ActivityIndicator size="large" color={colors.primary} />
             <Text style={styles.loadingText}>Loading chat history...</Text>
           </View>
         ) : (
@@ -418,29 +475,28 @@ const ChatbotScreen: React.FC<ChatbotScreenProps> = ({ navigation }) => {
                   message.isUser ? styles.userMessageRow : styles.aiMessageRow,
                 ]}
               >
-                {/* Avatar */}
                 <View
                   style={[
-                    styles.avatar,
-                    message.isUser ? styles.userAvatar : styles.aiAvatar,
+                    styles.messageBubble,
+                    message.isUser ? styles.userBubble : styles.aiBubble,
                   ]}
                 >
-                  <Text style={styles.avatarText}>
-                    {message.isUser ? '👤' : '🤖'}
+                  <Text
+                    style={[
+                      styles.messageText,
+                      message.isUser ? styles.userText : styles.aiText,
+                    ]}
+                  >
+                    {message.text}
                   </Text>
-                </View>
-
-                {/* Message Content */}
-                <View style={styles.messageContent}>
-                  <View style={styles.messageHeader}>
-                    <Text style={styles.messageSender}>
-                      {message.isUser ? 'You' : 'AI Assistant'}
-                    </Text>
-                    <Text style={styles.messageTime}>
-                      {formatTime(message.timestamp)}
-                    </Text>
-                  </View>
-                  <Text style={styles.messageText}>{message.text}</Text>
+                  <Text
+                    style={[
+                      styles.messageTime,
+                      message.isUser ? styles.userTime : styles.aiTime,
+                    ]}
+                  >
+                    {formatTime(message.timestamp)}
+                  </Text>
                 </View>
               </View>
             ))}
@@ -448,10 +504,7 @@ const ChatbotScreen: React.FC<ChatbotScreenProps> = ({ navigation }) => {
             {/* Typing Indicator */}
             {isTyping && (
               <View style={[styles.messageRow, styles.aiMessageRow]}>
-                <View style={[styles.avatar, styles.aiAvatar]}>
-                  <Text style={styles.avatarText}>🤖</Text>
-                </View>
-                <View style={styles.messageContent}>
+                <View style={[styles.messageBubble, styles.aiBubble]}>
                   <View style={styles.typingIndicator}>
                     <View style={styles.typingDot} />
                     <View style={[styles.typingDot, styles.typingDotDelay1]} />
@@ -468,8 +521,8 @@ const ChatbotScreen: React.FC<ChatbotScreenProps> = ({ navigation }) => {
           <View style={styles.inputWrapper}>
             <TextInput
               style={styles.input}
-              placeholder="Send a message..."
-              placeholderTextColor="#8e8ea0"
+              placeholder="Message KG-RAG..."
+              placeholderTextColor={colors.muted}
               value={inputText}
               onChangeText={setInputText}
               multiline
@@ -484,7 +537,7 @@ const ChatbotScreen: React.FC<ChatbotScreenProps> = ({ navigation }) => {
               onPress={handleSend}
               disabled={!inputText.trim() || isTyping}
             >
-              <Text style={styles.sendButtonText}>↑</Text>
+              <Text style={styles.sendButtonText}>↗</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -602,341 +655,360 @@ const ChatbotScreen: React.FC<ChatbotScreenProps> = ({ navigation }) => {
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#ffffff',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: '#ffffff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#ececf1',
-  },
-  menuButton: {
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderRadius: 8,
-  },
-  menuIcon: {
-    fontSize: 20,
-    color: '#2d2d2d',
-  },
-  headerCenter: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  newChatButton: {
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderRadius: 8,
-  },
-  newChatIcon: {
-    fontSize: 18,
-  },
-  errorBanner: {
-    backgroundColor: '#fef2f2',
-    borderLeftWidth: 4,
-    borderLeftColor: '#ef4444',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  errorText: {
-    color: '#991b1b',
-    fontSize: 14,
-    flex: 1,
-  },
-  errorClose: {
-    color: '#991b1b',
-    fontSize: 18,
-    fontWeight: 'bold',
-    paddingLeft: 12,
-  },
-  chatContainer: {
-    flex: 1,
-    backgroundColor: '#ffffff',
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#ffffff',
-  },
-  loadingText: {
-    marginTop: 12,
-    color: '#6b6b7b',
-    fontSize: 14,
-  },
-  messagesContainer: {
-    flex: 1,
-  },
-  messagesContent: {
-    paddingBottom: 20,
-  },
-  messageRow: {
-    flexDirection: 'row',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    alignItems: 'flex-start',
-  },
-  userMessageRow: {
-    backgroundColor: '#ffffff',
-  },
-  aiMessageRow: {
-    backgroundColor: '#f7f7f8',
-  },
-  avatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 4,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 16,
-  },
-  userAvatar: {
-    backgroundColor: '#19c37d',
-  },
-  aiAvatar: {
-    backgroundColor: '#ab68ff',
-  },
-  avatarText: {
-    fontSize: 16,
-  },
-  messageContent: {
-    flex: 1,
-  },
-  messageHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  messageSender: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#2d2d2d',
-  },
-  messageTime: {
-    fontSize: 12,
-    color: '#8e8ea0',
-  },
-  messageText: {
-    fontSize: 15,
-    lineHeight: 24,
-    color: '#2d2d2d',
-  },
-  typingIndicator: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 8,
-  },
-  typingDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#8e8ea0',
-    marginRight: 6,
-    opacity: 0.4,
-  },
-  typingDotDelay1: {
-    opacity: 0.6,
-  },
-  typingDotDelay2: {
-    opacity: 0.8,
-  },
-  inputContainer: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: '#ffffff',
-    borderTopWidth: 1,
-    borderTopColor: '#ececf1',
-  },
-  inputWrapper: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    backgroundColor: '#f4f4f4',
-    borderRadius: 24,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    maxHeight: 120,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  input: {
-    flex: 1,
-    fontSize: 15,
-    color: '#2d2d2d',
-    maxHeight: 100,
-    paddingVertical: 8,
-  },
-  sendButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#2d2d2d',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginLeft: 8,
-  },
-  sendButtonDisabled: {
-    backgroundColor: '#d1d1d6',
-  },
-  sendButtonText: {
-    color: '#ffffff',
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  sidebarOverlay: {
-    flex: 1,
-    flexDirection: 'row',
-  },
-  sidebarBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
-  },
-  sidebar: {
-    width: width * 0.8,
-    backgroundColor: '#ffffff',
-    shadowColor: '#000',
-    shadowOffset: { width: -2, height: 0 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-  sidebarHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#ececf1',
-  },
-  sidebarTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#2d2d2d',
-  },
-  sidebarClose: {
-    fontSize: 24,
-    color: '#6b6b7b',
-  },
-  sidebarNewChat: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-    backgroundColor: '#ffffff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#ececf1',
-  },
-  sidebarNewChatIcon: {
-    fontSize: 20,
-    color: '#2d2d2d',
-    marginRight: 12,
-  },
-  sidebarNewChatText: {
-    fontSize: 15,
-    color: '#2d2d2d',
-    fontWeight: '500',
-  },
-  sessionsList: {
-    flex: 1,
-  },
-  sessionGroup: {
-    paddingTop: 16,
-    paddingBottom: 8,
-  },
-  sessionGroupTitle: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#8e8ea0',
-    paddingHorizontal: 20,
-    paddingBottom: 8,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  sessionItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 4,
-  },
-  sessionButton: {
-    flex: 1,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-  },
-  sessionButtonActive: {
-    backgroundColor: '#ececf1',
-  },
-  sessionTitle: {
-    fontSize: 14,
-    color: '#2d2d2d',
-    marginBottom: 2,
-  },
-  sessionTitleActive: {
-    fontWeight: '500',
-  },
-  sessionDate: {
-    fontSize: 12,
-    color: '#8e8ea0',
-  },
-  sessionActions: {
-    flexDirection: 'row',
-    gap: 4,
-  },
-  sessionActionButton: {
-    width: 32,
-    height: 32,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderRadius: 6,
-  },
-  sessionActionIcon: {
-    fontSize: 14,
-  },
-  sessionEditContainer: {
-    flex: 1,
-    paddingHorizontal: 12,
-  },
-  sessionEditInput: {
-    fontSize: 14,
-    color: '#2d2d2d',
-    backgroundColor: '#f4f4f4',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: '#19c37d',
-  },
-  emptyState: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: 40,
-  },
-  emptyStateText: {
-    fontSize: 14,
-    color: '#8e8ea0',
-    textAlign: 'center',
-    lineHeight: 20,
-  },
-});
+const createStyles = (colors: ColorTokens) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 16,
+      paddingVertical: 12,
+      backgroundColor: colors.background,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.cardBorder,
+    },
+    menuButton: {
+      width: 40,
+      height: 40,
+      justifyContent: 'center',
+      alignItems: 'center',
+      borderRadius: 10,
+      backgroundColor: colors.card,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+    },
+    menuIcon: {
+      fontSize: 18,
+      color: colors.text,
+    },
+    headerCenter: {
+      flex: 1,
+      alignItems: 'center',
+    },
+    headerTitle: {
+      fontSize: 16,
+      fontWeight: '700',
+      color: colors.text,
+    },
+    headerSubtitle: {
+      fontSize: 11,
+      textTransform: 'uppercase',
+      letterSpacing: 1,
+      color: colors.muted,
+      marginTop: 2,
+    },
+    newChatButton: {
+      width: 40,
+      height: 40,
+      justifyContent: 'center',
+      alignItems: 'center',
+      borderRadius: 10,
+      backgroundColor: colors.card,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+    },
+    newChatIcon: {
+      fontSize: 18,
+      color: colors.text,
+    },
+    errorBanner: {
+      backgroundColor: colors.card,
+      borderLeftWidth: 3,
+      borderLeftColor: colors.error,
+      paddingHorizontal: 16,
+      paddingVertical: 12,
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+    },
+    errorText: {
+      color: colors.error,
+      fontSize: 13,
+      flex: 1,
+    },
+    errorClose: {
+      color: colors.error,
+      fontSize: 18,
+      fontWeight: 'bold',
+      paddingLeft: 12,
+    },
+    chatContainer: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    loadingContainer: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      backgroundColor: colors.background,
+    },
+    loadingText: {
+      marginTop: 12,
+      color: colors.muted,
+      fontSize: 13,
+    },
+    messagesContainer: {
+      flex: 1,
+    },
+    messagesContent: {
+      paddingVertical: 12,
+      paddingHorizontal: 16,
+      paddingBottom: 24,
+    },
+    messageRow: {
+      flexDirection: 'row',
+      marginBottom: 12,
+    },
+    userMessageRow: {
+      justifyContent: 'flex-end',
+    },
+    aiMessageRow: {
+      justifyContent: 'flex-start',
+    },
+    messageBubble: {
+      maxWidth: '86%',
+      paddingHorizontal: 14,
+      paddingVertical: 10,
+      borderRadius: 16,
+    },
+    userBubble: {
+      backgroundColor: colors.userBubble,
+      borderTopRightRadius: 4,
+    },
+    aiBubble: {
+      backgroundColor: colors.aiBubble,
+      borderWidth: 1,
+      borderColor: colors.cardBorder,
+      borderTopLeftRadius: 4,
+    },
+    messageText: {
+      fontSize: 14,
+      lineHeight: 20,
+    },
+    userText: {
+      color: colors.userText,
+    },
+    aiText: {
+      color: colors.aiText,
+    },
+    messageTime: {
+      fontSize: 11,
+      marginTop: 6,
+    },
+    userTime: {
+      color: 'rgba(255, 255, 255, 0.7)',
+      textAlign: 'right',
+    },
+    aiTime: {
+      color: colors.timestamp,
+    },
+    typingIndicator: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: 8,
+    },
+    typingDot: {
+      width: 7,
+      height: 7,
+      borderRadius: 4,
+      backgroundColor: colors.muted,
+      marginRight: 6,
+      opacity: 0.4,
+    },
+    typingDotDelay1: {
+      opacity: 0.6,
+    },
+    typingDotDelay2: {
+      opacity: 0.8,
+    },
+    inputContainer: {
+      paddingHorizontal: 16,
+      paddingVertical: 12,
+      backgroundColor: colors.background,
+      borderTopWidth: 1,
+      borderTopColor: colors.cardBorder,
+    },
+    inputWrapper: {
+      flexDirection: 'row',
+      alignItems: 'flex-end',
+      backgroundColor: colors.inputBackground,
+      borderRadius: 20,
+      paddingHorizontal: 14,
+      paddingVertical: 8,
+      borderWidth: 1,
+      borderColor: colors.inputBorder,
+      maxHeight: 140,
+    },
+    input: {
+      flex: 1,
+      fontSize: 15,
+      color: colors.text,
+      maxHeight: 120,
+      paddingVertical: 6,
+    },
+    sendButton: {
+      width: 34,
+      height: 34,
+      borderRadius: 17,
+      backgroundColor: colors.primary,
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginLeft: 8,
+    },
+    sendButtonDisabled: {
+      backgroundColor: colors.inputBorder,
+    },
+    sendButtonText: {
+      color: '#ffffff',
+      fontSize: 16,
+      fontWeight: 'bold',
+    },
+    sidebarOverlay: {
+      flex: 1,
+      flexDirection: 'row',
+    },
+    sidebarBackdrop: {
+      flex: 1,
+      backgroundColor: colors.overlay,
+    },
+    sidebar: {
+      width: width * 0.82,
+      backgroundColor: colors.sidebarBackground,
+      shadowColor: '#000',
+      shadowOffset: { width: -2, height: 0 },
+      shadowOpacity: 0.2,
+      shadowRadius: 10,
+      elevation: 6,
+      borderLeftWidth: 1,
+      borderLeftColor: colors.cardBorder,
+    },
+    sidebarHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingHorizontal: 20,
+      paddingVertical: 16,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.cardBorder,
+    },
+    sidebarTitle: {
+      fontSize: 15,
+      fontWeight: '600',
+      color: colors.text,
+    },
+    sidebarClose: {
+      fontSize: 22,
+      color: colors.muted,
+    },
+    sidebarNewChat: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 20,
+      paddingVertical: 14,
+      backgroundColor: colors.card,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.cardBorder,
+    },
+    sidebarNewChatIcon: {
+      fontSize: 18,
+      color: colors.text,
+      marginRight: 12,
+    },
+    sidebarNewChatText: {
+      fontSize: 14,
+      color: colors.text,
+      fontWeight: '600',
+    },
+    sessionsList: {
+      flex: 1,
+    },
+    sessionGroup: {
+      paddingTop: 16,
+      paddingBottom: 8,
+    },
+    sessionGroupTitle: {
+      fontSize: 11,
+      fontWeight: '600',
+      color: colors.muted,
+      paddingHorizontal: 20,
+      paddingBottom: 8,
+      textTransform: 'uppercase',
+      letterSpacing: 0.5,
+    },
+    sessionItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 16,
+      paddingVertical: 4,
+    },
+    sessionButton: {
+      flex: 1,
+      paddingVertical: 10,
+      paddingHorizontal: 12,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: 'transparent',
+    },
+    sessionButtonActive: {
+      backgroundColor: colors.card,
+      borderColor: colors.cardBorder,
+    },
+    sessionTitle: {
+      fontSize: 13,
+      color: colors.text,
+      marginBottom: 2,
+    },
+    sessionTitleActive: {
+      fontWeight: '600',
+    },
+    sessionDate: {
+      fontSize: 11,
+      color: colors.muted,
+    },
+    sessionActions: {
+      flexDirection: 'row',
+      gap: 4,
+    },
+    sessionActionButton: {
+      width: 32,
+      height: 32,
+      justifyContent: 'center',
+      alignItems: 'center',
+      borderRadius: 6,
+    },
+    sessionActionIcon: {
+      fontSize: 14,
+    },
+    sessionEditContainer: {
+      flex: 1,
+      paddingHorizontal: 12,
+    },
+    sessionEditInput: {
+      fontSize: 13,
+      color: colors.text,
+      backgroundColor: colors.inputBackground,
+      paddingVertical: 8,
+      paddingHorizontal: 12,
+      borderRadius: 6,
+      borderWidth: 1,
+      borderColor: colors.primary,
+    },
+    emptyState: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      paddingVertical: 40,
+    },
+    emptyStateText: {
+      fontSize: 13,
+      color: colors.muted,
+      textAlign: 'center',
+      lineHeight: 20,
+    },
+  });
 
 export default ChatbotScreen;

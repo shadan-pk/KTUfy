@@ -1,642 +1,161 @@
-import React, { useState, useEffect } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   View,
   Text,
   TouchableOpacity,
   StyleSheet,
+  TextInput,
   ScrollView,
-  Dimensions,
+  KeyboardAvoidingView,
   Platform,
+  Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useAuth } from '../auth/AuthProvider';
-import { getUserProfile, getTicklistsForUser, upsertTicklist } from '../supabaseConfig';
-import supabase from '../supabaseClient';
 import { HomeScreenNavigationProp } from '../types/navigation';
 import { useTheme } from '../contexts/ThemeContext';
-import { TestBackendButton } from '../components/TestBackendButton';
 
-const { width } = Dimensions.get('window');
+const { height } = Dimensions.get('window');
 
 interface HomeScreenProps {
   navigation: HomeScreenNavigationProp;
 }
 
-interface UserData {
-  name?: string;
-  email?: string;
-  registrationNumber?: string;
-  college?: string;
-  branch?: string;
-}
-
-interface TicklistItem {
-  id: string;
-  title: string;
-  completed: boolean;
-  isTrending?: boolean;
-}
-
-interface Subject {
-  id: string;
-  name: string;
-  code: string;
-  color: string;
-  items: TicklistItem[];
-}
-
-interface Challenge {
-  id: string;
-  title: string;
-  description: string;
-  targetCount: number;
-  currentCount: number;
-  points: number;
-  emoji: string;
-}
-
 const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   const { theme, isDark } = useTheme();
-  const { user: authUser, getToken } = useAuth();
-  const [supabaseUser, setSupabaseUser] = useState<any | null>(null);
-  const [userData, setUserData] = useState<UserData | null>(null);
-  const [currentTime, setCurrentTime] = useState(new Date());
-  const [studyStreak, setStudyStreak] = useState(7);
-  const [focusTime, setFocusTime] = useState(0);
-  const [timerRunning, setTimerRunning] = useState(false);
-  const [subjects, setSubjects] = useState<Subject[]>([]);
-  const [totalPoints, setTotalPoints] = useState(0);
-  const [dailyChallenges, setDailyChallenges] = useState<Challenge[]>([
-    {
-      id: '1',
-      title: 'Complete 5 Tasks',
-      description: 'Check off 5 items from your ticklist',
-      targetCount: 5,
-      currentCount: 0,
-      points: 50,
-      emoji: '✅'
-    },
-    {
-      id: '2',
-      title: 'Focus Session',
-      description: 'Study for 25 minutes without breaks',
-      targetCount: 25,
-      currentCount: 0,
-      points: 30,
-      emoji: '🎯'
-    },
-    {
-      id: '3',
-      title: 'Early Bird',
-      description: 'Study before 9 AM',
-      targetCount: 1,
-      currentCount: 0,
-      points: 20,
-      emoji: '🌅'
-    }
-  ]);
+  const [prompt, setPrompt] = useState('');
 
-  const loadUserData = React.useCallback(async () => {
-    if (!authUser) {
-      setSupabaseUser(null);
-      setUserData(null);
-      return;
-    }
-
-    try {
-      // Use the authUser from context instead of fetching
-      setSupabaseUser(authUser);
-
-      // Load existing profile from public.users
-      // (created automatically by the on_auth_user_created trigger at signup)
-      const profile = await getUserProfile(authUser.id);
-      if (profile) setUserData(profile as UserData);
-    } catch (err) {
-      console.error('Error loading user profile:', err);
-    }
-  }, [authUser]);
-
-  useEffect(() => {
-    loadUserData();
-
-    const timeInterval = setInterval(() => {
-      setCurrentTime(new Date());
-    }, 60000);
-
-    return () => {
-      clearInterval(timeInterval);
-    };
-  }, [loadUserData]);
-
-  // Refresh user data when screen comes into focus
-  useEffect(() => {
-    const unsubscribe = navigation.addListener('focus', () => {
-      loadUserData();
-    });
-
-    return unsubscribe;
-  }, [navigation, loadUserData]);
-
-  useEffect(() => {
-    let interval: NodeJS.Timeout;
-    if (timerRunning) {
-      interval = setInterval(() => {
-        setFocusTime(prev => {
-          const newTime = prev + 1;
-          // Update focus challenge progress (convert seconds to minutes)
-          const focusMinutes = Math.floor(newTime / 60);
-          setDailyChallenges(challenges => challenges.map(challenge => {
-            if (challenge.id === '2') {
-              return { ...challenge, currentCount: focusMinutes };
-            }
-            return challenge;
-          }));
-          return newTime;
-        });
-      }, 1000);
-    }
-    return () => clearInterval(interval);
-  }, [timerRunning]);
-
-  // Load ticklist subjects from Firestore
-  useEffect(() => {
-    (async () => {
-      if (!supabaseUser) return;
-      try {
-        const lists = await getTicklistsForUser(supabaseUser.id);
-        // Map rows into Subject[]
-        const loadedSubjects: Subject[] = (lists || []).map((r: any) => ({
-          id: r.id,
-          name: r.subject_name,
-          code: r.code,
-          color: r.color,
-          items: r.items || [],
-        }));
-        setSubjects(loadedSubjects);
-
-        // Update challenge progress based on completed tasks
-        const totalCompleted = getTotalProgress().completed;
-        setDailyChallenges(prev => prev.map(challenge => {
-          if (challenge.id === '1') {
-            return { ...challenge, currentCount: totalCompleted };
-          }
-          return challenge;
-        }));
-      } catch (err) {
-        console.error('Error loading ticklist:', err);
-      }
-    })();
-  }, [supabaseUser]);
-
-  const toggleItem = async (subjectId: string, itemId: string) => {
-    if (!supabaseUser) return;
-
-    try {
-      const subject = subjects.find(s => s.id === subjectId);
-      if (!subject) return;
-
-      const updatedItems = subject.items.map(item =>
-        item.id === itemId ? { ...item, completed: !item.completed } : item
-      );
-
-      await upsertTicklist({
-        id: subjectId,
-        user_id: supabaseUser.id,
-        subject_name: subject.name,
-        code: subject.code,
-        color: subject.color,
-        items: updatedItems,
-      });
-    } catch (error) {
-      console.error('Error toggling item:', error);
-    }
-  };
-
-  const getSubjectProgress = (subject: Subject) => {
-    const completed = subject.items.filter(item => item.completed).length;
-    const total = subject.items.length;
-    const percentage = total > 0 ? Math.round((completed / total) * 100) : 0;
-    return { completed, total, percentage };
-  };
-
-  const getTotalProgress = () => {
-    const totalItems = subjects.reduce((sum, subject) => sum + subject.items.length, 0);
-    const completedItems = subjects.reduce(
-      (sum, subject) => sum + subject.items.filter(item => item.completed).length,
-      0
-    );
-    const percentage = totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0;
+  const colors = useMemo(() => {
+    const baseCard = isDark ? '#050816' : theme.backgroundSecondary;
     return {
-      completed: completedItems,
-      total: totalItems,
-      percentage,
+      background: theme.background,
+      card: baseCard,
+      cardBorder: isDark ? '#0F172A' : theme.border,
+      title: isDark ? '#F8FAFC' : theme.text,
+      text: isDark ? '#E5E7EB' : theme.text,
+      muted: isDark ? '#9CA3AF' : theme.textSecondary,
+      primary: theme.primary,
+      border: isDark ? '#1F2937' : theme.border,
+      inputBackground: isDark ? '#0F172A' : theme.background,
+      inputBorder: isDark ? '#1F2937' : theme.border,
+      inputText: isDark ? '#E5E7EB' : theme.text,
+      placeholder: isDark ? '#6B7280' : theme.textSecondary,
+      secondaryBackground: isDark ? '#0B1120' : theme.backgroundSecondary,
+      toolCard: isDark ? '#0B1224' : theme.backgroundSecondary,
+      logo: theme.primaryLight,
+      logoTopOffset: Math.max(24, Math.round(height * 0.08)),
     };
+  }, [theme, isDark]);
+
+  const handleSendPrompt = () => {
+    const value = prompt.trim();
+    if (!value) return;
+    setPrompt('');
+    navigation.navigate('Chatbot', { initialPrompt: value });
   };
 
-  const totalProgress = getTotalProgress();
-
-  const claimChallengeReward = (challengeId: string) => {
-    setDailyChallenges(prev => prev.map(challenge => {
-      if (challenge.id === challengeId && challenge.currentCount >= challenge.targetCount) {
-        setTotalPoints(points => points + challenge.points);
-        // Mark as claimed by setting currentCount to 0
-        return { ...challenge, currentCount: 0 };
-      }
-      return challenge;
-    }));
-  };
-
-  const getGreeting = () => {
-    const hour = currentTime.getHours();
-    if (hour < 12) return 'Good Morning';
-    if (hour < 17) return 'Good Afternoon';
-    return 'Good Evening';
-  };
-
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  const handleExplore = () => {
+    navigation.navigate('Chatbot');
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['bottom']}>
-      <ScrollView style={[styles.scrollView, { backgroundColor: theme.background }]} showsVerticalScrollIndicator={false}>
-        {/* Header */}
-        <View style={styles.header}>
-          <View>
-            <Text style={[styles.greeting, { color: theme.textSecondary }]}>{getGreeting()}</Text>
-            <Text style={[styles.userName, { color: theme.text }]}>{userData?.name || supabaseUser?.user_metadata?.name || supabaseUser?.email || authUser?.email || 'Student'}</Text>
-          </View>
-          <TouchableOpacity
-            style={[styles.profileButton, { backgroundColor: theme.primary }]}
-            onPress={() => navigation.navigate('Profile')}
-          >
-            <Text style={styles.profileButtonText}>👤</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Backend Connection Test Button - TEMPORARY */}
-        <TestBackendButton />
-
-        {/* Smart Study Dashboard */}
-        <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
-          <View style={styles.cardHeader}>
-            <Text style={[styles.cardTitle, { color: theme.text }]}>📊 Study Dashboard</Text>
-            <Text style={[styles.streakBadge, { backgroundColor: theme.warning + '20', color: theme.warning }]}>🔥 {studyStreak} day streak</Text>
-          </View>
-          <View style={styles.progressContainer}>
-            <View style={styles.progressInfo}>
-              <Text style={[styles.progressLabel, { color: theme.textSecondary }]}>Syllabus Completion</Text>
-              <Text style={[styles.progressPercent, { color: theme.primary }]}>{totalProgress.percentage}%</Text>
-            </View>
-            <View style={[styles.progressBar, { backgroundColor: theme.divider }]}>
-              <View style={[styles.progressFill, { width: `${totalProgress.percentage}%`, backgroundColor: theme.primary }]} />
-            </View>
-          </View>
-          <View style={styles.statsGrid}>
-            <View style={styles.statItem}>
-              <Text style={[styles.statValue, { color: theme.text }]}>{subjects.length}</Text>
-              <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Subjects</Text>
-            </View>
-            <View style={styles.statItem}>
-              <Text style={[styles.statValue, styles.examCountdown, { color: theme.text }]}>--</Text>
-              <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Days to Exam</Text>
-            </View>
-            <View style={styles.statItem}>
-              <Text style={[styles.statValue, { color: theme.text }]}>{totalProgress.completed}/{totalProgress.total}</Text>
-              <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Completed</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* AI Assistant Widget */}
-        <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
-          <View style={styles.cardHeader}>
-            <Text style={[styles.cardTitle, { color: theme.text }]}>🤖 AI Study Assistant</Text>
-          </View>
-          <TouchableOpacity
-            style={[styles.aiButton, { backgroundColor: theme.aiAssistant }]}
-            onPress={() => navigation.navigate('Chatbot')}
-          >
-            <View style={styles.aiButtonContent}>
-              <Text style={styles.aiButtonText}>💬 Ask anything about your studies</Text>
-            </View>
-          </TouchableOpacity>
-        </View>
-
-        {/* Coding Hub Widget */}
-        <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
-          <View style={styles.cardHeader}>
-            <Text style={[styles.cardTitle, { color: theme.text }]}>💻 Coding Hub</Text>
-            <Text style={[styles.codingBadge, { backgroundColor: theme.success + '20', color: theme.success }]}>Practice</Text>
-          </View>
-          <TouchableOpacity
-            style={[styles.codingButton, { backgroundColor: theme.codingHub }]}
-            onPress={() => navigation.navigate('CodingHub')}
-          >
-            <View style={styles.codingButtonContent}>
-              <Text style={styles.codingButtonText}>🚀 Start Coding Practice</Text>
-            </View>
-          </TouchableOpacity>
-          <View style={styles.codingStats}>
-            <View style={styles.codingStatItem}>
-              <Text style={[styles.codingStatLabel, { color: theme.textSecondary }]}>8 Problems</Text>
-            </View>
-            <View style={styles.codingStatItem}>
-              <Text style={[styles.codingStatLabel, { color: theme.textSecondary }]}>4 Languages</Text>
-            </View>
-            <View style={styles.codingStatItem}>
-              <Text style={[styles.codingStatLabel, { color: theme.textSecondary }]}>Track Progress</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Group Study Widget */}
-        <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
-          <View style={styles.cardHeader}>
-            <Text style={[styles.cardTitle, { color: theme.text }]}>👥 Group Study</Text>
-            <TouchableOpacity onPress={() => navigation.navigate('GroupStudy')}>
-              <Text style={[styles.viewAllText, { color: theme.primary }]}>View All →</Text>
-            </TouchableOpacity>
-          </View>
-          <TouchableOpacity
-            style={[styles.groupStudyButton, { backgroundColor: theme.groupStudy }]}
-            onPress={() => navigation.navigate('GroupStudy')}
-          >
-            <View style={styles.groupStudyContent}>
-              <Text style={styles.groupStudyText}>📚 Join or Create Study Groups</Text>
-            </View>
-          </TouchableOpacity>
-          <View style={styles.groupFeatures}>
-            <View style={styles.groupFeatureItem}>
-              <Text style={[styles.groupFeatureText, { color: theme.textSecondary }]}>💬 Group Chat</Text>
-            </View>
-            <View style={styles.groupFeatureItem}>
-              <Text style={[styles.groupFeatureText, { color: theme.textSecondary }]}>✅ Shared Checklist</Text>
-            </View>
-            <View style={styles.groupFeatureItem}>
-              <Text style={[styles.groupFeatureText, { color: theme.textSecondary }]}>🔗 Invite Links</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* SGPA & CGPA Calculator */}
-        <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
-          <View style={styles.cardHeader}>
-            <Text style={[styles.cardTitle, { color: theme.text }]}>🎓 GPA Calculator</Text>
-            <TouchableOpacity onPress={() => navigation.navigate('GPACalculator')}>
-              <Text style={[styles.viewAllText, { color: theme.primary }]}>View All →</Text>
-            </TouchableOpacity>
-          </View>
-          <TouchableOpacity
-            style={[styles.gpaButton, { backgroundColor: theme.gpaCalculator }]}
-            onPress={() => navigation.navigate('GPACalculator')}
-          >
-            <View style={styles.gpaContent}>
-              <Text style={styles.gpaText}>📊 Calculate SGPA & CGPA</Text>
-            </View>
-          </TouchableOpacity>
-          <View style={styles.gpaFeatures}>
-            <View style={styles.gpaFeatureItem}>
-              <Text style={[styles.gpaFeatureText, { color: theme.textSecondary }]}>📈 SGPA</Text>
-            </View>
-            <View style={styles.gpaFeatureItem}>
-              <Text style={[styles.gpaFeatureText, { color: theme.textSecondary }]}>📊 CGPA</Text>
-            </View>
-            <View style={styles.gpaFeatureItem}>
-              <Text style={[styles.gpaFeatureText, { color: theme.textSecondary }]}>🎯 Results</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Tomorrow's Schedule */}
-        <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
-          <View style={styles.cardHeader}>
-            <Text style={[styles.cardTitle, { color: theme.text }]}>📅 Tomorrow's Classes</Text>
-            <TouchableOpacity onPress={() => navigation.navigate('Schedule')}>
-              <Text style={[styles.viewAllText, { color: theme.primary }]}>View All →</Text>
-            </TouchableOpacity>
-          </View>
-          <View style={styles.scheduleList}>
-            <Text style={[styles.progressLabel, { color: theme.textSecondary }]}>No classes scheduled</Text>
-          </View>
-        </View>
-
-        {/* Subject Progress */}
-        <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
-          <View style={styles.cardHeader}>
-            <Text style={[styles.cardTitle, { color: theme.text }]}>📖 Subject Progress</Text>
-            <TouchableOpacity onPress={() => navigation.navigate('Ticklist')}>
-              <Text style={[styles.viewAllText, { color: theme.primary }]}>View All →</Text>
-            </TouchableOpacity>
-          </View>
-          <View style={styles.subjectList}>
-            {subjects.length === 0 ? (
-              <Text style={styles.progressLabel}>No subjects added yet</Text>
-            ) : (
-              subjects.slice(0, 3).map(subject => {
-                const progress = getSubjectProgress(subject);
-                return (
-                  <View key={subject.id} style={styles.subjectItem}>
-                    <View style={styles.subjectHeader}>
-                      <Text style={[styles.subjectName, { color: theme.text }]}>{subject.name}</Text>
-                      <Text style={[styles.subjectPercent, { color: theme.primary }]}>{progress.percentage}%</Text>
-                    </View>
-                    <View style={[styles.progressBar, { backgroundColor: theme.divider }]}>
-                      <View style={[styles.progressFill, { width: `${progress.percentage}%`, backgroundColor: subject.color }]} />
-                    </View>
-                    {subject.items.length > 0 && (
-                      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.itemsScroll}>
-                        {subject.items.slice(0, 5).map(item => (
-                          <TouchableOpacity
-                            key={item.id}
-                            style={styles.miniCheckbox}
-                            onPress={() => toggleItem(subject.id, item.id)}
-                          >
-                            <View style={[
-                              styles.checkboxCircle,
-                              { borderColor: theme.border },
-                              item.completed && { backgroundColor: subject.color }
-                            ]}>
-                              {item.completed && <Text style={styles.checkmark}>✓</Text>}
-                            </View>
-                            <Text style={[styles.miniItemText, { color: theme.textSecondary }]} numberOfLines={1}>
-                              {item.title}
-                            </Text>
-                          </TouchableOpacity>
-                        ))}
-                      </ScrollView>
-                    )}
-                  </View>
-                );
-              })
-            )}
-          </View>
-        </View>
-
-        {/* Gamification Zone */}
-        <View style={styles.card}>
-          <View style={styles.cardHeader}>
-            <Text style={styles.cardTitle}>🎮 Learning Zone</Text>
-            <Text style={styles.pointsBadge}>⭐ {totalPoints} pts</Text>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'bottom']}>
+      <KeyboardAvoidingView
+        style={styles.keyboardContainer}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={[styles.logoContainer, { marginTop: colors.logoTopOffset }]}>
+            <Text style={[styles.logoText, { color: colors.logo }]}>KTUfy</Text>
+            <Text style={[styles.logoSubtitle, { color: colors.muted }]}>KG-RAG study companion</Text>
           </View>
 
-          {dailyChallenges.slice(0, 2).map((challenge) => {
-            const isCompleted = challenge.currentCount >= challenge.targetCount;
-            const progress = Math.min((challenge.currentCount / challenge.targetCount) * 100, 100);
+          <View style={[styles.promptCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+            <Text style={[styles.promptTitle, { color: colors.title }]}>Ask KTUfy</Text>
+            <Text style={[styles.promptSubtitle, { color: colors.muted }]}>Start with a question and jump straight into the KG-RAG chatbot.</Text>
 
-            return (
-              <View key={challenge.id} style={styles.challengeCard}>
-                <View style={styles.challengeHeader}>
-                  <Text style={styles.challengeEmoji}>{challenge.emoji}</Text>
-                  <View style={styles.challengeInfo}>
-                    <Text style={styles.challengeTitle}>{challenge.title}</Text>
-                    <Text style={styles.challengeDesc}>{challenge.description}</Text>
-                  </View>
-                </View>
-
-                <View style={styles.challengeProgressBar}>
-                  <View style={[styles.challengeProgressFill, { width: `${progress}%` }]} />
-                </View>
-
-                <View style={styles.challengeFooter}>
-                  <Text style={styles.challengeProgress}>
-                    {challenge.currentCount}/{challenge.targetCount}
-                  </Text>
-                  {isCompleted ? (
-                    <TouchableOpacity
-                      style={styles.claimButton}
-                      onPress={() => claimChallengeReward(challenge.id)}
-                    >
-                      <Text style={styles.claimButtonText}>Claim +{challenge.points} pts</Text>
-                    </TouchableOpacity>
-                  ) : (
-                    <Text style={styles.rewardText}>+{challenge.points} pts</Text>
-                  )}
-                </View>
-              </View>
-            );
-          })}
-
-          <TouchableOpacity
-            style={styles.playGamesButton}
-            onPress={() => navigation.navigate('LearningZone')}
-          >
-            <Text style={styles.playGamesButtonText}>🎮 Play More Games</Text>
-            <Text style={styles.playGamesButtonArrow}>→</Text>
-          </TouchableOpacity>
-
-          <View style={[styles.motivationCard, { backgroundColor: theme.primaryLight, borderColor: theme.primary }]}>
-            <Text style={[styles.motivationText, { color: theme.text }]}>
-              "Success is the sum of small efforts repeated day in and day out."
-            </Text>
-          </View>
-        </View>
-
-        {/* AI Recommendations */}
-        <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
-          <View style={styles.cardHeader}>
-            <Text style={[styles.cardTitle, { color: theme.text }]}>💡 Study Recommendations</Text>
-          </View>
-          <View style={styles.recommendationList}>
-            <Text style={[styles.progressLabel, { color: theme.textSecondary }]}>No recommendations available</Text>
-          </View>
-        </View>
-
-        {/* Analytics Snapshot */}
-        <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
-          <View style={styles.cardHeader}>
-            <Text style={[styles.cardTitle, { color: theme.text }]}>📈 Analytics</Text>
-          </View>
-          <View style={styles.analyticsGrid}>
-            <View style={styles.analyticsItem}>
-              <Text style={[styles.analyticsValue, { color: theme.text }]}>0/0</Text>
-              <Text style={[styles.analyticsLabel, { color: theme.textSecondary }]}>Topics</Text>
+            <View style={[styles.inputShell, { backgroundColor: colors.inputBackground, borderColor: colors.inputBorder }]}>
+              <TextInput
+                style={[styles.input, { color: colors.inputText }]}
+                placeholder="Ask about syllabus, exams, or coding tips"
+                placeholderTextColor={colors.placeholder}
+                value={prompt}
+                onChangeText={setPrompt}
+                onSubmitEditing={handleSendPrompt}
+                returnKeyType="send"
+              />
             </View>
-            <View style={styles.analyticsItem}>
-              <Text style={[styles.analyticsValue, { color: theme.text }]}>0%</Text>
-              <Text style={[styles.analyticsLabel, { color: theme.textSecondary }]}>Quiz Accuracy</Text>
-            </View>
-            <View style={styles.analyticsItem}>
-              <Text style={[styles.analyticsValue, { color: theme.success }]}>0%</Text>
-              <Text style={[styles.analyticsLabel, { color: theme.textSecondary }]}>Improvement</Text>
-            </View>
-            <View style={styles.analyticsItem}>
-              <Text style={[styles.analyticsValue, { color: theme.text }]}>0</Text>
-              <Text style={[styles.analyticsLabel, { color: theme.textSecondary }]}>Study Sessions</Text>
-            </View>
-          </View>
-        </View>
 
-        {/* Recent Uploads */}
-        <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
-          <View style={styles.cardHeader}>
-            <Text style={[styles.cardTitle, { color: theme.text }]}>📄 Recent Uploads</Text>
-            <TouchableOpacity onPress={() => navigation.navigate('Library')}>
-              <Text style={[styles.viewAllText, { color: theme.primary }]}>View All →</Text>
-            </TouchableOpacity>
-          </View>
-          <View style={styles.uploadsScroll}>
-            <Text style={[styles.progressLabel, { color: theme.textSecondary }]}>No recent uploads</Text>
-          </View>
-        </View>
-
-        {/* Focus Mode Timer */}
-        <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
-          <View style={styles.cardHeader}>
-            <Text style={[styles.cardTitle, { color: theme.text }]}>⏱️ Focus Mode</Text>
-          </View>
-          <View style={styles.timerContainer}>
-            <Text style={[styles.timerDisplay, { color: theme.text }]}>{formatTime(focusTime)}</Text>
             <TouchableOpacity
-              style={[styles.timerButton, { backgroundColor: timerRunning ? theme.primary : theme.primaryLight }, timerRunning && { backgroundColor: theme.primary }]}
-              onPress={() => setTimerRunning(!timerRunning)}
+              style={[styles.primaryButton, { backgroundColor: colors.primary }, !prompt.trim() && styles.primaryButtonDisabled]}
+              onPress={handleSendPrompt}
+              disabled={!prompt.trim()}
+              activeOpacity={0.9}
             >
-              <Text style={[styles.timerButtonText, { color: timerRunning ? '#FFFFFF' : theme.primary }]}>
-                {timerRunning ? '⏸ Pause' : '▶ Start Focus Session'}
-              </Text>
+              <Text style={styles.primaryButtonText}>Send to KG-RAG</Text>
             </TouchableOpacity>
-            <Text style={[styles.timerHint, { color: theme.textSecondary }]}>Stay focused and build your streak! 🎯</Text>
+
+            <TouchableOpacity
+              style={[styles.secondaryButton, { borderColor: colors.border, backgroundColor: colors.secondaryBackground }]}
+              onPress={handleExplore}
+              activeOpacity={0.9}
+            >
+              <Text style={[styles.secondaryButtonText, { color: colors.text }]}>Explore KTUfy</Text>
+            </TouchableOpacity>
           </View>
-        </View>
 
-        <View style={{ height: 80 }} />
-      </ScrollView>
-
-      {/* Bottom Navigation Bar */}
-      <View style={[styles.bottomNavContainer, { backgroundColor: theme.card, borderTopColor: theme.cardBorder }]}>
-        <View style={styles.bottomNav}>
-          <TouchableOpacity style={styles.navButton}>
-            <Text style={styles.navIconActive}>🏠</Text>
-            <Text style={[styles.navLabelActive, { color: theme.primary }]}>Home</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.navButton}
-            onPress={() => navigation.navigate('Chatbot')}
-          >
-            <Text style={styles.navIcon}>🤖</Text>
-            <Text style={[styles.navLabel, { color: theme.textSecondary }]}>Chatbot</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.navButton}
-            onPress={() => navigation.navigate('Library')}
-          >
-            <Text style={styles.navIcon}>📚</Text>
-            <Text style={[styles.navLabel, { color: theme.textSecondary }]}>Library</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.navButton}
-            onPress={() => navigation.navigate('Settings')}
-          >
-            <Text style={styles.navIcon}>⚙️</Text>
-            <Text style={[styles.navLabel, { color: theme.textSecondary }]}>Settings</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
+          <View style={styles.toolsSection}>
+            <Text style={[styles.toolsTitle, { color: colors.title }]}>Student tools</Text>
+            <View style={styles.toolsGrid}>
+              <TouchableOpacity
+                style={[styles.toolCard, { backgroundColor: colors.toolCard, borderColor: colors.border }]}
+                onPress={() => navigation.navigate('Library')}
+              >
+                <Text style={styles.toolEmoji}>📚</Text>
+                <Text style={[styles.toolLabel, { color: colors.text }]}>Library</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.toolCard, { backgroundColor: colors.toolCard, borderColor: colors.border }]}
+                onPress={() => navigation.navigate('Ticklist')}
+              >
+                <Text style={styles.toolEmoji}>✅</Text>
+                <Text style={[styles.toolLabel, { color: colors.text }]}>Ticklist</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.toolCard, { backgroundColor: colors.toolCard, borderColor: colors.border }]}
+                onPress={() => navigation.navigate('Schedule')}
+              >
+                <Text style={styles.toolEmoji}>🗓️</Text>
+                <Text style={[styles.toolLabel, { color: colors.text }]}>Schedule</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.toolCard, { backgroundColor: colors.toolCard, borderColor: colors.border }]}
+                onPress={() => navigation.navigate('CodingHub')}
+              >
+                <Text style={styles.toolEmoji}>💻</Text>
+                <Text style={[styles.toolLabel, { color: colors.text }]}>Coding</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.toolCard, { backgroundColor: colors.toolCard, borderColor: colors.border }]}
+                onPress={() => navigation.navigate('GPACalculator')}
+              >
+                <Text style={styles.toolEmoji}>📊</Text>
+                <Text style={[styles.toolLabel, { color: colors.text }]}>GPA</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.toolCard, { backgroundColor: colors.toolCard, borderColor: colors.border }]}
+                onPress={() => navigation.navigate('LearningZone')}
+              >
+                <Text style={styles.toolEmoji}>🎮</Text>
+                <Text style={[styles.toolLabel, { color: colors.text }]}>Games</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 };
@@ -644,599 +163,115 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
   },
-  scrollView: {
+  keyboardContainer: {
     flex: 1,
   },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  scrollContent: {
+    flexGrow: 1,
+    paddingHorizontal: 20,
+    paddingBottom: 40,
+  },
+  logoContainer: {
     alignItems: 'center',
-    padding: 20,
-    paddingTop: Platform.OS === 'ios' ? 10 : 20,
+    marginBottom: 24,
   },
-  greeting: {
-    fontSize: 16,
-    color: '#64748B',
-    marginBottom: 4,
+  logoText: {
+    fontSize: 40,
+    fontWeight: '800',
+    letterSpacing: 8,
+    textTransform: 'uppercase',
   },
-  userName: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#1E293B',
+  logoSubtitle: {
+    fontSize: 13,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+    marginTop: 6,
   },
-  profileButton: {
-    width: 48,
-    height: 48,
+  promptCard: {
     borderRadius: 24,
-    backgroundColor: '#F1F5F9',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  profileButtonText: {
-    fontSize: 24,
-  },
-  card: {
-    backgroundColor: '#F8FAFC',
-    borderRadius: 16,
     padding: 20,
-    marginHorizontal: 16,
-    marginBottom: 16,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    marginBottom: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.18,
+    shadowRadius: 24,
+    elevation: 8,
   },
-  cardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+  promptTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    marginBottom: 6,
+  },
+  promptSubtitle: {
+    fontSize: 13,
+    lineHeight: 18,
     marginBottom: 16,
   },
-  cardTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#1E293B',
-  },
-  streakBadge: {
-    fontSize: 14,
-    color: '#F59E0B',
-    fontWeight: '600',
-  },
-  viewAllText: {
-    fontSize: 14,
-    color: '#6366F1',
-    fontWeight: '600',
-  },
-  progressContainer: {
-    marginBottom: 20,
-  },
-  progressInfo: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 8,
-  },
-  progressLabel: {
-    fontSize: 14,
-    color: '#64748B',
-  },
-  progressPercent: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#6366F1',
-  },
-  progressBar: {
-    height: 8,
-    backgroundColor: '#E2E8F0',
-    borderRadius: 4,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-    backgroundColor: '#6366F1',
-    borderRadius: 4,
-  },
-  statsGrid: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-  },
-  statItem: {
-    alignItems: 'center',
-  },
-  statValue: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#1E293B',
-    marginBottom: 4,
-  },
-  examCountdown: {
-    color: '#EF4444',
-  },
-  statLabel: {
-    fontSize: 12,
-    color: '#64748B',
-  },
-  aiButton: {
-    backgroundColor: '#6366F1',
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 12,
-  },
-  aiButtonContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  aiButtonText: {
-    fontSize: 16,
-    color: '#FFFFFF',
-    fontWeight: '600',
-    textAlign: 'center',
-  },
-  codingBadge: {
-    fontSize: 12,
-    color: '#10B981',
-    fontWeight: '600',
-    backgroundColor: '#D1FAE5',
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  codingButton: {
-    backgroundColor: '#10B981',
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 12,
-  },
-  codingButtonContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  codingButtonText: {
-    fontSize: 16,
-    color: '#FFFFFF',
-    fontWeight: '600',
-    textAlign: 'center',
-  },
-  codingStats: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    paddingTop: 8,
-  },
-  codingStatItem: {
-    alignItems: 'center',
-  },
-  codingStatLabel: {
-    fontSize: 12,
-    color: '#64748B',
-    fontWeight: '500',
-  },
-  groupStudyButton: {
-    backgroundColor: '#F59E0B',
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 12,
-  },
-  groupStudyContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  groupStudyText: {
-    fontSize: 16,
-    color: '#FFFFFF',
-    fontWeight: '600',
-    textAlign: 'center',
-  },
-  groupFeatures: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    paddingTop: 8,
-  },
-  groupFeatureItem: {
-    alignItems: 'center',
-  },
-  groupFeatureText: {
-    fontSize: 12,
-    color: '#64748B',
-    fontWeight: '500',
-  },
-  gpaButton: {
-    backgroundColor: '#8B5CF6',
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 12,
-  },
-  gpaContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  gpaText: {
-    fontSize: 16,
-    color: '#FFFFFF',
-    fontWeight: '600',
-    textAlign: 'center',
-  },
-  gpaFeatures: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    paddingTop: 8,
-  },
-  gpaFeatureItem: {
-    alignItems: 'center',
-  },
-  gpaFeatureText: {
-    fontSize: 12,
-    color: '#64748B',
-    fontWeight: '500',
-  },
-  promptChips: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  chip: {
-    backgroundColor: '#F1F5F9',
-    paddingVertical: 8,
+  inputShell: {
+    borderWidth: 1,
+    borderRadius: 16,
     paddingHorizontal: 14,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#CBD5E1',
+    paddingVertical: 6,
+    marginBottom: 14,
   },
-  chipText: {
-    fontSize: 13,
-    color: '#475569',
+  input: {
+    fontSize: 15,
+    paddingVertical: 8,
   },
-  scheduleList: {
-    gap: 12,
-  },
-  scheduleItem: {
-    backgroundColor: '#FFFFFF',
-    padding: 14,
-    borderRadius: 10,
-    borderLeftWidth: 4,
-  },
-  scheduleTime: {
-    fontSize: 13,
-    color: '#64748B',
-    marginBottom: 4,
-  },
-  scheduleSubject: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1E293B',
-    marginBottom: 2,
-  },
-  scheduleRoom: {
-    fontSize: 13,
-    color: '#64748B',
-  },
-  subjectList: {
-    gap: 16,
-  },
-  subjectItem: {
-    gap: 8,
-  },
-  subjectHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  primaryButton: {
+    borderRadius: 999,
+    paddingVertical: 14,
     alignItems: 'center',
+    marginBottom: 10,
   },
-  subjectName: {
+  primaryButtonDisabled: {
+    opacity: 0.55,
+  },
+  primaryButtonText: {
+    color: '#FFFFFF',
     fontSize: 15,
     fontWeight: '600',
-    color: '#1E293B',
+    letterSpacing: 0.3,
   },
-  subjectPercent: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#6366F1',
+  secondaryButton: {
+    borderRadius: 999,
+    paddingVertical: 12,
+    alignItems: 'center',
+    borderWidth: 1,
   },
-  trendingBadge: {
-    fontSize: 12,
-    color: '#F59E0B',
+  secondaryButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
   },
-  itemsScroll: {
+  toolsSection: {
     marginTop: 8,
   },
-  miniCheckbox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginRight: 12,
-    paddingVertical: 6,
-    paddingHorizontal: 8,
-    backgroundColor: '#F8FAFC',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    maxWidth: 150,
-  },
-  checkboxCircle: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    borderWidth: 2,
-    borderColor: '#CBD5E1',
-    marginRight: 6,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  checkmark: {
-    color: '#FFFFFF',
-    fontSize: 10,
-    fontWeight: 'bold',
-  },
-  miniItemText: {
-    fontSize: 11,
-    color: '#475569',
-    flex: 1,
-  },
-  pointsBadge: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#F59E0B',
-  },
-  challengeCard: {
-    backgroundColor: '#FFFFFF',
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  challengeHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  challengeEmoji: {
-    fontSize: 32,
-    marginRight: 12,
-  },
-  challengeInfo: {
-    flex: 1,
-  },
-  challengeTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#1E293B',
-    marginBottom: 4,
-  },
-  challengeDesc: {
-    fontSize: 13,
-    color: '#64748B',
-  },
-  challengeProgressBar: {
-    height: 8,
-    backgroundColor: '#E2E8F0',
-    borderRadius: 4,
-    overflow: 'hidden',
-    marginBottom: 12,
-  },
-  challengeProgressFill: {
-    height: '100%',
-    backgroundColor: '#6366F1',
-    borderRadius: 4,
-  },
-  challengeFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  challengeReward: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  rewardText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#64748B',
-  },
-  challengeProgress: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#1E293B',
-  },
-  claimButton: {
-    backgroundColor: '#10B981',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
-  },
-  claimButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#FFFFFF',
-  },
-  playGamesButton: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: '#10B981',
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 12,
-  },
-  playGamesButtonText: {
+  toolsTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#FFFFFF',
+    marginBottom: 12,
   },
-  playGamesButtonArrow: {
-    fontSize: 20,
-    color: '#FFFFFF',
-  },
-  motivationCard: {
-    backgroundColor: '#6366F1',
-    padding: 16,
-    borderRadius: 12,
-  },
-  motivationText: {
-    fontSize: 14,
-    color: '#FFFFFF',
-    fontStyle: 'italic',
-    lineHeight: 20,
-    textAlign: 'center',
-  },
-  recommendationList: {
-    gap: 12,
-  },
-  recommendationItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  recommendationIcon: {
-    fontSize: 20,
-  },
-  recommendationContent: {
-    flex: 1,
-  },
-  recommendationTitle: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#1E293B',
-    marginBottom: 2,
-  },
-  recommendationText: {
-    fontSize: 14,
-    color: '#64748B',
-  },
-  analyticsGrid: {
+  toolsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12,
+    justifyContent: 'space-between',
+    rowGap: 12,
   },
-  analyticsItem: {
-    flex: 1,
-    minWidth: '45%',
-    backgroundColor: '#FFFFFF',
-    padding: 16,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  analyticsValue: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#6366F1',
-    marginBottom: 4,
-  },
-  analyticsLabel: {
-    fontSize: 12,
-    color: '#64748B',
-  },
-  uploadsScroll: {
-    marginHorizontal: -20,
-    paddingHorizontal: 20,
-  },
-  uploadCard: {
-    width: 120,
-    backgroundColor: '#FFFFFF',
-    padding: 14,
-    borderRadius: 12,
-    marginRight: 12,
-    alignItems: 'center',
+  toolCard: {
+    width: '48%',
+    borderRadius: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 14,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
   },
-  uploadIcon: {
-    fontSize: 32,
+  toolEmoji: {
+    fontSize: 22,
     marginBottom: 8,
   },
-  uploadName: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#1E293B',
-    marginBottom: 4,
-    textAlign: 'center',
-  },
-  uploadDate: {
-    fontSize: 11,
-    color: '#64748B',
-  },
-  timerContainer: {
-    alignItems: 'center',
-    paddingVertical: 10,
-  },
-  timerDisplay: {
-    fontSize: 48,
-    fontWeight: 'bold',
-    color: '#1E293B',
-    marginBottom: 20,
-    fontVariant: ['tabular-nums'],
-  },
-  timerButton: {
-    backgroundColor: '#6366F1',
-    paddingVertical: 14,
-    paddingHorizontal: 32,
-    borderRadius: 12,
-    marginBottom: 12,
-  },
-  timerButtonActive: {
-    backgroundColor: '#EF4444',
-  },
-  timerButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#FFFFFF',
-  },
-  timerHint: {
+  toolLabel: {
     fontSize: 13,
-    color: '#64748B',
-    textAlign: 'center',
-  },
-  bottomNavContainer: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    paddingHorizontal: 16,
-    paddingBottom: Platform.OS === 'ios' ? 20 : 16,
-    backgroundColor: 'transparent',
-  },
-  bottomNav: {
-    flexDirection: 'row',
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    borderRadius: 20,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: -2,
-    },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(226, 232, 240, 0.6)',
-  },
-  navButton: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 6,
-  },
-  navIcon: {
-    fontSize: 20,
-    marginBottom: 3,
-    opacity: 0.6,
-  },
-  navIconActive: {
-    fontSize: 20,
-    marginBottom: 3,
-  },
-  navLabel: {
-    fontSize: 10,
-    color: '#64748B',
-  },
-  navLabelActive: {
-    fontSize: 10,
-    color: '#6366F1',
     fontWeight: '600',
   },
 });
