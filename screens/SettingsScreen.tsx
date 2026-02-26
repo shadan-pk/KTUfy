@@ -13,6 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { SettingsScreenNavigationProp } from '../types/navigation';
 import { useTheme } from '../contexts/ThemeContext';
 import { TestBackendButton } from '../components/TestBackendButton';
+import { useServerStatus } from '../hooks/useServerStatus';
 
 interface SettingsScreenProps {
   navigation: SettingsScreenNavigationProp;
@@ -20,6 +21,7 @@ interface SettingsScreenProps {
 
 const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) => {
   const { theme, isDark, toggleTheme } = useTheme();
+  const { serverOnline } = useServerStatus();
 
   const [notificationsEnabled, setNotificationsEnabled] = React.useState(true);
   const [emailNotifications, setEmailNotifications] = React.useState(true);
@@ -58,6 +60,26 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) => {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.backgroundSecondary }]} edges={['bottom']}>
       <ScrollView style={styles.scrollView}>
+
+        {/* Server Status Section */}
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: theme.text }]}>System</Text>
+          <View style={[styles.settingCard, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Text style={[styles.settingLabel, { color: theme.text }]}>Server Status</Text>
+                <Text style={[styles.settingDescription, { color: theme.textSecondary }]}>
+                  {serverOnline ? 'KTUfy Backend is available' : 'KTUfy Backend is offline'}
+                </Text>
+              </View>
+              <View style={[styles.statusBadge, { backgroundColor: serverOnline ? 'rgba(52, 211, 153, 0.15)' : 'rgba(248, 113, 113, 0.15)' }]}>
+                <Text style={[styles.statusText, { color: serverOnline ? '#34D399' : '#F87171' }]}>
+                  {serverOnline ? 'Online' : 'Offline'}
+                </Text>
+              </View>
+            </View>
+          </View>
+        </View>
         {/* Notifications Section */}
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: theme.text }]}>Notifications</Text>
@@ -313,6 +335,15 @@ const styles = StyleSheet.create({
   dangerButtonText: {
     color: '#fff',
     fontSize: 16,
+    fontWeight: '600',
+  },
+  statusBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  statusText: {
+    fontSize: 12,
     fontWeight: '600',
   },
 });

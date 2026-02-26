@@ -81,6 +81,17 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
     year_joined: '', year_ending: '', roll_number: '',
   });
   const [saving, setSaving] = React.useState(false);
+  const [alertConfig, setAlertConfig] = React.useState<{
+    title: string;
+    message: string;
+    onConfirm?: () => void;
+    showCancel?: boolean;
+    isDestructive?: boolean;
+  } | null>(null);
+
+  const customAlert = (title: string, message: string, onConfirm?: () => void, showCancel = false, isDestructive = false) => {
+    setAlertConfig({ title, message, onConfirm, showCancel, isDestructive });
+  };
 
   const loadProfile = React.useCallback(async () => {
     try {
@@ -155,7 +166,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
 
   const handleSave = async () => {
     if (!editForm.name.trim()) {
-      Alert.alert('Error', 'Name is required');
+      customAlert('Error', 'Name is required');
       return;
     }
     if (!supabaseUser) return;
@@ -184,40 +195,40 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
       setUserData(merged);
       await setCachedUserProfile(merged);
       setShowEdit(false);
-      Alert.alert('Success', 'Profile updated!');
+      customAlert('Success', 'Profile updated!');
     } catch (err: any) {
-      Alert.alert('Error', err.message || 'Failed to update');
+      customAlert('Error', err.message || 'Failed to update');
     } finally {
       setSaving(false);
     }
   };
 
   const handleLogout = () => {
-    Alert.alert('Logout', 'Are you sure?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Logout', style: 'destructive',
-        onPress: async () => {
-          try { await signOut(); } catch (e: any) { Alert.alert('Error', e.message); }
-        },
+    customAlert(
+      'Logout',
+      'Are you sure you want to log out?',
+      async () => {
+        try { await signOut(); } catch (e: any) { customAlert('Error', e.message); }
       },
-    ]);
+      true,
+      true
+    );
   };
 
   const handleResetPassword = () => {
     const email = userData?.email || supabaseUser?.email;
     if (!email) return;
-    Alert.alert('Reset Password', `Send reset link to ${email}?`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Send', onPress: async () => {
-          try {
-            await supabase.auth.resetPasswordForEmail(email);
-            Alert.alert('Sent', 'Check your email for the reset link.');
-          } catch (e: any) { Alert.alert('Error', e.message); }
-        },
+    customAlert(
+      'Reset Password',
+      `Send reset link to ${email}?`,
+      async () => {
+        try {
+          await supabase.auth.resetPasswordForEmail(email);
+          customAlert('Sent', 'Check your email for the reset link.');
+        } catch (e: any) { customAlert('Error', e.message); }
       },
-    ]);
+      true
+    );
   };
 
   const getInitial = () =>
@@ -412,6 +423,36 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
           </View>
         </View>
       </Modal>
+
+      {/* Custom Alert / Confirm Modal */}
+      <Modal visible={!!alertConfig} animationType="fade" transparent onRequestClose={() => setAlertConfig(null)}>
+        <View style={[styles.modalOverlay, { justifyContent: 'center', paddingHorizontal: 40 }]}>
+          <View style={styles.alertModal}>
+            <Text style={styles.alertTitle}>{alertConfig?.title}</Text>
+            <Text style={styles.alertMessage}>{alertConfig?.message}</Text>
+
+            <View style={styles.alertActions}>
+              {alertConfig?.showCancel && (
+                <TouchableOpacity style={styles.alertCancelBtn} onPress={() => setAlertConfig(null)}>
+                  <Text style={styles.alertCancelText}>Cancel</Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity
+                style={[styles.alertConfirmBtn, alertConfig?.isDestructive && { backgroundColor: C.error }]}
+                onPress={() => {
+                  const onConfirm = alertConfig?.onConfirm;
+                  setAlertConfig(null);
+                  if (onConfirm) onConfirm();
+                }}
+              >
+                <Text style={styles.alertConfirmText}>
+                  {alertConfig?.showCancel ? (alertConfig?.isDestructive ? 'Logout' : 'Confirm') : 'OK'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -531,6 +572,18 @@ const styles = StyleSheet.create({
     backgroundColor: C.accent, alignItems: 'center',
   },
   saveText: { fontSize: FONT.body, color: C.white, fontWeight: '600' },
+  // Alert Modal
+  alertModal: {
+    backgroundColor: C.bg800, borderRadius: 16,
+    padding: 24, borderWidth: 1, borderColor: C.cardBorder,
+  },
+  alertTitle: { fontSize: FONT.h2, fontWeight: '700', color: C.textPrimary, marginBottom: 8 },
+  alertMessage: { fontSize: FONT.body, color: C.textSecondary, marginBottom: 24, lineHeight: 22 },
+  alertActions: { flexDirection: 'row', gap: 12, justifyContent: 'flex-end' },
+  alertCancelBtn: { paddingVertical: 10, paddingHorizontal: 16, borderRadius: 8 },
+  alertCancelText: { fontSize: FONT.body, color: C.textSecondary, fontWeight: '500' },
+  alertConfirmBtn: { paddingVertical: 10, paddingHorizontal: 16, borderRadius: 8, backgroundColor: C.accent },
+  alertConfirmText: { fontSize: FONT.body, color: C.white, fontWeight: '600' },
 });
 
 export default ProfileScreen;

@@ -52,28 +52,20 @@ export async function apiFetch(input: RequestInfo, init?: RequestInit) {
  */
 export async function apiRequest<T = any>(input: RequestInfo, init?: RequestInit): Promise<T> {
   try {
-    console.log('📡 API Request:', input);
-    console.log('📡 Request Method:', init?.method || 'GET');
-    console.log('📡 Request Body:', init?.body);
-    console.log('📡 Request Headers:', init?.headers);
-
     const response = await apiFetch(input, init);
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('❌ Raw API Error Response:', errorText);
 
       let errorMessage = `API Error: ${response.status} ${response.statusText}`;
 
       try {
         const errorJson = JSON.parse(errorText);
-        console.error('❌ Parsed API Error:', errorJson);
         errorMessage = errorJson.detail || errorJson.message || JSON.stringify(errorJson);
       } catch {
         errorMessage = errorText || errorMessage;
       }
 
-      console.error('❌ Final API Error:', errorMessage);
       throw new Error(errorMessage);
     }
 
@@ -81,11 +73,12 @@ export async function apiRequest<T = any>(input: RequestInfo, init?: RequestInit
     const text = await response.text();
     if (!text) return {} as T;
 
-    const data = JSON.parse(text);
-    console.log('✅ API Response:', data);
-    return data;
+    return JSON.parse(text);
   } catch (error: any) {
-    console.error('❌ API Request Failed:', error);
+    // Don't log AbortError (timeout) — it's expected when server is offline
+    if (error?.name !== 'AbortError') {
+      console.error('❌ API Request Failed:', error?.message || error);
+    }
     throw error;
   }
 }

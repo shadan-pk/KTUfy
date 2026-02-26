@@ -14,7 +14,8 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { HomeScreenNavigationProp } from '../types/navigation';
 import { useTheme } from '../contexts/ThemeContext';
-import { ArrowRight } from 'lucide-react-native';
+import { ArrowRight, WifiOff } from 'lucide-react-native';
+import { useServerStatus } from '../hooks/useServerStatus';
 
 const { width, height } = Dimensions.get('window');
 
@@ -98,9 +99,27 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     navigation.navigate('Chatbot', { initialPrompt: prompt });
   };
 
+  const { hasInternet, serverOnline } = useServerStatus();
+
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor={C.bg900} />
+
+      {/* Server status indicator */}
+      <View style={styles.statusBar}>
+        <View style={[styles.statusDot, { backgroundColor: serverOnline ? '#34D399' : '#F87171' }]} />
+        <Text style={[styles.statusLabel, { color: serverOnline ? '#34D399' : '#F87171' }]}>
+          {serverOnline ? 'Online' : 'Offline'}
+        </Text>
+      </View>
+
+      {/* No internet warning */}
+      {!hasInternet && (
+        <View style={styles.offlineBanner}>
+          <WifiOff size={16} color="#FCD34D" strokeWidth={2} />
+          <Text style={styles.offlineText}>No internet connection. Some features require internet access.</Text>
+        </View>
+      )}
 
       {/* Background gradient */}
       {/* <LinearGradient
@@ -201,6 +220,22 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: C.bg900 },
   keyboardView: { flex: 1 },
+  // Status & Offline
+  statusBar: {
+    position: 'absolute', top: Platform.OS === 'ios' ? 60 : 40, alignSelf: 'center',
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: 'rgba(15, 26, 62, 0.7)', paddingHorizontal: 12, paddingVertical: 6,
+    borderRadius: 20, borderWidth: 1, borderColor: 'rgba(71, 85, 105, 0.3)', zIndex: 10,
+  },
+  statusDot: { width: 8, height: 8, borderRadius: 4 },
+  statusLabel: { fontSize: FONT.caption, fontWeight: '600', letterSpacing: 0.5 },
+  offlineBanner: {
+    position: 'absolute', top: Platform.OS === 'ios' ? 100 : 80, left: 24, right: 24,
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    backgroundColor: 'rgba(245, 158, 11, 0.15)', padding: 12,
+    borderRadius: 12, borderWidth: 1, borderColor: 'rgba(245, 158, 11, 0.3)', zIndex: 10,
+  },
+  offlineText: { color: '#FCD34D', fontSize: FONT.caption, flex: 1, lineHeight: 18 },
   // Glow orbs
   orb: { position: 'absolute', borderRadius: 999 },
   orb1: {

@@ -35,6 +35,7 @@ import {
   getCachedChatHistory,
   setCachedChatHistory,
 } from '../services/cacheService';
+import { useServerStatus } from '../hooks/useServerStatus';
 
 const { width } = Dimensions.get('window');
 
@@ -99,6 +100,8 @@ const ChatbotScreen: React.FC<ChatbotScreenProps> = ({ navigation }) => {
   const [editingTitle, setEditingTitle] = React.useState('');
   const [initialPromptSent, setInitialPromptSent] = React.useState(false);
   const scrollViewRef = React.useRef<ScrollView>(null);
+
+  const { serverOnline } = useServerStatus();
 
   // Sidebar slide animation (left to right)
   const sidebarAnim = React.useRef(new Animated.Value(-width * 0.78)).current;
@@ -262,6 +265,9 @@ const ChatbotScreen: React.FC<ChatbotScreenProps> = ({ navigation }) => {
   };
 
   const generateLocalResponse = (userMessage: string): string => {
+    if (!serverOnline) {
+      return "⚠️ Our server is currently offline.\n\nPlease check your internet connection or try again later when the server is back online.";
+    }
     const lm = userMessage.toLowerCase();
     if (lm.includes('hello') || lm.includes('hi'))
       return "Hello! 👋 I'm your AI Study Assistant (offline mode). What would you like to learn about?";
@@ -395,7 +401,7 @@ const ChatbotScreen: React.FC<ChatbotScreenProps> = ({ navigation }) => {
           </TouchableOpacity>
           <View style={styles.hTitleWrap}>
             <Text style={styles.hTitle}>KTUfy AI</Text>
-            <View style={styles.statusDot} />
+            <View style={[styles.statusDot, !serverOnline && { backgroundColor: C.error }]} />
           </View>
           <TouchableOpacity style={styles.hBtn} onPress={handleNewChat}>
             <Plus size={22} color={C.textPrimary} strokeWidth={2} />
@@ -574,7 +580,7 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: 12, paddingVertical: 10,
-    borderBottomWidth: 1, borderBottomColor: C.headerBorder,  
+    borderBottomWidth: 1, borderBottomColor: C.headerBorder,
   },
   hBtn: { width: 40, height: 40, justifyContent: 'center', alignItems: 'center', borderRadius: 10 },
   hBtnIcon: { fontSize: 20, color: C.textPrimary, fontWeight: '500' },
@@ -658,7 +664,7 @@ const styles = StyleSheet.create({
   sbHeader: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     paddingHorizontal: 20, paddingBottom: 16,
-    borderBottomWidth: 1, borderBottomColor: C.sidebarBorder,paddingTop: Platform.OS === 'android' ? 30 : 0,
+    borderBottomWidth: 1, borderBottomColor: C.sidebarBorder, paddingTop: Platform.OS === 'android' ? 30 : 0,
   },
   sbTitle: { fontSize: FONT.h2, fontWeight: '700', color: C.textPrimary, },
   sbClose: { fontSize: 18, color: C.textSecondary, fontWeight: '600' },
