@@ -14,13 +14,13 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { HomeScreenNavigationProp } from '../types/navigation';
 import { useTheme } from '../contexts/ThemeContext';
-import BottomNavBar from '../components/BottomNavBar';
+import { ArrowRight } from 'lucide-react-native';
 
 const { width, height } = Dimensions.get('window');
 
 // ─── Theme Colors (Blue Palette) ─────────────────────────────────
 const C = {
-  bg900: '#050816',
+  bg900: '#01040f',
   bg850: '#070B1E',
   bg800: '#0A1128',
   bg700: '#0F1A3E',
@@ -103,12 +103,12 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
       <StatusBar barStyle="light-content" backgroundColor={C.bg900} />
 
       {/* Background gradient */}
-      <LinearGradient
+      {/* <LinearGradient
         colors={[C.bg900, C.bg800, C.bg700, C.bg900]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={StyleSheet.absoluteFillObject}
-      />
+      /> */}
 
       {/* Animated glow orbs */}
       <Animated.View style={[styles.orb, styles.orb1, { opacity: glowOpacity }]} />
@@ -154,7 +154,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
                   disabled={!promptText.trim()}
                   activeOpacity={0.7}
                 >
-                  <Text style={styles.sendIcon}>→</Text>
+                  <ArrowRight size={20} color="#FFFFFF" strokeWidth={2.5} />
                 </TouchableOpacity>
               </View>
             </View>
@@ -194,9 +194,6 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
           </LinearGradient>
         </TouchableOpacity>
       </View>
-
-      {/* Bottom Nav */}
-      <BottomNavBar activeRoute="Home" />
     </View>
   );
 };
@@ -282,7 +279,7 @@ const styles = StyleSheet.create({
   // Explore floating card
   exploreFloating: {
     position: 'absolute',
-    bottom: Platform.OS === 'ios' ? 78 : 58,
+    bottom: Platform.OS === 'ios' ? 78 : 28,
     left: 24, right: 24,
   },
   exploreButton: {

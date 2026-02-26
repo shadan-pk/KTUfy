@@ -18,6 +18,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRoute, RouteProp } from '@react-navigation/native';
 import { ChatbotScreenNavigationProp, RootStackParamList } from '../types/navigation';
+import { ArrowLeft, Menu, Plus, Paperclip, ArrowRight, X, Pencil, Trash2 } from 'lucide-react-native';
 import {
   sendChatMessage,
   getChatSessions,
@@ -387,17 +388,17 @@ const ChatbotScreen: React.FC<ChatbotScreenProps> = ({ navigation }) => {
       <SafeAreaView edges={['top']} style={styles.headerSafe}>
         <View style={styles.header}>
           <TouchableOpacity style={styles.hBtn} onPress={() => navigation.goBack()}>
-            <Text style={styles.hBtnIcon}>←</Text>
+            <ArrowLeft size={22} color={C.textPrimary} strokeWidth={2} />
           </TouchableOpacity>
           <TouchableOpacity style={styles.hBtn} onPress={openSidebar}>
-            <Text style={styles.hBtnIcon}>☰</Text>
+            <Menu size={22} color={C.textPrimary} strokeWidth={2} />
           </TouchableOpacity>
           <View style={styles.hTitleWrap}>
             <Text style={styles.hTitle}>KTUfy AI</Text>
             <View style={styles.statusDot} />
           </View>
           <TouchableOpacity style={styles.hBtn} onPress={handleNewChat}>
-            <Text style={styles.hBtnIcon}>+</Text>
+            <Plus size={22} color={C.textPrimary} strokeWidth={2} />
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -469,7 +470,7 @@ const ChatbotScreen: React.FC<ChatbotScreenProps> = ({ navigation }) => {
         <View style={styles.inputArea}>
           <View style={styles.inputWrap}>
             <TouchableOpacity style={styles.attachBtn}>
-              <Text style={styles.attachIcon}>📎</Text>
+              <Paperclip size={20} color={C.textMuted} strokeWidth={1.8} />
             </TouchableOpacity>
             <TextInput
               style={styles.input} placeholder="Message KTUfy AI..."
@@ -480,87 +481,89 @@ const ChatbotScreen: React.FC<ChatbotScreenProps> = ({ navigation }) => {
               style={[styles.sendBtn, (!inputText.trim() || isTyping) && styles.sendBtnOff]}
               onPress={handleSend} disabled={!inputText.trim() || isTyping}
             >
-              <Text style={styles.sendIcon}>↑</Text>
+              <ArrowRight size={20} color={C.white} strokeWidth={2.5} />
             </TouchableOpacity>
           </View>
         </View>
       </KeyboardAvoidingView>
 
       {/* Sidebar — slide from left */}
-      {showSidebar && (
-        <View style={StyleSheet.absoluteFillObject} pointerEvents="box-none">
-          <Animated.View
-            style={[styles.backdrop, { opacity: backdropOpacity }]}
-          >
-            <TouchableOpacity
-              style={StyleSheet.absoluteFillObject}
-              activeOpacity={1}
-              onPress={closeSidebar}
-            />
-          </Animated.View>
+      {
+        showSidebar && (
+          <View style={StyleSheet.absoluteFillObject} pointerEvents="box-none">
+            <Animated.View
+              style={[styles.backdrop, { opacity: backdropOpacity }]}
+            >
+              <TouchableOpacity
+                style={StyleSheet.absoluteFillObject}
+                activeOpacity={1}
+                onPress={closeSidebar}
+              />
+            </Animated.View>
 
-          <Animated.View
-            style={[styles.sidebar, { transform: [{ translateX: sidebarAnim }] }]}
-          >
-            <View style={styles.sbHeader}>
-              <Text style={styles.sbTitle}>Chat History</Text>
-              <TouchableOpacity onPress={closeSidebar}>
-                <Text style={styles.sbClose}>✕</Text>
+            <Animated.View
+              style={[styles.sidebar, { transform: [{ translateX: sidebarAnim }] }]}
+            >
+              <View style={styles.sbHeader}>
+                <Text style={styles.sbTitle}>Chat History</Text>
+                <TouchableOpacity onPress={closeSidebar}>
+                  <X size={20} color={C.textSecondary} strokeWidth={2} />
+                </TouchableOpacity>
+              </View>
+              <TouchableOpacity style={styles.sbNew} onPress={handleNewChat}>
+                <Plus size={18} color={C.accent} strokeWidth={2} />
+                <Text style={styles.sbNewText}>New Chat</Text>
               </TouchableOpacity>
-            </View>
-            <TouchableOpacity style={styles.sbNew} onPress={handleNewChat}>
-              <Text style={styles.sbNewIcon}>+</Text>
-              <Text style={styles.sbNewText}>New Chat</Text>
-            </TouchableOpacity>
-            <ScrollView style={styles.sbList} showsVerticalScrollIndicator={false}>
-              {Object.entries(groupedSessions).map(([group, gSessions]) => (
-                <View key={group} style={styles.sbGroup}>
-                  <Text style={styles.sbGroupTitle}>{group}</Text>
-                  {gSessions.map(s => (
-                    <View key={s.id} style={styles.sbItem}>
-                      {editingSessionId === s.id ? (
-                        <TextInput
-                          style={styles.sbEditInput} value={editingTitle}
-                          onChangeText={setEditingTitle}
-                          onBlur={() => saveSessionTitle(s.id)}
-                          onSubmitEditing={() => saveSessionTitle(s.id)}
-                          autoFocus
-                        />
-                      ) : (
-                        <>
-                          <TouchableOpacity
-                            style={[styles.sbBtn, currentSessionId === s.id && styles.sbBtnActive]}
-                            onPress={() => loadChatSession(s.id)}
-                          >
-                            <Text style={[styles.sbBtnTitle, currentSessionId === s.id && { color: C.accent }]} numberOfLines={1}>
-                              {s.title}
-                            </Text>
-                            <Text style={styles.sbDate}>{formatSessionDate(s.created_at)}</Text>
-                          </TouchableOpacity>
-                          <View style={styles.sbActions}>
-                            <TouchableOpacity style={styles.sbActBtn} onPress={() => startEditingTitle(s)}>
-                              <Text style={styles.sbActIcon}>✎</Text>
+              <ScrollView style={styles.sbList} showsVerticalScrollIndicator={false}>
+                {Object.entries(groupedSessions).map(([group, gSessions]) => (
+                  <View key={group} style={styles.sbGroup}>
+                    <Text style={styles.sbGroupTitle}>{group}</Text>
+                    {gSessions.map(s => (
+                      <View key={s.id} style={styles.sbItem}>
+                        {editingSessionId === s.id ? (
+                          <TextInput
+                            style={styles.sbEditInput} value={editingTitle}
+                            onChangeText={setEditingTitle}
+                            onBlur={() => saveSessionTitle(s.id)}
+                            onSubmitEditing={() => saveSessionTitle(s.id)}
+                            autoFocus
+                          />
+                        ) : (
+                          <>
+                            <TouchableOpacity
+                              style={[styles.sbBtn, currentSessionId === s.id && styles.sbBtnActive]}
+                              onPress={() => loadChatSession(s.id)}
+                            >
+                              <Text style={[styles.sbBtnTitle, currentSessionId === s.id && { color: C.accent }]} numberOfLines={1}>
+                                {s.title}
+                              </Text>
+                              <Text style={styles.sbDate}>{formatSessionDate(s.created_at)}</Text>
                             </TouchableOpacity>
-                            <TouchableOpacity style={styles.sbActBtn} onPress={() => handleDeleteSession(s.id)}>
-                              <Text style={[styles.sbActIcon, { color: C.error }]}>✕</Text>
-                            </TouchableOpacity>
-                          </View>
-                        </>
-                      )}
-                    </View>
-                  ))}
-                </View>
-              ))}
-              {sessions.length === 0 && (
-                <View style={styles.sbEmpty}>
-                  <Text style={styles.sbEmptyText}>No history yet.{'\n'}Start a conversation!</Text>
-                </View>
-              )}
-            </ScrollView>
-          </Animated.View>
-        </View>
-      )}
-    </View>
+                            <View style={styles.sbActions}>
+                              <TouchableOpacity style={styles.sbActBtn} onPress={() => startEditingTitle(s)}>
+                                <Pencil size={14} color={C.textMuted} strokeWidth={1.8} />
+                              </TouchableOpacity>
+                              <TouchableOpacity style={styles.sbActBtn} onPress={() => handleDeleteSession(s.id)}>
+                                <Trash2 size={14} color={C.error} strokeWidth={1.8} />
+                              </TouchableOpacity>
+                            </View>
+                          </>
+                        )}
+                      </View>
+                    ))}
+                  </View>
+                ))}
+                {sessions.length === 0 && (
+                  <View style={styles.sbEmpty}>
+                    <Text style={styles.sbEmptyText}>No history yet.{'\n'}Start a conversation!</Text>
+                  </View>
+                )}
+              </ScrollView>
+            </Animated.View>
+          </View>
+        )
+      }
+    </View >
   );
 };
 
@@ -571,7 +574,7 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: 12, paddingVertical: 10,
-    borderBottomWidth: 1, borderBottomColor: C.headerBorder,
+    borderBottomWidth: 1, borderBottomColor: C.headerBorder,  
   },
   hBtn: { width: 40, height: 40, justifyContent: 'center', alignItems: 'center', borderRadius: 10 },
   hBtnIcon: { fontSize: 20, color: C.textPrimary, fontWeight: '500' },
@@ -620,11 +623,14 @@ const styles = StyleSheet.create({
   // Input
   inputArea: {
     paddingHorizontal: 12, paddingVertical: 10,
-    backgroundColor: C.bg850, borderTopWidth: 1, borderTopColor: C.headerBorder,
+    // backgroundColor: C.bg850, 
+    // borderTopWidth: 1, borderTopColor: C.headerBorder,
   },
   inputWrap: {
+    marginBottom: Platform.OS === 'android' ? 10 : 4,
     flexDirection: 'row', alignItems: 'flex-end',
-    backgroundColor: C.inputBg, borderRadius: 22,
+    backgroundColor: C.inputBg,
+    borderRadius: 22,
     borderWidth: 1, borderColor: C.inputBorder,
     paddingHorizontal: 6, paddingVertical: 4, maxHeight: 120,
   },
@@ -652,9 +658,9 @@ const styles = StyleSheet.create({
   sbHeader: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     paddingHorizontal: 20, paddingBottom: 16,
-    borderBottomWidth: 1, borderBottomColor: C.sidebarBorder,
+    borderBottomWidth: 1, borderBottomColor: C.sidebarBorder,paddingTop: Platform.OS === 'android' ? 30 : 0,
   },
-  sbTitle: { fontSize: FONT.h2, fontWeight: '700', color: C.textPrimary },
+  sbTitle: { fontSize: FONT.h2, fontWeight: '700', color: C.textPrimary, },
   sbClose: { fontSize: 18, color: C.textSecondary, fontWeight: '600' },
   sbNew: {
     flexDirection: 'row', alignItems: 'center', margin: 16, padding: 12,

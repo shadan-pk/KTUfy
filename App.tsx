@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
-import { createStackNavigator } from '@react-navigation/stack';
+import { createStackNavigator, CardStyleInterpolators } from '@react-navigation/stack';
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { useAuth, AuthProvider } from './auth/AuthProvider';
 import { StatusBar } from 'expo-status-bar';
-import { View, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, ActivityIndicator, StyleSheet, StatusBar as RNStatusBar, Platform } from 'react-native';
 import 'react-native-gesture-handler';
 
 // Import Theme Provider
@@ -28,9 +29,43 @@ import GPACalculatorScreen from './screens/GPACalculatorScreen';
 import SyllabusViewerScreen from './screens/SyllabusViewerScreen';
 import PYPScreen from './screens/PYPScreen';
 import ExploreScreen from './screens/ExploreScreen';
+
+// Import custom tab bar
+import BottomNavBar from './components/BottomNavBar';
+
 import { RootStackParamList } from './types/navigation';
 
 const Stack = createStackNavigator<RootStackParamList>();
+const Tab = createBottomTabNavigator();
+
+// ─── Dark background for smooth transitions ───────────────────────
+const DARK_BG = '#050816';
+
+/**
+ * Main Tabs — Home, Chatbot, Library, Profile
+ * These 4 screens share a persistent BottomNavBar via the Tab Navigator.
+ */
+function MainTabs() {
+  return (
+    <View style={{
+      flex: 1,
+      // paddingTop: Platform.OS === 'android' ? RNStatusBar.currentHeight : 0,
+      backgroundColor: '#050816',
+    }}>
+      <Tab.Navigator
+        tabBar={(props) => <BottomNavBar {...props} />}
+        screenOptions={{
+          headerShown: false,
+        }}
+      >
+        <Tab.Screen name="Home" component={HomeScreen} />
+        <Tab.Screen name="Chatbot" component={ChatbotScreen} />
+        <Tab.Screen name="Library" component={LibraryScreen} />
+        <Tab.Screen name="Profile" component={ProfileScreen} />
+      </Tab.Navigator>
+    </View>
+  );
+}
 
 function AppContent() {
   const { user } = useAuth();
@@ -38,124 +73,48 @@ function AppContent() {
 
   if (user === undefined) {
     return (
-      <View style={[styles.loadingContainer, { backgroundColor: theme.background }]}>
-        <ActivityIndicator size="large" color={theme.primary} />
+      <View style={[styles.loadingContainer, { backgroundColor: DARK_BG }]}>
+        <ActivityIndicator size="large" color="#2563EB" />
       </View>
     );
   }
 
   return (
     <NavigationContainer>
-      <StatusBar style={isDark ? "light" : "dark"} />
+      <StatusBar style="light" />
       <Stack.Navigator
         screenOptions={{
-          headerShown: true,
-          headerStyle: {
-            backgroundColor: '#007AFF',
-          },
-          headerTintColor: '#fff',
-          headerTitleStyle: {
-            fontWeight: 'bold',
-          },
+          headerShown: false,
+          cardStyle: { backgroundColor: DARK_BG },
+          cardStyleInterpolator: CardStyleInterpolators.forFadeFromBottomAndroid,
+          gestureEnabled: true,
         }}
       >
         {user ? (
           // Authenticated stack
           <>
-            <Stack.Screen
-              name="Home"
-              component={HomeScreen}
-              options={{ headerShown: false }}
-            />
-            <Stack.Screen
-              name="Chatbot"
-              component={ChatbotScreen}
-              options={{ headerShown: false }}
-            />
-            <Stack.Screen
-              name="Ticklist"
-              component={TicklistScreen}
-              options={{ title: 'Study Checklist' }}
-            />
-            <Stack.Screen
-              name="Library"
-              component={LibraryScreen}
-              options={{ title: 'Study Library' }}
-            />
-            <Stack.Screen
-              name="QuizSession"
-              component={QuizSessionScreen}
-              options={{ title: 'Quiz Session' }}
-            />
-            <Stack.Screen
-              name="Schedule"
-              component={ScheduleScreen}
-              options={{ headerShown: false }}
-            />
-            <Stack.Screen
-              name="LearningZone"
-              component={LearningZoneScreen}
-              options={{ headerShown: false }}
-            />
-            <Stack.Screen
-              name="CodingHub"
-              component={CodingHubScreen}
-              options={{ headerShown: false }}
-            />
-            <Stack.Screen
-              name="GroupStudy"
-              component={GroupStudyScreen}
-              options={{ headerShown: false }}
-            />
-            <Stack.Screen
-              name="GPACalculator"
-              component={GPACalculatorScreen}
-              options={{ headerShown: false }}
-            />
-            <Stack.Screen
-              name="SyllabusViewer"
-              component={SyllabusViewerScreen}
-              options={{ headerShown: false }}
-            />
-            <Stack.Screen
-              name="PYP"
-              component={PYPScreen}
-              options={{ headerShown: false }}
-            />
-            <Stack.Screen
-              name="Explore"
-              component={ExploreScreen}
-              options={{ headerShown: false }}
-            />
-            <Stack.Screen
-              name="Profile"
-              component={ProfileScreen}
-              options={{ title: 'My Profile' }}
-            />
-            <Stack.Screen
-              name="Settings"
-              component={SettingsScreen}
-              options={{ title: 'Settings' }}
-            />
-            <Stack.Screen
-              name="Help"
-              component={HelpScreen}
-              options={{ title: 'Help & Support' }}
-            />
+            {/* Main tabs (Home, Chatbot, Library, Profile with fixed nav bar) */}
+            <Stack.Screen name="MainTabs" component={MainTabs} />
+
+            {/* Secondary screens (push on top of tabs, no tab bar) */}
+            <Stack.Screen name="Ticklist" component={TicklistScreen} />
+            <Stack.Screen name="QuizSession" component={QuizSessionScreen} />
+            <Stack.Screen name="Schedule" component={ScheduleScreen} />
+            <Stack.Screen name="LearningZone" component={LearningZoneScreen} />
+            <Stack.Screen name="CodingHub" component={CodingHubScreen} />
+            <Stack.Screen name="GroupStudy" component={GroupStudyScreen} />
+            <Stack.Screen name="GPACalculator" component={GPACalculatorScreen} />
+            <Stack.Screen name="SyllabusViewer" component={SyllabusViewerScreen} />
+            <Stack.Screen name="PYP" component={PYPScreen} />
+            <Stack.Screen name="Explore" component={ExploreScreen} />
+            <Stack.Screen name="Settings" component={SettingsScreen} />
+            <Stack.Screen name="Help" component={HelpScreen} />
           </>
         ) : (
           // Non-authenticated stack
           <>
-            <Stack.Screen
-              name="Login"
-              component={LoginScreen}
-              options={{ headerShown: false }}
-            />
-            <Stack.Screen
-              name="Signup"
-              component={SignupScreen}
-              options={{ headerShown: false }}
-            />
+            <Stack.Screen name="Login" component={LoginScreen} />
+            <Stack.Screen name="Signup" component={SignupScreen} />
           </>
         )}
       </Stack.Navigator>

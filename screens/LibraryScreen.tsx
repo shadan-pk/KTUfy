@@ -101,10 +101,10 @@ const BRANCHES = [
 
 const LibraryScreen: React.FC<LibraryScreenProps> = ({ navigation }) => {
   const { theme, isDark } = useTheme();
-  
+
   // View Mode State ('menu' or 'notes')
   const [viewMode, setViewMode] = useState<'menu' | 'notes'>('menu');
-  
+
   // Navigation State
   const [selectedYear, setSelectedYear] = useState<string | null>(null);
   const [selectedSemester, setSelectedSemester] = useState<string | null>(null);
@@ -161,12 +161,12 @@ const LibraryScreen: React.FC<LibraryScreenProps> = ({ navigation }) => {
       const yearNum = YEARS.indexOf(selectedYear!) + 1;
       const semNum = selectedSemester!.replace('S', '');
       const path = `Library/Year_${yearNum}/Sem_${semNum}/${selectedBranch}`;
-      
+
       // For demo, using mock data. Replace with actual Firestore query:
       // const subjectsRef = collection(db, path);
       // const snapshot = await getDocs(subjectsRef);
       // const subjectsList = snapshot.docs.map(doc => doc.id);
-      
+
       // Mock subjects for demonstration
       const mockSubjects = ['Artificial Intelligence', 'Machine Learning', 'Data Science', 'Computer Networks'];
       setSubjects(mockSubjects);
@@ -184,9 +184,9 @@ const LibraryScreen: React.FC<LibraryScreenProps> = ({ navigation }) => {
       const yearNum = YEARS.indexOf(selectedYear!) + 1;
       const semNum = selectedSemester!.replace('S', '');
       const folderPath = `Year_${yearNum}/Sem_${semNum}/${selectedBranch}/${selectedSubject}`;
-      
+
       console.log('📂 Fetching notes from:', folderPath);
-      
+
       // List all files in the folder from Supabase Storage
       const filesList = await listFiles(folderPath);
 
@@ -202,7 +202,7 @@ const LibraryScreen: React.FC<LibraryScreenProps> = ({ navigation }) => {
         .map(file => {
           const fileExt = file.name.split('.').pop()?.toLowerCase() || '';
           let fileType: 'pdf' | 'image' | 'doc' | 'ppt' = 'pdf';
-          
+
           if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(fileExt)) {
             fileType = 'image';
           } else if (['doc', 'docx'].includes(fileExt)) {
@@ -217,7 +217,7 @@ const LibraryScreen: React.FC<LibraryScreenProps> = ({ navigation }) => {
             fileType,
             fileUrl: getPublicUrl(`${folderPath}/${file.name}`),
             uploadedDate: file.created_at || new Date().toISOString(),
-            size: file.metadata?.size 
+            size: file.metadata?.size
               ? `${(file.metadata.size / 1024 / 1024).toFixed(2)} MB`
               : undefined,
           };
@@ -255,8 +255,8 @@ const LibraryScreen: React.FC<LibraryScreenProps> = ({ navigation }) => {
       `Type: ${note.fileType.toUpperCase()}\n${note.size ? `Size: ${note.size}\n` : ''}Uploaded: ${new Date(note.uploadedDate).toLocaleDateString()}`,
       [
         { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'View', 
+        {
+          text: 'View',
           onPress: () => {
             // Open URL in browser or viewer
             Linking.openURL(note.fileUrl).catch(() => {
@@ -319,13 +319,13 @@ const LibraryScreen: React.FC<LibraryScreenProps> = ({ navigation }) => {
           console.log('Reading file from URI:', file.uri);
           console.log('Platform:', Platform.OS);
           console.log('File info:', { name: file.name, mimeType: file.mimeType, size: file.size });
-          
+
           // Fetch the file and get blob directly
           const response = await fetch(file.uri);
           if (!response.ok) {
             throw new Error(`Failed to fetch file: ${response.status} ${response.statusText}`);
           }
-          
+
           const blob = await response.blob();
           console.log('Blob created successfully, size:', blob.size, 'type:', blob.type);
           return blob;
@@ -342,7 +342,7 @@ const LibraryScreen: React.FC<LibraryScreenProps> = ({ navigation }) => {
           contentType: file.mimeType || 'application/octet-stream',
           upsert: false,
         });
-        
+
         Alert.alert('Success', 'File uploaded successfully!');
         fetchNotes(); // Refresh the list
       } catch (uploadError: any) {
@@ -363,7 +363,7 @@ const LibraryScreen: React.FC<LibraryScreenProps> = ({ navigation }) => {
                       contentType: file.mimeType || 'application/octet-stream',
                       upsert: true,
                     });
-                    
+
                     Alert.alert('Success', 'File replaced successfully!');
                     fetchNotes(); // Refresh the list
                   } catch (replaceError: any) {
@@ -410,17 +410,17 @@ const LibraryScreen: React.FC<LibraryScreenProps> = ({ navigation }) => {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['bottom']}>
-      {/* Header with Breadcrumb */}
+      {/* Header */}
       <View style={[styles.header, { backgroundColor: theme.card, borderBottomColor: theme.cardBorder }]}>
         <View style={styles.headerTop}>
-          <Text style={[styles.headerTitle, { color: theme.text }]}>📚 Library</Text>
+          <Text style={[styles.headerTitle, { color: theme.text }]}>Library</Text>
           {(viewMode === 'notes' || selectedYear || selectedSemester || selectedBranch || selectedSubject) && (
             <TouchableOpacity style={[styles.backButton, { backgroundColor: theme.primaryLight }]} onPress={handleBack}>
               <Text style={[styles.backButtonText, { color: theme.primary }]}>← Back</Text>
             </TouchableOpacity>
           )}
         </View>
-        
+
         {getBreadcrumb() && (
           <View style={[styles.breadcrumbContainer, { backgroundColor: theme.primaryLight }]}>
             <Text style={[styles.breadcrumbText, { color: theme.primary }]}>{getBreadcrumb()}</Text>
@@ -432,10 +432,6 @@ const LibraryScreen: React.FC<LibraryScreenProps> = ({ navigation }) => {
         {viewMode === 'menu' ? (
           /* Main Library Menu */
           <View>
-            <View style={[styles.welcomeCard, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
-              <Text style={[styles.welcomeTitle, { color: theme.text }]}>📚 KTUfy Library</Text>
-            </View>
-
             <Text style={[styles.menuSectionTitle, { color: theme.text }]}>Library Resources</Text>
 
             {LIBRARY_FEATURES.map((feature) => (
@@ -466,7 +462,7 @@ const LibraryScreen: React.FC<LibraryScreenProps> = ({ navigation }) => {
           <View style={styles.selectionContainer}>
             <Text style={styles.selectionTitle}>Select Year</Text>
             <Text style={styles.selectionSubtitle}>Choose your academic year</Text>
-            
+
             {YEARS.map((year, index) => (
               <TouchableOpacity
                 key={year}
@@ -492,7 +488,7 @@ const LibraryScreen: React.FC<LibraryScreenProps> = ({ navigation }) => {
           <View style={styles.selectionContainer}>
             <Text style={styles.selectionTitle}>Select Semester</Text>
             <Text style={styles.selectionSubtitle}>Choose your current semester</Text>
-            
+
             {SEMESTERS[selectedYear as keyof typeof SEMESTERS].map((semester) => (
               <TouchableOpacity
                 key={semester}
@@ -516,7 +512,7 @@ const LibraryScreen: React.FC<LibraryScreenProps> = ({ navigation }) => {
           <View style={styles.selectionContainer}>
             <Text style={styles.selectionTitle}>Select Branch</Text>
             <Text style={styles.selectionSubtitle}>Choose your engineering branch</Text>
-            
+
             <View style={styles.branchGrid}>
               {BRANCHES.map((branch) => (
                 <TouchableOpacity
@@ -535,7 +531,7 @@ const LibraryScreen: React.FC<LibraryScreenProps> = ({ navigation }) => {
           <View style={styles.selectionContainer}>
             <Text style={styles.selectionTitle}>Select Subject</Text>
             <Text style={styles.selectionSubtitle}>Choose a subject to view notes</Text>
-            
+
             {subjects.length === 0 ? (
               <View style={styles.emptyState}>
                 <Text style={styles.emptyIcon}>📚</Text>
@@ -580,7 +576,7 @@ const LibraryScreen: React.FC<LibraryScreenProps> = ({ navigation }) => {
                 <Text style={styles.uploadButtonText}>📤 Upload</Text>
               </TouchableOpacity>
             </View>
-            
+
             {notes.length === 0 ? (
               <View style={styles.emptyState}>
                 <Text style={styles.emptyIcon}>📭</Text>
@@ -600,7 +596,7 @@ const LibraryScreen: React.FC<LibraryScreenProps> = ({ navigation }) => {
                   <View style={styles.noteIconContainer}>
                     <Text style={styles.noteIcon}>{getFileTypeIcon(note.fileType)}</Text>
                   </View>
-                  
+
                   <View style={styles.noteInfo}>
                     <Text style={styles.noteFileName} numberOfLines={2}>
                       {note.fileName}
@@ -621,8 +617,8 @@ const LibraryScreen: React.FC<LibraryScreenProps> = ({ navigation }) => {
                       </Text>
                     </View>
                   </View>
-                  
-                  <TouchableOpacity 
+
+                  <TouchableOpacity
                     style={styles.downloadButton}
                     onPress={() => handleNoteOpen(note)}
                   >
@@ -633,7 +629,7 @@ const LibraryScreen: React.FC<LibraryScreenProps> = ({ navigation }) => {
             )}
           </View>
         )}
-        
+
         <View style={{ height: 100 }} />
       </ScrollView>
     </SafeAreaView>
@@ -648,10 +644,10 @@ const styles = StyleSheet.create({
   header: {
     backgroundColor: '#FFFFFF',
     paddingHorizontal: 20,
-    paddingTop: 16,
     paddingBottom: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
+    paddingTop: Platform.OS === 'android' ? 50 : 0,
   },
   headerTop: {
     flexDirection: 'row',

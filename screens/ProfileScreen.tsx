@@ -20,7 +20,7 @@ import { getUserProfile } from '../supabaseConfig';
 import { ProfileScreenNavigationProp } from '../types/navigation';
 import { useTheme } from '../contexts/ThemeContext';
 import { getCachedUserProfile, setCachedUserProfile } from '../services/cacheService';
-import BottomNavBar from '../components/BottomNavBar';
+import { Settings, ChevronRight, ArrowLeft } from 'lucide-react-native';
 
 const { width } = Dimensions.get('window');
 
@@ -173,16 +173,16 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
       if (editForm.year_joined.trim()) updateData.year_joined = parseInt(editForm.year_joined);
       if (editForm.year_ending.trim()) updateData.year_ending = parseInt(editForm.year_ending);
 
-      // Update directly in Supabase
+      // Upsert directly in Supabase (creates row if missing, updates if exists)
       const { error: updateErr } = await supabase
         .from('users')
-        .update(updateData)
-        .eq('id', supabaseUser.id);
+        .upsert(updateData, { onConflict: 'id' });
 
       if (updateErr) throw updateErr;
 
-      setUserData({ ...userData, ...updateData } as UserData);
-      await setCachedUserProfile({ ...userData, ...updateData });
+      const merged = { ...userData, ...updateData } as UserData;
+      setUserData(merged);
+      await setCachedUserProfile(merged);
       setShowEdit(false);
       Alert.alert('Success', 'Profile updated!');
     } catch (err: any) {
@@ -236,12 +236,12 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
       <SafeAreaView edges={['top']} style={{ backgroundColor: C.bg900 }}>
         {/* Minimal header */}
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerBtn}>
-            <Text style={styles.headerBtnText}>←</Text>
-          </TouchableOpacity>
+          {/* <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerBtn}>
+            <ArrowLeft size={22} color={C.textPrimary} strokeWidth={2} />
+          </TouchableOpacity> */}
           <Text style={styles.headerTitle}>Profile</Text>
           <TouchableOpacity onPress={() => navigation.navigate('Settings')} style={styles.headerBtn}>
-            <Text style={styles.headerBtnText}>⚙</Text>
+            <Settings size={22} color={C.textPrimary} strokeWidth={2.2} />
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -330,24 +330,21 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
           <View style={styles.actions}>
             <TouchableOpacity style={styles.actionBtn} onPress={handleEdit}>
               <Text style={styles.actionText}>Edit Profile</Text>
-              <Text style={styles.actionArrow}>›</Text>
+              <ChevronRight size={20} color={C.textMuted} strokeWidth={1.8} />
             </TouchableOpacity>
             <TouchableOpacity style={styles.actionBtn} onPress={handleResetPassword}>
               <Text style={styles.actionText}>Change Password</Text>
-              <Text style={styles.actionArrow}>›</Text>
+              <ChevronRight size={20} color={C.textMuted} strokeWidth={1.8} />
             </TouchableOpacity>
             <TouchableOpacity style={[styles.actionBtn, styles.actionDanger]} onPress={handleLogout}>
               <Text style={[styles.actionText, { color: C.error }]}>Logout</Text>
-              <Text style={[styles.actionArrow, { color: C.error }]}>›</Text>
+              <ChevronRight size={20} color={C.error} strokeWidth={1.8} />
             </TouchableOpacity>
           </View>
 
           <View style={{ height: 24 }} />
         </ScrollView>
       )}
-
-      {/* Bottom Nav */}
-      <BottomNavBar activeRoute="Profile" />
 
       {/* Edit Modal */}
       <Modal visible={showEdit} animationType="slide" transparent onRequestClose={() => setShowEdit(false)}>
@@ -429,7 +426,7 @@ const styles = StyleSheet.create({
   },
   headerBtn: { width: 40, height: 40, justifyContent: 'center', alignItems: 'center', borderRadius: 10 },
   headerBtnText: { fontSize: 20, color: C.textPrimary },
-  headerTitle: { fontSize: FONT.body, fontWeight: '700', color: C.textPrimary },
+  headerTitle: { fontSize: FONT.body, fontWeight: '700', color: C.textPrimary, paddingLeft: 5 },
   // Loading
   loadWrap: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   // Scroll

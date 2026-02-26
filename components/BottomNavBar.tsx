@@ -7,80 +7,73 @@ import {
     Platform,
     Animated,
     Dimensions,
+    StatusBar,
 } from 'react-native';
-import { useNavigation, useRoute } from '@react-navigation/native';
-import { StackNavigationProp } from '@react-navigation/stack';
-import { RootStackParamList } from '../types/navigation';
+import { BottomTabBarProps } from '@react-navigation/bottom-tabs';
+import { Home, Sparkles, BookOpen, User } from 'lucide-react-native';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-// ─── Blue Theme ───────────────────────────────────────────────────
 const C = {
-    bg: 'rgba(10, 17, 40, 0.95)',
-    bgSolid: '#070B1E',
     pill: '#2563EB',
     pillText: '#FFFFFF',
-    inactiveIcon: '#484F58',
-    border: 'rgba(71, 85, 105, 0.25)',
+    inactive: '#484F58',
+    barBg: '#070B1E',
+    outerBg: '#01040f',
 };
 
-interface NavItem {
-    key: string;
+const ICON_SIZE = 22;
+
+interface NavItemDef {
+    routeName: string;
     label: string;
-    icon: string;
+    Icon: React.ComponentType<any>;
 }
 
-const NAV_ITEMS: NavItem[] = [
-    { key: 'Home', label: 'Home', icon: '⌂' },
-    { key: 'Chatbot', label: 'AI Chat', icon: '◎' },
-    { key: 'Library', label: 'Library', icon: '▤' },
-    { key: 'Profile', label: 'Profile', icon: '○' },
+const NAV_ITEMS: NavItemDef[] = [
+    { routeName: 'Home', label: 'Home', Icon: Home },
+    { routeName: 'Chatbot', label: 'AI Chat', Icon: Sparkles },
+    { routeName: 'Library', label: 'Library', Icon: BookOpen },
+    { routeName: 'Profile', label: 'Profile', Icon: User },
 ];
 
-interface BottomNavBarProps {
-    activeRoute?: string;
-}
+const BottomNavBar: React.FC<BottomTabBarProps> = ({ state, navigation }) => {
+    const currentIndex = state.index;
+    // Hide tab bar when Chatbot is active
+    const currentRouteName = state.routes[currentIndex]?.name;
+    if (currentRouteName === 'Chatbot') return null;
 
-const BottomNavBar: React.FC<BottomNavBarProps> = ({ activeRoute }) => {
-    const navigation = useNavigation<StackNavigationProp<RootStackParamList>>();
-
-    // Find active index
-    const activeIndex = NAV_ITEMS.findIndex(
-        (item) => item.key === activeRoute
-    );
-    const currentIndex = activeIndex >= 0 ? activeIndex : 0;
-
-    // Pill slide animation
     const slideAnim = useRef(new Animated.Value(currentIndex)).current;
 
     useEffect(() => {
         Animated.spring(slideAnim, {
             toValue: currentIndex,
             useNativeDriver: true,
-            damping: 18,
-            stiffness: 220,
+            damping: 20,
+            stiffness: 200,
             mass: 0.8,
         }).start();
     }, [currentIndex]);
 
     const NAV_COUNT = NAV_ITEMS.length;
-    const CONTAINER_PADDING = 6;
-    const ITEM_WIDTH = (SCREEN_WIDTH - 48 - CONTAINER_PADDING * 2) / NAV_COUNT;
+    const BAR_H_PAD = 6;
+    const BAR_INNER_PAD = 6;
+    const ITEM_WIDTH = (SCREEN_WIDTH - BAR_H_PAD * 2 - BAR_INNER_PAD * 2) / NAV_COUNT;
 
     const pillTranslateX = slideAnim.interpolate({
         inputRange: NAV_ITEMS.map((_, i) => i),
         outputRange: NAV_ITEMS.map((_, i) => i * ITEM_WIDTH),
     });
 
-    const handlePress = (key: string) => {
-        if (key === activeRoute) return; // Already on this screen
-        navigation.navigate(key as any);
+    const handlePress = (routeName: string, index: number) => {
+        if (index === currentIndex) return;
+        navigation.navigate(routeName);
     };
 
     return (
-        <View style={styles.container}>
-            <View style={styles.navBar}>
-                {/* Animated pill behind the active item */}
+        <View style={styles.wrapper}>
+            <View style={styles.bar}>
+                {/* Animated pill */}
                 <Animated.View
                     style={[
                         styles.pill,
@@ -91,21 +84,24 @@ const BottomNavBar: React.FC<BottomNavBarProps> = ({ activeRoute }) => {
                     ]}
                 />
 
-                {/* Nav items */}
+                {/* Items */}
                 {NAV_ITEMS.map((item, index) => {
                     const isActive = index === currentIndex;
+                    const IconComp = item.Icon;
                     return (
                         <TouchableOpacity
-                            key={item.key}
-                            style={[styles.navItem, { width: ITEM_WIDTH }]}
-                            onPress={() => handlePress(item.key)}
+                            key={item.routeName}
+                            style={[styles.item, { width: ITEM_WIDTH }]}
+                            onPress={() => handlePress(item.routeName, index)}
                             activeOpacity={0.7}
                         >
-                            <Text style={[styles.icon, isActive && styles.iconActive]}>
-                                {item.icon}
-                            </Text>
+                            <IconComp
+                                size={ICON_SIZE}
+                                color={isActive ? C.pillText : C.inactive}
+                                strokeWidth={isActive ? 2.2 : 1.6}
+                            />
                             {isActive && (
-                                <Text style={styles.activeLabel}>{item.label}</Text>
+                                <Text style={styles.label}>{item.label}</Text>
                             )}
                         </TouchableOpacity>
                     );
@@ -116,19 +112,17 @@ const BottomNavBar: React.FC<BottomNavBarProps> = ({ activeRoute }) => {
 };
 
 const styles = StyleSheet.create({
-    container: {
-        backgroundColor: C.bgSolid,
-        borderTopWidth: 1,
-        borderTopColor: C.border,
-        paddingBottom: Platform.OS === 'ios' ? 24 : 8,
-        paddingTop: 6,
-        paddingHorizontal: 24,
+    wrapper: {
+        backgroundColor: C.outerBg,
+        paddingHorizontal: 6,
+        paddingTop: 8,
+        paddingBottom: Platform.OS === 'ios' ? 28 : 16,
     },
-    navBar: {
+    bar: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: 'rgba(15, 21, 53, 0.9)',
-        borderRadius: 20,
+        backgroundColor: C.barBg,
+        borderRadius: 24,
         padding: 6,
         position: 'relative',
     },
@@ -138,27 +132,21 @@ const styles = StyleSheet.create({
         left: 6,
         bottom: 6,
         backgroundColor: C.pill,
-        borderRadius: 16,
+        borderRadius: 20,
     },
-    navItem: {
+    item: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        paddingVertical: 10,
+        paddingVertical: 14,
+        paddingHorizontal: 8,
         zIndex: 1,
+        gap: 8,
     },
-    icon: {
-        fontSize: 20,
-        color: C.inactiveIcon,
-    },
-    iconActive: {
-        color: C.pillText,
-    },
-    activeLabel: {
-        fontSize: 13,
+    label: {
+        fontSize: 14,
         fontWeight: '600',
         color: C.pillText,
-        marginLeft: 6,
     },
 });
 
