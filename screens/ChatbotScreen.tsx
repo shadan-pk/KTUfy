@@ -293,6 +293,10 @@ const ChatbotScreen: React.FC<ChatbotScreenProps> = ({ navigation }) => {
     setIsTyping(true);
 
     try {
+      if (!serverOnline) {
+        throw new Error('Backend not available');
+      }
+
       if (process.env.API_BASE_URL && process.env.API_BASE_URL !== 'undefined') {
         const response = await sendChatMessage(messageText, currentSessionId || undefined);
         if (!currentSessionId && response.session_id) {
