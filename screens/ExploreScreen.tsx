@@ -20,12 +20,12 @@ const { width } = Dimensions.get('window');
 // ─── Theme Variables ──────────────────────────────────────────────
 const COLORS = {
     bgPrimary: '#050816',
-    bgSecondary: '#0A0F2E',
+    bgSecondary: '#0A1128',
     surface: '#0F1535',
-    surfaceLight: '#151C3D',
-    accent: '#818CF8',
-    accentDim: 'rgba(129, 140, 248, 0.12)',
-    accentBorder: 'rgba(129, 140, 248, 0.25)',
+    surfaceLight: '#152154',
+    accent: '#2563EB',
+    accentDim: 'rgba(37, 99, 235, 0.12)',
+    accentBorder: 'rgba(37, 99, 235, 0.25)',
     textPrimary: '#E6EDF3',
     textSecondary: '#8B949E',
     textMuted: '#484F58',
@@ -165,7 +165,7 @@ const ExploreScreen: React.FC<ExploreScreenProps> = ({ navigation }) => {
 
     // Tool cards data
     const toolCards = [
-        { key: 'Chatbot', label: 'AI Assistant', icon: '◎', desc: 'Ask anything about your studies', color: '#818CF8' },
+        { key: 'Chatbot', label: 'AI Assistant', icon: '◎', desc: 'Ask anything about your studies', color: '#2563EB' },
         { key: 'CodingHub', label: 'Coding Hub', icon: '⟨/⟩', desc: 'Practice coding problems', color: '#34D399' },
         { key: 'GroupStudy', label: 'Group Study', icon: '⊕', desc: 'Join or create study groups', color: '#FBBF24' },
         { key: 'GPACalculator', label: 'GPA Calculator', icon: '∑', desc: 'Calculate SGPA & CGPA', color: '#A78BFA' },

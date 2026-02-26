@@ -9,34 +9,34 @@ interface Theme {
   background: string;
   backgroundSecondary: string;
   backgroundTertiary: string;
-  
+
   // Card colors
   card: string;
   cardSecondary: string;
   cardBorder: string;
-  
+
   // Text colors
   text: string;
   textSecondary: string;
   textTertiary: string;
-  
+
   // Primary colors
   primary: string;
   primaryLight: string;
   primaryDark: string;
-  
+
   // Status colors
   success: string;
   warning: string;
   error: string;
   info: string;
-  
+
   // UI element colors
   border: string;
   divider: string;
   shadow: string;
   overlay: string;
-  
+
   // Feature colors (keep consistent)
   aiAssistant: string;
   learningZone: string;
@@ -47,80 +47,80 @@ interface Theme {
 
 const lightTheme: Theme = {
   // Background colors
-  background: '#FFFFFF',
-  backgroundSecondary: '#F8F9FD',
-  backgroundTertiary: '#F3F4F6',
-  
+  background: '#050816',
+  backgroundSecondary: '#0A1128',
+  backgroundTertiary: '#0F1A3E',
+
   // Card colors
-  card: '#F8FAFC',
-  cardSecondary: '#FFFFFF',
-  cardBorder: '#E2E8F0',
-  
+  card: '#0F1535',
+  cardSecondary: '#152154',
+  cardBorder: 'rgba(71, 85, 105, 0.25)',
+
   // Text colors
-  text: '#1F2937',
-  textSecondary: '#64748B',
-  textTertiary: '#9CA3AF',
-  
+  text: '#E6EDF3',
+  textSecondary: '#8B949E',
+  textTertiary: '#484F58',
+
   // Primary colors
-  primary: '#6366F1',
-  primaryLight: '#EEF2FF',
-  primaryDark: '#4F46E5',
-  
+  primary: '#2563EB',
+  primaryLight: '#3B82F6',
+  primaryDark: '#1E3A8A',
+
   // Status colors
-  success: '#10B981',
-  warning: '#F59E0B',
-  error: '#EF4444',
+  success: '#34D399',
+  warning: '#FBBF24',
+  error: '#F87171',
   info: '#3B82F6',
-  
+
   // UI element colors
-  border: '#E5E7EB',
-  divider: '#F3F4F6',
-  shadow: 'rgba(0, 0, 0, 0.1)',
-  overlay: 'rgba(0, 0, 0, 0.5)',
-  
+  border: 'rgba(71, 85, 105, 0.4)',
+  divider: 'rgba(71, 85, 105, 0.15)',
+  shadow: 'rgba(0, 0, 0, 0.3)',
+  overlay: 'rgba(0, 0, 0, 0.6)',
+
   // Feature colors
-  aiAssistant: '#6366F1',
+  aiAssistant: '#2563EB',
   learningZone: '#EC4899',
-  codingHub: '#10B981',
-  groupStudy: '#F59E0B',
+  codingHub: '#34D399',
+  groupStudy: '#FBBF24',
   gpaCalculator: '#8B5CF6',
 };
 
 const darkTheme: Theme = {
   // Background colors
-  background: '#0F172A',
-  backgroundSecondary: '#1E293B',
-  backgroundTertiary: '#334155',
-  
+  background: '#050816',
+  backgroundSecondary: '#0A1128',
+  backgroundTertiary: '#0F1A3E',
+
   // Card colors
-  card: '#1E293B',
-  cardSecondary: '#334155',
-  cardBorder: '#475569',
-  
+  card: '#0F1535',
+  cardSecondary: '#152154',
+  cardBorder: 'rgba(71, 85, 105, 0.25)',
+
   // Text colors
-  text: '#F1F5F9',
-  textSecondary: '#CBD5E1',
-  textTertiary: '#94A3B8',
-  
+  text: '#E6EDF3',
+  textSecondary: '#8B949E',
+  textTertiary: '#484F58',
+
   // Primary colors
-  primary: '#818CF8',
-  primaryLight: '#312E81',
-  primaryDark: '#6366F1',
-  
+  primary: '#3B82F6',
+  primaryLight: '#1E3A8A',
+  primaryDark: '#2563EB',
+
   // Status colors
   success: '#34D399',
   warning: '#FBBF24',
   error: '#F87171',
   info: '#60A5FA',
-  
+
   // UI element colors
-  border: '#475569',
-  divider: '#334155',
+  border: 'rgba(71, 85, 105, 0.4)',
+  divider: 'rgba(71, 85, 105, 0.15)',
   shadow: 'rgba(0, 0, 0, 0.3)',
   overlay: 'rgba(0, 0, 0, 0.7)',
-  
+
   // Feature colors (slightly adjusted for dark mode)
-  aiAssistant: '#818CF8',
+  aiAssistant: '#3B82F6',
   learningZone: '#F472B6',
   codingHub: '#34D399',
   groupStudy: '#FBBF24',
@@ -175,7 +175,7 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
   // Determine if dark mode should be active
   const isDark = themeMode === 'dark' || (themeMode === 'auto' && systemColorScheme === 'dark');
-  
+
   // Select the appropriate theme
   const theme = isDark ? darkTheme : lightTheme;
 

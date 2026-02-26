@@ -153,7 +153,7 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
 
   return (
     <KeyboardAvoidingView
-      style={[styles.container, { backgroundColor: theme.background }]}
+      style={[styles.container, { backgroundColor: '#050816' }]}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <ScrollView contentContainerStyle={styles.scrollContainer}>
@@ -161,7 +161,7 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
           <Text
             style={[
               styles.logoText,
-              { color: theme.primaryLight },
+              { color: '#3B82F6' },
             ]}
           >
             KTUfy
@@ -292,7 +292,7 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
                     styles.primaryButton,
                     { backgroundColor: theme.primary },
                     (!registrationNumber || loading) &&
-                      styles.primaryButtonDisabled,
+                    styles.primaryButtonDisabled,
                   ]}
                   disabled={!registrationNumber || loading}
                   onPress={handleRegistrationContinue}
@@ -512,7 +512,7 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
                       !confirmPassword ||
                       !name ||
                       !registrationNumber) &&
-                      styles.primaryButtonDisabled,
+                    styles.primaryButtonDisabled,
                   ]}
                   onPress={handleSignup}
                   disabled={
