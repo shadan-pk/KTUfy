@@ -1,1242 +1,518 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
+  TextInput,
   TouchableOpacity,
   StyleSheet,
-  ScrollView,
   Dimensions,
   Platform,
+  Animated,
+  StatusBar,
+  KeyboardAvoidingView,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useAuth } from '../auth/AuthProvider';
-import { getUserProfile, getTicklistsForUser, upsertTicklist } from '../supabaseConfig';
-import supabase from '../supabaseClient';
+import { LinearGradient } from 'expo-linear-gradient';
 import { HomeScreenNavigationProp } from '../types/navigation';
 import { useTheme } from '../contexts/ThemeContext';
-import { TestBackendButton } from '../components/TestBackendButton';
 
-const { width } = Dimensions.get('window');
+const { width, height } = Dimensions.get('window');
+
+// ─── Theme Variables ──────────────────────────────────────────────
+const COLORS = {
+  bgDark: '#050816',
+  bgMid: '#0A0F2E',
+  bgLight: '#0F1942',
+  accent: '#818CF8',
+  accentGlow: 'rgba(129, 140, 248, 0.15)',
+  accentBorder: 'rgba(129, 140, 248, 0.3)',
+  textPrimary: '#F1F5F9',
+  textSecondary: '#94A3B8',
+  textMuted: '#64748B',
+  inputBg: 'rgba(15, 23, 42, 0.8)',
+  inputBorder: 'rgba(71, 85, 105, 0.5)',
+  cardBg: 'rgba(15, 23, 42, 0.6)',
+  navBg: 'rgba(5, 8, 22, 0.95)',
+  navBorder: 'rgba(71, 85, 105, 0.3)',
+  white: '#FFFFFF',
+};
 
 interface HomeScreenProps {
   navigation: HomeScreenNavigationProp;
 }
 
-interface UserData {
-  name?: string;
-  email?: string;
-  registrationNumber?: string;
-  college?: string;
-  branch?: string;
-}
-
-interface TicklistItem {
-  id: string;
-  title: string;
-  completed: boolean;
-  isTrending?: boolean;
-}
-
-interface Subject {
-  id: string;
-  name: string;
-  code: string;
-  color: string;
-  items: TicklistItem[];
-}
-
-interface Challenge {
-  id: string;
-  title: string;
-  description: string;
-  targetCount: number;
-  currentCount: number;
-  points: number;
-  emoji: string;
-}
-
 const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
-  const { theme, isDark } = useTheme();
-  const { user: authUser, getToken } = useAuth();
-  const [supabaseUser, setSupabaseUser] = useState<any | null>(null);
-  const [userData, setUserData] = useState<UserData | null>(null);
-  const [currentTime, setCurrentTime] = useState(new Date());
-  const [studyStreak, setStudyStreak] = useState(7);
-  const [focusTime, setFocusTime] = useState(0);
-  const [timerRunning, setTimerRunning] = useState(false);
-  const [subjects, setSubjects] = useState<Subject[]>([]);
-  const [totalPoints, setTotalPoints] = useState(0);
-  const [dailyChallenges, setDailyChallenges] = useState<Challenge[]>([
-    {
-      id: '1',
-      title: 'Complete 5 Tasks',
-      description: 'Check off 5 items from your ticklist',
-      targetCount: 5,
-      currentCount: 0,
-      points: 50,
-      emoji: '✅'
-    },
-    {
-      id: '2',
-      title: 'Focus Session',
-      description: 'Study for 25 minutes without breaks',
-      targetCount: 25,
-      currentCount: 0,
-      points: 30,
-      emoji: '🎯'
-    },
-    {
-      id: '3',
-      title: 'Early Bird',
-      description: 'Study before 9 AM',
-      targetCount: 1,
-      currentCount: 0,
-      points: 20,
-      emoji: '🌅'
-    }
-  ]);
+  const { theme } = useTheme();
+  const [promptText, setPromptText] = useState('');
 
-  const loadUserData = React.useCallback(async () => {
-    if (!authUser) {
-      setSupabaseUser(null);
-      setUserData(null);
-      return;
-    }
-
-    try {
-      // Use the authUser from context instead of fetching
-      setSupabaseUser(authUser);
-
-      // Load existing profile from public.users
-      // (created automatically by the on_auth_user_created trigger at signup)
-      const profile = await getUserProfile(authUser.id);
-      if (profile) setUserData(profile as UserData);
-    } catch (err) {
-      console.error('Error loading user profile:', err);
-    }
-  }, [authUser]);
+  // Animated gradient background
+  const animatedValue = useRef(new Animated.Value(0)).current;
+  const pulseAnim = useRef(new Animated.Value(0)).current;
+  const logoOpacity = useRef(new Animated.Value(0)).current;
+  const contentTranslate = useRef(new Animated.Value(30)).current;
+  const contentOpacity = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    loadUserData();
+    // Background gradient animation - continuous loop
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(animatedValue, {
+          toValue: 1,
+          duration: 6000,
+          useNativeDriver: false,
+        }),
+        Animated.timing(animatedValue, {
+          toValue: 0,
+          duration: 6000,
+          useNativeDriver: false,
+        }),
+      ])
+    ).start();
 
-    const timeInterval = setInterval(() => {
-      setCurrentTime(new Date());
-    }, 60000);
+    // Subtle pulse glow around logo
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 3000,
+          useNativeDriver: false,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 0,
+          duration: 3000,
+          useNativeDriver: false,
+        }),
+      ])
+    ).start();
 
-    return () => {
-      clearInterval(timeInterval);
-    };
-  }, [loadUserData]);
+    // Entrance animations
+    Animated.parallel([
+      Animated.timing(logoOpacity, {
+        toValue: 1,
+        duration: 1000,
+        useNativeDriver: true,
+      }),
+      Animated.timing(contentOpacity, {
+        toValue: 1,
+        duration: 800,
+        delay: 400,
+        useNativeDriver: true,
+      }),
+      Animated.timing(contentTranslate, {
+        toValue: 0,
+        duration: 800,
+        delay: 400,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, []);
 
-  // Refresh user data when screen comes into focus
-  useEffect(() => {
-    const unsubscribe = navigation.addListener('focus', () => {
-      loadUserData();
-    });
+  // Interpolate gradient colors for animation
+  const gradientColor1 = animatedValue.interpolate({
+    inputRange: [0, 0.5, 1],
+    outputRange: ['#050816', '#0A0F2E', '#050816'],
+  });
 
-    return unsubscribe;
-  }, [navigation, loadUserData]);
+  const gradientColor2 = animatedValue.interpolate({
+    inputRange: [0, 0.5, 1],
+    outputRange: ['#0A0F2E', '#131B4D', '#0F1942'],
+  });
 
-  useEffect(() => {
-    let interval: NodeJS.Timeout;
-    if (timerRunning) {
-      interval = setInterval(() => {
-        setFocusTime(prev => {
-          const newTime = prev + 1;
-          // Update focus challenge progress (convert seconds to minutes)
-          const focusMinutes = Math.floor(newTime / 60);
-          setDailyChallenges(challenges => challenges.map(challenge => {
-            if (challenge.id === '2') {
-              return { ...challenge, currentCount: focusMinutes };
-            }
-            return challenge;
-          }));
-          return newTime;
-        });
-      }, 1000);
-    }
-    return () => clearInterval(interval);
-  }, [timerRunning]);
+  const gradientColor3 = animatedValue.interpolate({
+    inputRange: [0, 0.5, 1],
+    outputRange: ['#0F1942', '#0A0F2E', '#131B4D'],
+  });
 
-  // Load ticklist subjects from Firestore
-  useEffect(() => {
-    (async () => {
-      if (!supabaseUser) return;
-      try {
-        const lists = await getTicklistsForUser(supabaseUser.id);
-        // Map rows into Subject[]
-        const loadedSubjects: Subject[] = (lists || []).map((r: any) => ({
-          id: r.id,
-          name: r.subject_name,
-          code: r.code,
-          color: r.color,
-          items: r.items || [],
-        }));
-        setSubjects(loadedSubjects);
+  const glowOpacity = pulseAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.05, 0.2],
+  });
 
-        // Update challenge progress based on completed tasks
-        const totalCompleted = getTotalProgress().completed;
-        setDailyChallenges(prev => prev.map(challenge => {
-          if (challenge.id === '1') {
-            return { ...challenge, currentCount: totalCompleted };
-          }
-          return challenge;
-        }));
-      } catch (err) {
-        console.error('Error loading ticklist:', err);
-      }
-    })();
-  }, [supabaseUser]);
-
-  const toggleItem = async (subjectId: string, itemId: string) => {
-    if (!supabaseUser) return;
-
-    try {
-      const subject = subjects.find(s => s.id === subjectId);
-      if (!subject) return;
-
-      const updatedItems = subject.items.map(item =>
-        item.id === itemId ? { ...item, completed: !item.completed } : item
-      );
-
-      await upsertTicklist({
-        id: subjectId,
-        user_id: supabaseUser.id,
-        subject_name: subject.name,
-        code: subject.code,
-        color: subject.color,
-        items: updatedItems,
-      });
-    } catch (error) {
-      console.error('Error toggling item:', error);
-    }
-  };
-
-  const getSubjectProgress = (subject: Subject) => {
-    const completed = subject.items.filter(item => item.completed).length;
-    const total = subject.items.length;
-    const percentage = total > 0 ? Math.round((completed / total) * 100) : 0;
-    return { completed, total, percentage };
-  };
-
-  const getTotalProgress = () => {
-    const totalItems = subjects.reduce((sum, subject) => sum + subject.items.length, 0);
-    const completedItems = subjects.reduce(
-      (sum, subject) => sum + subject.items.filter(item => item.completed).length,
-      0
-    );
-    const percentage = totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0;
-    return {
-      completed: completedItems,
-      total: totalItems,
-      percentage,
-    };
-  };
-
-  const totalProgress = getTotalProgress();
-
-  const claimChallengeReward = (challengeId: string) => {
-    setDailyChallenges(prev => prev.map(challenge => {
-      if (challenge.id === challengeId && challenge.currentCount >= challenge.targetCount) {
-        setTotalPoints(points => points + challenge.points);
-        // Mark as claimed by setting currentCount to 0
-        return { ...challenge, currentCount: 0 };
-      }
-      return challenge;
-    }));
-  };
-
-  const getGreeting = () => {
-    const hour = currentTime.getHours();
-    if (hour < 12) return 'Good Morning';
-    if (hour < 17) return 'Good Afternoon';
-    return 'Good Evening';
-  };
-
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  const handlePromptSubmit = () => {
+    if (!promptText.trim()) return;
+    const prompt = promptText.trim();
+    setPromptText('');
+    navigation.navigate('Chatbot', { initialPrompt: prompt });
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['bottom']}>
-      <ScrollView style={[styles.scrollView, { backgroundColor: theme.background }]} showsVerticalScrollIndicator={false}>
-        {/* Header */}
-        <View style={styles.header}>
-          <View>
-            <Text style={[styles.greeting, { color: theme.textSecondary }]}>{getGreeting()}</Text>
-            <Text style={[styles.userName, { color: theme.text }]}>{userData?.name || supabaseUser?.user_metadata?.name || supabaseUser?.email || authUser?.email || 'Student'}</Text>
-          </View>
-          <TouchableOpacity
-            style={[styles.profileButton, { backgroundColor: theme.primary }]}
-            onPress={() => navigation.navigate('Profile')}
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor={COLORS.bgDark} />
+
+      {/* Animated gradient background */}
+      <LinearGradient
+        colors={[COLORS.bgDark, COLORS.bgMid, COLORS.bgLight, COLORS.bgDark]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={StyleSheet.absoluteFillObject}
+      />
+
+      {/* Animated overlay orbs for visual depth */}
+      <Animated.View
+        style={[
+          styles.glowOrb,
+          styles.glowOrb1,
+          { opacity: glowOpacity },
+        ]}
+      />
+      <Animated.View
+        style={[
+          styles.glowOrb,
+          styles.glowOrb2,
+          { opacity: glowOpacity },
+        ]}
+      />
+
+      <KeyboardAvoidingView
+        style={styles.keyboardView}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        {/* Main Content Area */}
+        <View style={styles.mainContent}>
+          {/* Logo Section - positioned in the upper area (~25% from top = 75% from bottom) */}
+          <Animated.View style={[styles.logoSection, { opacity: logoOpacity }]}>
+            <Animated.View
+              style={[
+                styles.logoGlow,
+                { opacity: glowOpacity },
+              ]}
+            />
+            <Text style={styles.logoText}>KTUfy</Text>
+            <Text style={styles.tagline}>Your AI Study Companion</Text>
+          </Animated.View>
+
+          {/* Center Content - Prompt Input & Explore Button */}
+          <Animated.View
+            style={[
+              styles.centerContent,
+              {
+                opacity: contentOpacity,
+                transform: [{ translateY: contentTranslate }],
+              },
+            ]}
           >
-            <Text style={styles.profileButtonText}>👤</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Backend Connection Test Button - TEMPORARY */}
-        <TestBackendButton />
-
-        {/* Smart Study Dashboard */}
-        <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
-          <View style={styles.cardHeader}>
-            <Text style={[styles.cardTitle, { color: theme.text }]}>📊 Study Dashboard</Text>
-            <Text style={[styles.streakBadge, { backgroundColor: theme.warning + '20', color: theme.warning }]}>🔥 {studyStreak} day streak</Text>
-          </View>
-          <View style={styles.progressContainer}>
-            <View style={styles.progressInfo}>
-              <Text style={[styles.progressLabel, { color: theme.textSecondary }]}>Syllabus Completion</Text>
-              <Text style={[styles.progressPercent, { color: theme.primary }]}>{totalProgress.percentage}%</Text>
-            </View>
-            <View style={[styles.progressBar, { backgroundColor: theme.divider }]}>
-              <View style={[styles.progressFill, { width: `${totalProgress.percentage}%`, backgroundColor: theme.primary }]} />
-            </View>
-          </View>
-          <View style={styles.statsGrid}>
-            <View style={styles.statItem}>
-              <Text style={[styles.statValue, { color: theme.text }]}>{subjects.length}</Text>
-              <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Subjects</Text>
-            </View>
-            <View style={styles.statItem}>
-              <Text style={[styles.statValue, styles.examCountdown, { color: theme.text }]}>--</Text>
-              <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Days to Exam</Text>
-            </View>
-            <View style={styles.statItem}>
-              <Text style={[styles.statValue, { color: theme.text }]}>{totalProgress.completed}/{totalProgress.total}</Text>
-              <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Completed</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* AI Assistant Widget */}
-        <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
-          <View style={styles.cardHeader}>
-            <Text style={[styles.cardTitle, { color: theme.text }]}>🤖 AI Study Assistant</Text>
-          </View>
-          <TouchableOpacity
-            style={[styles.aiButton, { backgroundColor: theme.aiAssistant }]}
-            onPress={() => navigation.navigate('Chatbot')}
-          >
-            <View style={styles.aiButtonContent}>
-              <Text style={styles.aiButtonText}>💬 Ask anything about your studies</Text>
-            </View>
-          </TouchableOpacity>
-        </View>
-
-        {/* Coding Hub Widget */}
-        <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
-          <View style={styles.cardHeader}>
-            <Text style={[styles.cardTitle, { color: theme.text }]}>💻 Coding Hub</Text>
-            <Text style={[styles.codingBadge, { backgroundColor: theme.success + '20', color: theme.success }]}>Practice</Text>
-          </View>
-          <TouchableOpacity
-            style={[styles.codingButton, { backgroundColor: theme.codingHub }]}
-            onPress={() => navigation.navigate('CodingHub')}
-          >
-            <View style={styles.codingButtonContent}>
-              <Text style={styles.codingButtonText}>🚀 Start Coding Practice</Text>
-            </View>
-          </TouchableOpacity>
-          <View style={styles.codingStats}>
-            <View style={styles.codingStatItem}>
-              <Text style={[styles.codingStatLabel, { color: theme.textSecondary }]}>8 Problems</Text>
-            </View>
-            <View style={styles.codingStatItem}>
-              <Text style={[styles.codingStatLabel, { color: theme.textSecondary }]}>4 Languages</Text>
-            </View>
-            <View style={styles.codingStatItem}>
-              <Text style={[styles.codingStatLabel, { color: theme.textSecondary }]}>Track Progress</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Group Study Widget */}
-        <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
-          <View style={styles.cardHeader}>
-            <Text style={[styles.cardTitle, { color: theme.text }]}>👥 Group Study</Text>
-            <TouchableOpacity onPress={() => navigation.navigate('GroupStudy')}>
-              <Text style={[styles.viewAllText, { color: theme.primary }]}>View All →</Text>
-            </TouchableOpacity>
-          </View>
-          <TouchableOpacity
-            style={[styles.groupStudyButton, { backgroundColor: theme.groupStudy }]}
-            onPress={() => navigation.navigate('GroupStudy')}
-          >
-            <View style={styles.groupStudyContent}>
-              <Text style={styles.groupStudyText}>📚 Join or Create Study Groups</Text>
-            </View>
-          </TouchableOpacity>
-          <View style={styles.groupFeatures}>
-            <View style={styles.groupFeatureItem}>
-              <Text style={[styles.groupFeatureText, { color: theme.textSecondary }]}>💬 Group Chat</Text>
-            </View>
-            <View style={styles.groupFeatureItem}>
-              <Text style={[styles.groupFeatureText, { color: theme.textSecondary }]}>✅ Shared Checklist</Text>
-            </View>
-            <View style={styles.groupFeatureItem}>
-              <Text style={[styles.groupFeatureText, { color: theme.textSecondary }]}>🔗 Invite Links</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* SGPA & CGPA Calculator */}
-        <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
-          <View style={styles.cardHeader}>
-            <Text style={[styles.cardTitle, { color: theme.text }]}>🎓 GPA Calculator</Text>
-            <TouchableOpacity onPress={() => navigation.navigate('GPACalculator')}>
-              <Text style={[styles.viewAllText, { color: theme.primary }]}>View All →</Text>
-            </TouchableOpacity>
-          </View>
-          <TouchableOpacity
-            style={[styles.gpaButton, { backgroundColor: theme.gpaCalculator }]}
-            onPress={() => navigation.navigate('GPACalculator')}
-          >
-            <View style={styles.gpaContent}>
-              <Text style={styles.gpaText}>📊 Calculate SGPA & CGPA</Text>
-            </View>
-          </TouchableOpacity>
-          <View style={styles.gpaFeatures}>
-            <View style={styles.gpaFeatureItem}>
-              <Text style={[styles.gpaFeatureText, { color: theme.textSecondary }]}>📈 SGPA</Text>
-            </View>
-            <View style={styles.gpaFeatureItem}>
-              <Text style={[styles.gpaFeatureText, { color: theme.textSecondary }]}>📊 CGPA</Text>
-            </View>
-            <View style={styles.gpaFeatureItem}>
-              <Text style={[styles.gpaFeatureText, { color: theme.textSecondary }]}>🎯 Results</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Tomorrow's Schedule */}
-        <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
-          <View style={styles.cardHeader}>
-            <Text style={[styles.cardTitle, { color: theme.text }]}>📅 Tomorrow's Classes</Text>
-            <TouchableOpacity onPress={() => navigation.navigate('Schedule')}>
-              <Text style={[styles.viewAllText, { color: theme.primary }]}>View All →</Text>
-            </TouchableOpacity>
-          </View>
-          <View style={styles.scheduleList}>
-            <Text style={[styles.progressLabel, { color: theme.textSecondary }]}>No classes scheduled</Text>
-          </View>
-        </View>
-
-        {/* Subject Progress */}
-        <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
-          <View style={styles.cardHeader}>
-            <Text style={[styles.cardTitle, { color: theme.text }]}>📖 Subject Progress</Text>
-            <TouchableOpacity onPress={() => navigation.navigate('Ticklist')}>
-              <Text style={[styles.viewAllText, { color: theme.primary }]}>View All →</Text>
-            </TouchableOpacity>
-          </View>
-          <View style={styles.subjectList}>
-            {subjects.length === 0 ? (
-              <Text style={styles.progressLabel}>No subjects added yet</Text>
-            ) : (
-              subjects.slice(0, 3).map(subject => {
-                const progress = getSubjectProgress(subject);
-                return (
-                  <View key={subject.id} style={styles.subjectItem}>
-                    <View style={styles.subjectHeader}>
-                      <Text style={[styles.subjectName, { color: theme.text }]}>{subject.name}</Text>
-                      <Text style={[styles.subjectPercent, { color: theme.primary }]}>{progress.percentage}%</Text>
-                    </View>
-                    <View style={[styles.progressBar, { backgroundColor: theme.divider }]}>
-                      <View style={[styles.progressFill, { width: `${progress.percentage}%`, backgroundColor: subject.color }]} />
-                    </View>
-                    {subject.items.length > 0 && (
-                      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.itemsScroll}>
-                        {subject.items.slice(0, 5).map(item => (
-                          <TouchableOpacity
-                            key={item.id}
-                            style={styles.miniCheckbox}
-                            onPress={() => toggleItem(subject.id, item.id)}
-                          >
-                            <View style={[
-                              styles.checkboxCircle,
-                              { borderColor: theme.border },
-                              item.completed && { backgroundColor: subject.color }
-                            ]}>
-                              {item.completed && <Text style={styles.checkmark}>✓</Text>}
-                            </View>
-                            <Text style={[styles.miniItemText, { color: theme.textSecondary }]} numberOfLines={1}>
-                              {item.title}
-                            </Text>
-                          </TouchableOpacity>
-                        ))}
-                      </ScrollView>
-                    )}
-                  </View>
-                );
-              })
-            )}
-          </View>
-        </View>
-
-        {/* Gamification Zone */}
-        <View style={styles.card}>
-          <View style={styles.cardHeader}>
-            <Text style={styles.cardTitle}>🎮 Learning Zone</Text>
-            <Text style={styles.pointsBadge}>⭐ {totalPoints} pts</Text>
-          </View>
-
-          {dailyChallenges.slice(0, 2).map((challenge) => {
-            const isCompleted = challenge.currentCount >= challenge.targetCount;
-            const progress = Math.min((challenge.currentCount / challenge.targetCount) * 100, 100);
-
-            return (
-              <View key={challenge.id} style={styles.challengeCard}>
-                <View style={styles.challengeHeader}>
-                  <Text style={styles.challengeEmoji}>{challenge.emoji}</Text>
-                  <View style={styles.challengeInfo}>
-                    <Text style={styles.challengeTitle}>{challenge.title}</Text>
-                    <Text style={styles.challengeDesc}>{challenge.description}</Text>
-                  </View>
-                </View>
-
-                <View style={styles.challengeProgressBar}>
-                  <View style={[styles.challengeProgressFill, { width: `${progress}%` }]} />
-                </View>
-
-                <View style={styles.challengeFooter}>
-                  <Text style={styles.challengeProgress}>
-                    {challenge.currentCount}/{challenge.targetCount}
-                  </Text>
-                  {isCompleted ? (
-                    <TouchableOpacity
-                      style={styles.claimButton}
-                      onPress={() => claimChallengeReward(challenge.id)}
-                    >
-                      <Text style={styles.claimButtonText}>Claim +{challenge.points} pts</Text>
-                    </TouchableOpacity>
-                  ) : (
-                    <Text style={styles.rewardText}>+{challenge.points} pts</Text>
-                  )}
-                </View>
+            {/* Prompt Input Box */}
+            <View style={styles.promptContainer}>
+              <View style={styles.promptInputWrapper}>
+                <TextInput
+                  style={styles.promptInput}
+                  placeholder="Ask anything about your studies..."
+                  placeholderTextColor={COLORS.textMuted}
+                  value={promptText}
+                  onChangeText={setPromptText}
+                  multiline
+                  maxLength={500}
+                  onSubmitEditing={handlePromptSubmit}
+                  returnKeyType="send"
+                  blurOnSubmit
+                />
+                <TouchableOpacity
+                  style={[
+                    styles.sendButton,
+                    !promptText.trim() && styles.sendButtonDisabled,
+                  ]}
+                  onPress={handlePromptSubmit}
+                  disabled={!promptText.trim()}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.sendIcon}>→</Text>
+                </TouchableOpacity>
               </View>
-            );
-          })}
-
-          <TouchableOpacity
-            style={styles.playGamesButton}
-            onPress={() => navigation.navigate('LearningZone')}
-          >
-            <Text style={styles.playGamesButtonText}>🎮 Play More Games</Text>
-            <Text style={styles.playGamesButtonArrow}>→</Text>
-          </TouchableOpacity>
-
-          <View style={[styles.motivationCard, { backgroundColor: theme.primaryLight, borderColor: theme.primary }]}>
-            <Text style={[styles.motivationText, { color: theme.text }]}>
-              "Success is the sum of small efforts repeated day in and day out."
-            </Text>
-          </View>
-        </View>
-
-        {/* AI Recommendations */}
-        <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
-          <View style={styles.cardHeader}>
-            <Text style={[styles.cardTitle, { color: theme.text }]}>💡 Study Recommendations</Text>
-          </View>
-          <View style={styles.recommendationList}>
-            <Text style={[styles.progressLabel, { color: theme.textSecondary }]}>No recommendations available</Text>
-          </View>
-        </View>
-
-        {/* Analytics Snapshot */}
-        <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
-          <View style={styles.cardHeader}>
-            <Text style={[styles.cardTitle, { color: theme.text }]}>📈 Analytics</Text>
-          </View>
-          <View style={styles.analyticsGrid}>
-            <View style={styles.analyticsItem}>
-              <Text style={[styles.analyticsValue, { color: theme.text }]}>0/0</Text>
-              <Text style={[styles.analyticsLabel, { color: theme.textSecondary }]}>Topics</Text>
             </View>
-            <View style={styles.analyticsItem}>
-              <Text style={[styles.analyticsValue, { color: theme.text }]}>0%</Text>
-              <Text style={[styles.analyticsLabel, { color: theme.textSecondary }]}>Quiz Accuracy</Text>
-            </View>
-            <View style={styles.analyticsItem}>
-              <Text style={[styles.analyticsValue, { color: theme.success }]}>0%</Text>
-              <Text style={[styles.analyticsLabel, { color: theme.textSecondary }]}>Improvement</Text>
-            </View>
-            <View style={styles.analyticsItem}>
-              <Text style={[styles.analyticsValue, { color: theme.text }]}>0</Text>
-              <Text style={[styles.analyticsLabel, { color: theme.textSecondary }]}>Study Sessions</Text>
-            </View>
-          </View>
-        </View>
 
-        {/* Recent Uploads */}
-        <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
-          <View style={styles.cardHeader}>
-            <Text style={[styles.cardTitle, { color: theme.text }]}>📄 Recent Uploads</Text>
-            <TouchableOpacity onPress={() => navigation.navigate('Library')}>
-              <Text style={[styles.viewAllText, { color: theme.primary }]}>View All →</Text>
-            </TouchableOpacity>
-          </View>
-          <View style={styles.uploadsScroll}>
-            <Text style={[styles.progressLabel, { color: theme.textSecondary }]}>No recent uploads</Text>
-          </View>
-        </View>
+            {/* Suggestion Chips */}
+            <View style={styles.suggestionsRow}>
+              {['Exam tips', 'Study plan', 'KTU syllabus'].map((chip) => (
+                <TouchableOpacity
+                  key={chip}
+                  style={styles.suggestionChip}
+                  onPress={() => {
+                    setPromptText(chip);
+                    navigation.navigate('Chatbot', { initialPrompt: chip });
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.suggestionText}>{chip}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
 
-        {/* Focus Mode Timer */}
-        <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
-          <View style={styles.cardHeader}>
-            <Text style={[styles.cardTitle, { color: theme.text }]}>⏱️ Focus Mode</Text>
-          </View>
-          <View style={styles.timerContainer}>
-            <Text style={[styles.timerDisplay, { color: theme.text }]}>{formatTime(focusTime)}</Text>
+            {/* Explore KTUfy Button */}
             <TouchableOpacity
-              style={[styles.timerButton, { backgroundColor: timerRunning ? theme.primary : theme.primaryLight }, timerRunning && { backgroundColor: theme.primary }]}
-              onPress={() => setTimerRunning(!timerRunning)}
+              style={styles.exploreButton}
+              onPress={() => navigation.navigate('Explore')}
+              activeOpacity={0.8}
             >
-              <Text style={[styles.timerButtonText, { color: timerRunning ? '#FFFFFF' : theme.primary }]}>
-                {timerRunning ? '⏸ Pause' : '▶ Start Focus Session'}
-              </Text>
+              <LinearGradient
+                colors={['rgba(129, 140, 248, 0.15)', 'rgba(129, 140, 248, 0.05)']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.exploreGradient}
+              >
+                <Text style={styles.exploreIcon}>◈</Text>
+                <Text style={styles.exploreText}>Explore KTUfy</Text>
+                <Text style={styles.exploreArrow}>›</Text>
+              </LinearGradient>
             </TouchableOpacity>
-            <Text style={[styles.timerHint, { color: theme.textSecondary }]}>Stay focused and build your streak! 🎯</Text>
-          </View>
+          </Animated.View>
         </View>
+      </KeyboardAvoidingView>
 
-        <View style={{ height: 80 }} />
-      </ScrollView>
-
-      {/* Bottom Navigation Bar */}
-      <View style={[styles.bottomNavContainer, { backgroundColor: theme.card, borderTopColor: theme.cardBorder }]}>
+      {/* Bottom Navigation Bar - Professional Icons */}
+      <View style={styles.bottomNavContainer}>
         <View style={styles.bottomNav}>
           <TouchableOpacity style={styles.navButton}>
-            <Text style={styles.navIconActive}>🏠</Text>
-            <Text style={[styles.navLabelActive, { color: theme.primary }]}>Home</Text>
+            <View style={[styles.navIconContainer, styles.navIconActive]}>
+              <Text style={styles.navIconTextActive}>⌂</Text>
+            </View>
+            <Text style={[styles.navLabel, styles.navLabelActive]}>Home</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             style={styles.navButton}
             onPress={() => navigation.navigate('Chatbot')}
           >
-            <Text style={styles.navIcon}>🤖</Text>
-            <Text style={[styles.navLabel, { color: theme.textSecondary }]}>Chatbot</Text>
+            <View style={styles.navIconContainer}>
+              <Text style={styles.navIconText}>◎</Text>
+            </View>
+            <Text style={styles.navLabel}>AI Chat</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             style={styles.navButton}
             onPress={() => navigation.navigate('Library')}
           >
-            <Text style={styles.navIcon}>📚</Text>
-            <Text style={[styles.navLabel, { color: theme.textSecondary }]}>Library</Text>
+            <View style={styles.navIconContainer}>
+              <Text style={styles.navIconText}>▤</Text>
+            </View>
+            <Text style={styles.navLabel}>Library</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             style={styles.navButton}
-            onPress={() => navigation.navigate('Settings')}
+            onPress={() => navigation.navigate('Profile')}
           >
-            <Text style={styles.navIcon}>⚙️</Text>
-            <Text style={[styles.navLabel, { color: theme.textSecondary }]}>Settings</Text>
+            <View style={styles.navIconContainer}>
+              <Text style={styles.navIconText}>○</Text>
+            </View>
+            <Text style={styles.navLabel}>Profile</Text>
           </TouchableOpacity>
         </View>
       </View>
-    </SafeAreaView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: COLORS.bgDark,
   },
-  scrollView: {
+  keyboardView: {
     flex: 1,
   },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 20,
-    paddingTop: Platform.OS === 'ios' ? 10 : 20,
+  // Glow orbs for animated background
+  glowOrb: {
+    position: 'absolute',
+    borderRadius: 999,
   },
-  greeting: {
-    fontSize: 16,
-    color: '#64748B',
-    marginBottom: 4,
+  glowOrb1: {
+    width: width * 1.2,
+    height: width * 1.2,
+    top: -height * 0.15,
+    left: -width * 0.3,
+    backgroundColor: 'rgba(99, 102, 241, 0.08)',
   },
-  userName: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#1E293B',
+  glowOrb2: {
+    width: width * 0.8,
+    height: width * 0.8,
+    bottom: height * 0.15,
+    right: -width * 0.2,
+    backgroundColor: 'rgba(129, 140, 248, 0.06)',
   },
-  profileButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#F1F5F9',
+  // Main content
+  mainContent: {
+    flex: 1,
     justifyContent: 'center',
+    paddingHorizontal: 24,
+    paddingBottom: 80,
+  },
+  // Logo section
+  logoSection: {
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
+    marginBottom: 48,
   },
-  profileButtonText: {
-    fontSize: 24,
+  logoGlow: {
+    position: 'absolute',
+    width: 200,
+    height: 200,
+    borderRadius: 100,
+    backgroundColor: COLORS.accentGlow,
+    top: -60,
   },
-  card: {
-    backgroundColor: '#F8FAFC',
-    borderRadius: 16,
-    padding: 20,
-    marginHorizontal: 16,
+  logoText: {
+    fontSize: 52,
+    fontWeight: '800',
+    letterSpacing: 12,
+    color: COLORS.textPrimary,
+    textTransform: 'uppercase',
+    textShadowColor: 'rgba(129, 140, 248, 0.4)',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 20,
+  },
+  tagline: {
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    marginTop: 8,
+    letterSpacing: 2,
+    fontWeight: '400',
+    textTransform: 'uppercase',
+  },
+  // Center content
+  centerContent: {
+    alignItems: 'center',
+  },
+  // Prompt input
+  promptContainer: {
+    width: '100%',
     marginBottom: 16,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
   },
-  cardHeader: {
+  promptInputWrapper: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  cardTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#1E293B',
-  },
-  streakBadge: {
-    fontSize: 14,
-    color: '#F59E0B',
-    fontWeight: '600',
-  },
-  viewAllText: {
-    fontSize: 14,
-    color: '#6366F1',
-    fontWeight: '600',
-  },
-  progressContainer: {
-    marginBottom: 20,
-  },
-  progressInfo: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 8,
-  },
-  progressLabel: {
-    fontSize: 14,
-    color: '#64748B',
-  },
-  progressPercent: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#6366F1',
-  },
-  progressBar: {
-    height: 8,
-    backgroundColor: '#E2E8F0',
-    borderRadius: 4,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-    backgroundColor: '#6366F1',
-    borderRadius: 4,
-  },
-  statsGrid: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-  },
-  statItem: {
-    alignItems: 'center',
-  },
-  statValue: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#1E293B',
-    marginBottom: 4,
-  },
-  examCountdown: {
-    color: '#EF4444',
-  },
-  statLabel: {
-    fontSize: 12,
-    color: '#64748B',
-  },
-  aiButton: {
-    backgroundColor: '#6366F1',
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 12,
-  },
-  aiButtonContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  aiButtonText: {
-    fontSize: 16,
-    color: '#FFFFFF',
-    fontWeight: '600',
-    textAlign: 'center',
-  },
-  codingBadge: {
-    fontSize: 12,
-    color: '#10B981',
-    fontWeight: '600',
-    backgroundColor: '#D1FAE5',
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  codingButton: {
-    backgroundColor: '#10B981',
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 12,
-  },
-  codingButtonContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  codingButtonText: {
-    fontSize: 16,
-    color: '#FFFFFF',
-    fontWeight: '600',
-    textAlign: 'center',
-  },
-  codingStats: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    paddingTop: 8,
-  },
-  codingStatItem: {
-    alignItems: 'center',
-  },
-  codingStatLabel: {
-    fontSize: 12,
-    color: '#64748B',
-    fontWeight: '500',
-  },
-  groupStudyButton: {
-    backgroundColor: '#F59E0B',
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 12,
-  },
-  groupStudyContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  groupStudyText: {
-    fontSize: 16,
-    color: '#FFFFFF',
-    fontWeight: '600',
-    textAlign: 'center',
-  },
-  groupFeatures: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    paddingTop: 8,
-  },
-  groupFeatureItem: {
-    alignItems: 'center',
-  },
-  groupFeatureText: {
-    fontSize: 12,
-    color: '#64748B',
-    fontWeight: '500',
-  },
-  gpaButton: {
-    backgroundColor: '#8B5CF6',
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 12,
-  },
-  gpaContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  gpaText: {
-    fontSize: 16,
-    color: '#FFFFFF',
-    fontWeight: '600',
-    textAlign: 'center',
-  },
-  gpaFeatures: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    paddingTop: 8,
-  },
-  gpaFeatureItem: {
-    alignItems: 'center',
-  },
-  gpaFeatureText: {
-    fontSize: 12,
-    color: '#64748B',
-    fontWeight: '500',
-  },
-  promptChips: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  chip: {
-    backgroundColor: '#F1F5F9',
-    paddingVertical: 8,
-    paddingHorizontal: 14,
+    alignItems: 'flex-end',
+    backgroundColor: COLORS.inputBg,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#CBD5E1',
-  },
-  chipText: {
-    fontSize: 13,
-    color: '#475569',
-  },
-  scheduleList: {
-    gap: 12,
-  },
-  scheduleItem: {
-    backgroundColor: '#FFFFFF',
-    padding: 14,
-    borderRadius: 10,
-    borderLeftWidth: 4,
-  },
-  scheduleTime: {
-    fontSize: 13,
-    color: '#64748B',
-    marginBottom: 4,
-  },
-  scheduleSubject: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1E293B',
-    marginBottom: 2,
-  },
-  scheduleRoom: {
-    fontSize: 13,
-    color: '#64748B',
-  },
-  subjectList: {
-    gap: 16,
-  },
-  subjectItem: {
-    gap: 8,
-  },
-  subjectHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  subjectName: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#1E293B',
-  },
-  subjectPercent: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#6366F1',
-  },
-  trendingBadge: {
-    fontSize: 12,
-    color: '#F59E0B',
-  },
-  itemsScroll: {
-    marginTop: 8,
-  },
-  miniCheckbox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginRight: 12,
-    paddingVertical: 6,
-    paddingHorizontal: 8,
-    backgroundColor: '#F8FAFC',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    maxWidth: 150,
-  },
-  checkboxCircle: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    borderWidth: 2,
-    borderColor: '#CBD5E1',
-    marginRight: 6,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  checkmark: {
-    color: '#FFFFFF',
-    fontSize: 10,
-    fontWeight: 'bold',
-  },
-  miniItemText: {
-    fontSize: 11,
-    color: '#475569',
-    flex: 1,
-  },
-  pointsBadge: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#F59E0B',
-  },
-  challengeCard: {
-    backgroundColor: '#FFFFFF',
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  challengeHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  challengeEmoji: {
-    fontSize: 32,
-    marginRight: 12,
-  },
-  challengeInfo: {
-    flex: 1,
-  },
-  challengeTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#1E293B',
-    marginBottom: 4,
-  },
-  challengeDesc: {
-    fontSize: 13,
-    color: '#64748B',
-  },
-  challengeProgressBar: {
-    height: 8,
-    backgroundColor: '#E2E8F0',
-    borderRadius: 4,
-    overflow: 'hidden',
-    marginBottom: 12,
-  },
-  challengeProgressFill: {
-    height: '100%',
-    backgroundColor: '#6366F1',
-    borderRadius: 4,
-  },
-  challengeFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  challengeReward: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  rewardText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#64748B',
-  },
-  challengeProgress: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#1E293B',
-  },
-  claimButton: {
-    backgroundColor: '#10B981',
+    borderColor: COLORS.inputBorder,
     paddingHorizontal: 16,
     paddingVertical: 8,
-    borderRadius: 8,
+    minHeight: 52,
+    maxHeight: 120,
   },
-  claimButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#FFFFFF',
-  },
-  playGamesButton: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: '#10B981',
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 12,
-  },
-  playGamesButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#FFFFFF',
-  },
-  playGamesButtonArrow: {
-    fontSize: 20,
-    color: '#FFFFFF',
-  },
-  motivationCard: {
-    backgroundColor: '#6366F1',
-    padding: 16,
-    borderRadius: 12,
-  },
-  motivationText: {
-    fontSize: 14,
-    color: '#FFFFFF',
-    fontStyle: 'italic',
+  promptInput: {
+    flex: 1,
+    fontSize: 15,
+    color: COLORS.textPrimary,
+    paddingVertical: 8,
+    maxHeight: 100,
     lineHeight: 20,
-    textAlign: 'center',
   },
-  recommendationList: {
-    gap: 12,
-  },
-  recommendationItem: {
-    flexDirection: 'row',
+  sendButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: COLORS.accent,
+    justifyContent: 'center',
     alignItems: 'center',
-    gap: 12,
+    marginLeft: 8,
   },
-  recommendationIcon: {
-    fontSize: 20,
+  sendButtonDisabled: {
+    backgroundColor: 'rgba(129, 140, 248, 0.3)',
   },
-  recommendationContent: {
-    flex: 1,
+  sendIcon: {
+    color: COLORS.white,
+    fontSize: 18,
+    fontWeight: '700',
   },
-  recommendationTitle: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#1E293B',
-    marginBottom: 2,
-  },
-  recommendationText: {
-    fontSize: 14,
-    color: '#64748B',
-  },
-  analyticsGrid: {
+  // Suggestion chips
+  suggestionsRow: {
     flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 8,
+    marginBottom: 28,
     flexWrap: 'wrap',
-    gap: 12,
   },
-  analyticsItem: {
-    flex: 1,
-    minWidth: '45%',
-    backgroundColor: '#FFFFFF',
-    padding: 16,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  analyticsValue: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#6366F1',
-    marginBottom: 4,
-  },
-  analyticsLabel: {
-    fontSize: 12,
-    color: '#64748B',
-  },
-  uploadsScroll: {
-    marginHorizontal: -20,
-    paddingHorizontal: 20,
-  },
-  uploadCard: {
-    width: 120,
-    backgroundColor: '#FFFFFF',
-    padding: 14,
-    borderRadius: 12,
-    marginRight: 12,
-    alignItems: 'center',
+  suggestionChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: COLORS.accentBorder,
+    backgroundColor: 'rgba(129, 140, 248, 0.08)',
   },
-  uploadIcon: {
-    fontSize: 32,
-    marginBottom: 8,
+  suggestionText: {
+    fontSize: 13,
+    color: COLORS.accent,
+    fontWeight: '500',
   },
-  uploadName: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#1E293B',
-    marginBottom: 4,
-    textAlign: 'center',
+  // Explore button
+  exploreButton: {
+    width: '100%',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: COLORS.accentBorder,
+    overflow: 'hidden',
   },
-  uploadDate: {
-    fontSize: 11,
-    color: '#64748B',
-  },
-  timerContainer: {
+  exploreGradient: {
+    flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 10,
+    justifyContent: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 24,
   },
-  timerDisplay: {
-    fontSize: 48,
-    fontWeight: 'bold',
-    color: '#1E293B',
-    marginBottom: 20,
-    fontVariant: ['tabular-nums'],
+  exploreIcon: {
+    fontSize: 18,
+    color: COLORS.accent,
+    marginRight: 10,
   },
-  timerButton: {
-    backgroundColor: '#6366F1',
-    paddingVertical: 14,
-    paddingHorizontal: 32,
-    borderRadius: 12,
-    marginBottom: 12,
-  },
-  timerButtonActive: {
-    backgroundColor: '#EF4444',
-  },
-  timerButtonText: {
+  exploreText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#FFFFFF',
+    color: COLORS.textPrimary,
+    letterSpacing: 0.5,
   },
-  timerHint: {
-    fontSize: 13,
-    color: '#64748B',
-    textAlign: 'center',
+  exploreArrow: {
+    fontSize: 22,
+    color: COLORS.accent,
+    marginLeft: 10,
+    fontWeight: '300',
   },
+  // Bottom navigation
   bottomNavContainer: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    paddingHorizontal: 16,
-    paddingBottom: Platform.OS === 'ios' ? 20 : 16,
-    backgroundColor: 'transparent',
+    backgroundColor: COLORS.navBg,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.navBorder,
+    paddingBottom: Platform.OS === 'ios' ? 24 : 8,
+    paddingTop: 8,
   },
   bottomNav: {
     flexDirection: 'row',
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    borderRadius: 20,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: -2,
-    },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(226, 232, 240, 0.6)',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    paddingHorizontal: 16,
   },
   navButton: {
-    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 6,
+    paddingVertical: 4,
+    minWidth: 64,
   },
-  navIcon: {
-    fontSize: 20,
-    marginBottom: 3,
-    opacity: 0.6,
+  navIconContainer: {
+    width: 40,
+    height: 32,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 12,
+    marginBottom: 2,
   },
   navIconActive: {
+    backgroundColor: 'rgba(129, 140, 248, 0.15)',
+  },
+  navIconText: {
     fontSize: 20,
-    marginBottom: 3,
+    color: COLORS.textMuted,
+  },
+  navIconTextActive: {
+    fontSize: 20,
+    color: COLORS.accent,
   },
   navLabel: {
-    fontSize: 10,
-    color: '#64748B',
+    fontSize: 11,
+    color: COLORS.textMuted,
+    fontWeight: '500',
+    marginTop: 2,
   },
   navLabelActive: {
-    fontSize: 10,
-    color: '#6366F1',
+    color: COLORS.accent,
     fontWeight: '600',
   },
 });

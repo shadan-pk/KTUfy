@@ -27,6 +27,7 @@ import GroupStudyScreen from './screens/GroupStudyScreen';
 import GPACalculatorScreen from './screens/GPACalculatorScreen';
 import SyllabusViewerScreen from './screens/SyllabusViewerScreen';
 import PYPScreen from './screens/PYPScreen';
+import ExploreScreen from './screens/ExploreScreen';
 import { RootStackParamList } from './types/navigation';
 
 const Stack = createStackNavigator<RootStackParamList>();
@@ -61,78 +62,83 @@ function AppContent() {
         {user ? (
           // Authenticated stack
           <>
-            <Stack.Screen 
-              name="Home" 
+            <Stack.Screen
+              name="Home"
               component={HomeScreen}
               options={{ headerShown: false }}
             />
-            <Stack.Screen 
-              name="Chatbot" 
+            <Stack.Screen
+              name="Chatbot"
               component={ChatbotScreen}
-              options={{ title: 'AI Assistant' }}
+              options={{ headerShown: false }}
             />
-            <Stack.Screen 
-              name="Ticklist" 
+            <Stack.Screen
+              name="Ticklist"
               component={TicklistScreen}
               options={{ title: 'Study Checklist' }}
             />
-            <Stack.Screen 
-              name="Library" 
+            <Stack.Screen
+              name="Library"
               component={LibraryScreen}
               options={{ title: 'Study Library' }}
             />
-            <Stack.Screen 
-              name="QuizSession" 
+            <Stack.Screen
+              name="QuizSession"
               component={QuizSessionScreen}
               options={{ title: 'Quiz Session' }}
             />
-            <Stack.Screen 
-              name="Schedule" 
+            <Stack.Screen
+              name="Schedule"
               component={ScheduleScreen}
               options={{ headerShown: false }}
             />
-            <Stack.Screen 
-              name="LearningZone" 
+            <Stack.Screen
+              name="LearningZone"
               component={LearningZoneScreen}
               options={{ headerShown: false }}
             />
-            <Stack.Screen 
-              name="CodingHub" 
+            <Stack.Screen
+              name="CodingHub"
               component={CodingHubScreen}
               options={{ headerShown: false }}
             />
-            <Stack.Screen 
-              name="GroupStudy" 
+            <Stack.Screen
+              name="GroupStudy"
               component={GroupStudyScreen}
               options={{ headerShown: false }}
             />
-            <Stack.Screen 
-              name="GPACalculator" 
+            <Stack.Screen
+              name="GPACalculator"
               component={GPACalculatorScreen}
               options={{ headerShown: false }}
             />
-            <Stack.Screen 
-              name="SyllabusViewer" 
+            <Stack.Screen
+              name="SyllabusViewer"
               component={SyllabusViewerScreen}
               options={{ headerShown: false }}
             />
-            <Stack.Screen 
-              name="PYP" 
+            <Stack.Screen
+              name="PYP"
               component={PYPScreen}
               options={{ headerShown: false }}
             />
-            <Stack.Screen 
-              name="Profile" 
+            <Stack.Screen
+              name="Explore"
+              component={ExploreScreen}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="Profile"
               component={ProfileScreen}
               options={{ title: 'My Profile' }}
             />
-            <Stack.Screen 
-              name="Settings" 
+            <Stack.Screen
+              name="Settings"
               component={SettingsScreen}
               options={{ title: 'Settings' }}
             />
-            <Stack.Screen 
-              name="Help" 
+            <Stack.Screen
+              name="Help"
               component={HelpScreen}
               options={{ title: 'Help & Support' }}
             />
@@ -140,13 +146,13 @@ function AppContent() {
         ) : (
           // Non-authenticated stack
           <>
-            <Stack.Screen 
-              name="Login" 
+            <Stack.Screen
+              name="Login"
               component={LoginScreen}
               options={{ headerShown: false }}
             />
-            <Stack.Screen 
-              name="Signup" 
+            <Stack.Screen
+              name="Signup"
               component={SignupScreen}
               options={{ headerShown: false }}
             />

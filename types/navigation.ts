@@ -8,7 +8,7 @@ export type RootStackParamList = {
   Profile: undefined;
   Settings: undefined;
   Help: undefined;
-  Chatbot: undefined;
+  Chatbot: { initialPrompt?: string } | undefined;
   Ticklist: undefined;
   Library: undefined;
   QuizSession: undefined;
@@ -19,6 +19,7 @@ export type RootStackParamList = {
   GPACalculator: undefined;
   SyllabusViewer: undefined;
   PYP: undefined;
+  Explore: undefined;
 };
 
 export type LoginScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Login'>;
@@ -38,6 +39,7 @@ export type GroupStudyScreenNavigationProp = StackNavigationProp<RootStackParamL
 export type GPACalculatorScreenNavigationProp = StackNavigationProp<RootStackParamList, 'GPACalculator'>;
 export type SyllabusViewerScreenNavigationProp = StackNavigationProp<RootStackParamList, 'SyllabusViewer'>;
 export type PYPScreenNavigationProp = StackNavigationProp<RootStackParamList, 'PYP'>;
+export type ExploreScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Explore'>;
 
 export type LoginScreenRouteProp = RouteProp<RootStackParamList, 'Login'>;
 export type SignupScreenRouteProp = RouteProp<RootStackParamList, 'Signup'>;
@@ -56,3 +58,4 @@ export type GroupStudyScreenRouteProp = RouteProp<RootStackParamList, 'GroupStud
 export type GPACalculatorScreenRouteProp = RouteProp<RootStackParamList, 'GPACalculator'>;
 export type SyllabusViewerScreenRouteProp = RouteProp<RootStackParamList, 'SyllabusViewer'>;
 export type PYPScreenRouteProp = RouteProp<RootStackParamList, 'PYP'>;
+export type ExploreScreenRouteProp = RouteProp<RootStackParamList, 'Explore'>;

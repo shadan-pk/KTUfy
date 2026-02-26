@@ -11,6 +11,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { SettingsScreenNavigationProp } from '../types/navigation';
 import { useTheme } from '../contexts/ThemeContext';
+import { TestBackendButton } from '../components/TestBackendButton';
 
 interface SettingsScreenProps {
   navigation: SettingsScreenNavigationProp;
@@ -18,7 +19,7 @@ interface SettingsScreenProps {
 
 const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) => {
   const { theme, isDark, toggleTheme } = useTheme();
-  
+
   const [notificationsEnabled, setNotificationsEnabled] = React.useState(true);
   const [emailNotifications, setEmailNotifications] = React.useState(true);
   const [pushNotifications, setPushNotifications] = React.useState(true);
@@ -59,7 +60,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) => {
         {/* Notifications Section */}
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: theme.text }]}>Notifications</Text>
-          
+
           <View style={[styles.settingCard, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
             <View style={styles.settingRow}>
               <View style={styles.settingInfo}>
@@ -117,7 +118,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) => {
         {/* Appearance Section */}
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: theme.text }]}>Appearance</Text>
-          
+
           <View style={[styles.settingCard, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
             <View style={styles.settingRow}>
               <View style={styles.settingInfo}>
@@ -149,7 +150,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) => {
         {/* Privacy & Security Section */}
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: theme.text }]}>Privacy & Security</Text>
-          
+
           <View style={[styles.settingCard, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
             <TouchableOpacity style={styles.settingRow}>
               <View style={styles.settingInfo}>
@@ -181,7 +182,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) => {
         {/* App Section */}
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: theme.text }]}>App</Text>
-          
+
           <View style={[styles.settingCard, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
             <View style={styles.settingRow}>
               <View style={styles.settingInfo}>
@@ -210,10 +211,16 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) => {
           </View>
         </View>
 
+        {/* Developer Section */}
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: theme.text }]}>Developer</Text>
+          <TestBackendButton />
+        </View>
+
         {/* Danger Zone */}
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: theme.text }]}>Danger Zone</Text>
-          
+
           <TouchableOpacity
             style={styles.dangerButton}
             onPress={handleDeleteAccount}
