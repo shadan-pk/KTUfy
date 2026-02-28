@@ -6,6 +6,8 @@ import {
     StyleSheet,
     ScrollView,
     FlatList,
+    Animated,
+    PanResponder,
     Dimensions,
     Platform,
     StatusBar,
@@ -22,105 +24,176 @@ import { getExamSchedule, ExamEvent } from '../services/scheduleService';
 
 const { width } = Dimensions.get('window');
 
-// ── GroupCard: shows a date box + carousel of events for that day ──────────
-const GroupCard = ({ group, daysLeft, day, mon, weekday, typeColors, isLast, theme, styles, onPress }: any) => {
-    const [activeIdx, setActiveIdx] = useState(0);
-    const flatRef = useRef<FlatList>(null);
+const TYPE_COLORS: Record<string, string> = {
+    exam: '#EF4444', holiday: '#10B981',
+    deadline: '#F59E0B', event: '#3B82F6',
+};
 
-    const goTo = (idx: number) => {
-        flatRef.current?.scrollToIndex({ index: idx, animated: true });
-        setActiveIdx(idx);
+// ── UpcomingExamWidget ─────────────────────────────────────────
+const UpcomingExamWidget = ({ groups, theme, styles, onPress }: {
+    groups: { date: string; events: any[] }[];
+    theme: any; styles: any;
+    onPress: () => void;
+}) => {
+    const [dayIdx, setDayIdx] = useState(0);
+    const [eventIdx, setEventIdx] = useState(0);
+    const [listWidth, setListWidth] = useState(0);
+    const flatRef = useRef<FlatList>(null);
+    const autoTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+    const isPaused = useRef(false);
+    const touchX = useRef(0);
+
+    const group = groups[dayIdx];
+
+    // Reset eventIdx when day changes
+    useEffect(() => {
+        setEventIdx(0);
+        flatRef.current?.scrollToOffset({ offset: 0, animated: false });
+    }, [dayIdx]);
+
+    // Auto-cycle events within the same day every 3s
+    useEffect(() => {
+        if (autoTimer.current) clearInterval(autoTimer.current);
+        if (!group || group.events.length <= 1) return;
+        autoTimer.current = setInterval(() => {
+            if (isPaused.current) return;
+            setEventIdx(prev => {
+                const next = (prev + 1) % group.events.length;
+                flatRef.current?.scrollToIndex({ index: next, animated: true });
+                return next;
+            });
+        }, 3000);
+        return () => { if (autoTimer.current) clearInterval(autoTimer.current); };
+    }, [dayIdx, group]);
+
+    if (!group) return null;
+
+    const d = new Date(group.date + 'T00:00:00');
+    const today = new Date(); today.setHours(0, 0, 0, 0); d.setHours(0, 0, 0, 0);
+    const daysLeft = Math.round((d.getTime() - today.getTime()) / 86400000);
+    const day = d.getDate();
+    const mon = d.toLocaleDateString('en-US', { month: 'short' }).toUpperCase();
+    const weekday = d.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase();
+    const exam = group.events[eventIdx];
+    const color = TYPE_COLORS[exam?.type] ?? '#8B5CF6';
+    const canUp = dayIdx > 0;
+    const canDown = dayIdx < groups.length - 1;
+
+    const handleHSwipe = (dx: number) => {
+        if (group.events.length <= 1) return;
+        isPaused.current = true;
+        setTimeout(() => { isPaused.current = false; }, 5000);
+        const next = dx < 0
+            ? (eventIdx + 1) % group.events.length
+            : (eventIdx - 1 + group.events.length) % group.events.length;
+        flatRef.current?.scrollToIndex({ index: next, animated: true });
+        setEventIdx(next);
     };
 
     return (
-        <View style={[styles.calCard, { backgroundColor: theme.background, borderColor: theme.border, marginBottom: isLast ? 0 : 8, overflow: 'hidden' }]}>
-            {/* Date box — uses first event's color */}
-            {(() => {
-                const firstColor = typeColors[group.events[0]?.type] ?? '#8B5CF6';
-                return (
-                    <View style={[styles.calDateBox, { backgroundColor: firstColor + '18', borderColor: firstColor + '30' }]}>
-                        <Text style={[styles.calWeekday, { color: firstColor + 'CC' }]}>{weekday}</Text>
-                        <Text style={[styles.calDay, { color: firstColor }]}>{day}</Text>
-                        <Text style={[styles.calMon, { color: firstColor + 'CC' }]}>{mon}</Text>
-                    </View>
-                );
-            })()}
+        <View style={{ flexDirection: 'column' }}>
+            <TouchableOpacity
+                style={[styles.calCard, { backgroundColor: theme.background, borderColor: color + '40', borderWidth: 1.5 }]}
+                activeOpacity={0.9}
+                onPress={onPress}
+            >
+                {/* Date box */}
+                <View style={[styles.calDateBox, { backgroundColor: color + '18', borderColor: color + '30' }]}>
+                    <Text style={[styles.calWeekday, { color }]}>{weekday}</Text>
+                    <Text style={[styles.calDay, { color }]}>{day}</Text>
+                    <Text style={[styles.calMon, { color }]}>{mon}</Text>
+                </View>
 
-            {/* Carousel of events for this day */}
-            <View style={{ flex: 1 }}>
-                <FlatList
-                    ref={flatRef}
-                    data={group.events}
-                    horizontal
-                    pagingEnabled
-                    showsHorizontalScrollIndicator={false}
-                    keyExtractor={(_, i) => String(i)}
-                    onMomentumScrollEnd={e => {
-                        const idx = Math.round(e.nativeEvent.contentOffset.x / (e.nativeEvent.layoutMeasurement.width));
-                        setActiveIdx(idx);
+                {/* Event carousel + swipe responder */}
+                <View style={{ flex: 1 }}
+                    onStartShouldSetResponder={() => group.events.length > 1}
+                    onMoveShouldSetResponder={() => group.events.length > 1}
+                    onResponderGrant={e => { touchX.current = e.nativeEvent.pageX; }}
+                    onResponderRelease={e => {
+                        const dx = e.nativeEvent.pageX - touchX.current;
+                        if (Math.abs(dx) > 20) handleHSwipe(dx);
                     }}
-                    renderItem={({ item: exam }) => {
-                        const color = typeColors[exam.type] ?? '#8B5CF6';
-                        const isUrgent = daysLeft <= 3 && exam.type === 'exam';
-                        return (
-                            <TouchableOpacity
-                                style={{ width: '100%', paddingHorizontal: 0 }}
-                                onPress={onPress}
-                                activeOpacity={0.7}
-                            >
-                                <View style={styles.calInfo}>
-                                    <Text style={[styles.calTitle, { color: theme.text }]} numberOfLines={2}>{exam.title}</Text>
-                                    <View style={styles.calMeta}>
-                                        {exam.subject_code ? (
-                                            <View style={[styles.calSubjectChip, { backgroundColor: color + '14', borderColor: color + '30' }]}>
-                                                <Text style={[styles.calSubjectText, { color }]}>{exam.subject_code}</Text>
+                >
+                    <View style={{ flex: 1, overflow: 'hidden' }} onLayout={e => setListWidth(e.nativeEvent.layout.width)}>
+                        {listWidth > 0 && (
+                            <FlatList
+                                ref={flatRef}
+                                data={group.events}
+                                horizontal pagingEnabled scrollEnabled={false}
+                                showsHorizontalScrollIndicator={false}
+                                keyExtractor={(_, i) => String(i)}
+                                getItemLayout={(_, i) => ({ length: listWidth, offset: listWidth * i, index: i })}
+                                renderItem={({ item: ev }) => {
+                                    const c = TYPE_COLORS[ev.type] ?? '#8B5CF6';
+                                    return (
+                                        <View style={{
+                                            width: listWidth, justifyContent: 'center',
+                                            borderLeftWidth: 3, borderLeftColor: c,
+                                            paddingLeft: 10, paddingRight: 4, paddingVertical: 4,
+                                        }}>
+                                            <Text style={[styles.calTitle, { color: theme.text }]} numberOfLines={2}>{ev.title}</Text>
+                                            <View style={styles.calMeta}>
+                                                {ev.subject_code ? (
+                                                    <View style={[styles.calSubjectChip, { backgroundColor: c + '14', borderColor: c + '30' }]}>
+                                                        <Text style={[styles.calSubjectText, { color: c }]}>{ev.subject_code}</Text>
+                                                    </View>
+                                                ) : null}
+                                                {ev.description ? (
+                                                    <Text style={[styles.calDesc, { color: theme.textSecondary }]} numberOfLines={1}>{ev.description}</Text>
+                                                ) : null}
                                             </View>
-                                        ) : null}
-                                        {exam.description ? (
-                                            <Text style={[styles.calDesc, { color: theme.textSecondary }]} numberOfLines={1}>{exam.description}</Text>
-                                        ) : null}
-                                    </View>
-                                </View>
-                            </TouchableOpacity>
-                        );
-                    }}
-                />
-                {/* Dot indicators — only when >1 event */}
-                {group.events.length > 1 && (
-                    <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 4, paddingBottom: 6 }}>
-                        {group.events.map((_: any, i: number) => {
-                            const col = typeColors[group.events[i]?.type] ?? '#8B5CF6';
-                            return (
-                                <TouchableOpacity key={i} onPress={() => goTo(i)}>
-                                    <View style={{
-                                        width: activeIdx === i ? 16 : 6, height: 6,
-                                        borderRadius: 3,
-                                        backgroundColor: activeIdx === i ? col : theme.divider,
-                                    }} />
-                                </TouchableOpacity>
-                            );
-                        })}
+                                        </View>
+                                    );
+                                }}
+                            />
+                        )}
                     </View>
-                )}
-            </View>
+                </View>
 
-            {/* Days left */}
-            <View style={styles.calRight}>
-                {daysLeft === 0 ? (
-                    <Text style={[styles.calDaysNum, { color: typeColors[group.events[activeIdx]?.type] ?? '#8B5CF6' }]}>Today</Text>
-                ) : daysLeft === 1 ? (
-                    <Text style={[styles.calDaysNum, { color: typeColors[group.events[activeIdx]?.type] ?? '#8B5CF6' }]}>Tomorrow</Text>
-                ) : (
-                    <>
-                        <Text style={[styles.calDaysNum, { color: theme.textSecondary }]}>{daysLeft}</Text>
-                        <Text style={[styles.calDaysLabel, { color: theme.textTertiary }]}>days</Text>
-                    </>
-                )}
-                <View style={[styles.calTypeDot, { backgroundColor: typeColors[group.events[activeIdx]?.type] ?? '#8B5CF6' }]} />
-            </View>
+                {/* Right column: days left + ▲/▼ nav */}
+                <View style={[styles.calRight, { gap: 4, alignItems: 'center' }]}>
+                    {daysLeft === 0 ? (
+                        <Text style={[styles.calDaysNum, { color, fontSize: 11 }]}>Today</Text>
+                    ) : daysLeft === 1 ? (
+                        <Text style={[styles.calDaysNum, { color, fontSize: 11 }]}>Tomorrow</Text>
+                    ) : (
+                        <>
+                            <Text style={[styles.calDaysNum, { color: theme.textSecondary }]}>{daysLeft}</Text>
+                            <Text style={[styles.calDaysLabel, { color: theme.textTertiary }]}>days</Text>
+                        </>
+                    )}
+                    {groups.length > 1 && (
+                        <View style={{ alignItems: 'center', gap: 2, marginTop: 4 }}>
+                            <TouchableOpacity onPress={() => setDayIdx(i => Math.max(0, i - 1))} hitSlop={{ top: 6, bottom: 6, left: 8, right: 8 }} disabled={!canUp}>
+                                <Text style={{ fontSize: 12, color: canUp ? color : theme.divider, lineHeight: 14 }}>▲</Text>
+                            </TouchableOpacity>
+                            {groups.map((_, di) => (
+                                <View key={di} style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: di === dayIdx ? color : theme.divider, opacity: di === dayIdx ? 1 : 0.4 }} />
+                            ))}
+                            <TouchableOpacity onPress={() => setDayIdx(i => Math.min(groups.length - 1, i + 1))} hitSlop={{ top: 6, bottom: 6, left: 8, right: 8 }} disabled={!canDown}>
+                                <Text style={{ fontSize: 12, color: canDown ? color : theme.divider, lineHeight: 14 }}>▼</Text>
+                            </TouchableOpacity>
+                        </View>
+                    )}
+                    <View style={[styles.calTypeDot, { backgroundColor: color }]} />
+                </View>
+            </TouchableOpacity>
+
+            {/* Dot indicators — BELOW the entire card, centred, never moves with slides */}
+            {group.events.length > 1 && (
+                <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 5, marginTop: 8 }}>
+                    {group.events.map((_: any, di: number) => (
+                        <View key={di} style={{
+                            width: di === eventIdx ? 16 : 6, height: 5, borderRadius: 3,
+                            backgroundColor: di === eventIdx ? color : theme.divider,
+                        }} />
+                    ))}
+                </View>
+            )}
         </View>
     );
 };
+
 
 interface ExploreScreenProps {
     navigation: ExploreScreenNavigationProp;
@@ -226,9 +299,21 @@ const ExploreScreen: React.FC<ExploreScreenProps> = ({ navigation }) => {
                         d.setHours(0, 0, 0, 0);
                         return d >= today;
                     })
-                    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-                    .slice(0, 8); // allow more for grouping
-                setUpcomingExams(upcoming);
+                    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+                // Priority: if any exam is within 30 days, only show exams.
+                // Otherwise show all event types.
+                const hasNearExam = upcoming.some(e => {
+                    const dLeft = Math.round(
+                        (new Date(e.date + 'T00:00:00').setHours(0, 0, 0, 0) - today.getTime()) / 86400000
+                    );
+                    return e.type === 'exam' && dLeft <= 30;
+                });
+                const filtered = hasNearExam
+                    ? upcoming.filter(e => e.type === 'exam')
+                    : upcoming;
+
+                setUpcomingExams(filtered.slice(0, 8));
             } catch (err) {
                 // silent
             } finally {
@@ -370,42 +455,21 @@ const ExploreScreen: React.FC<ExploreScreenProps> = ({ navigation }) => {
                             </View>
                         </View>
                     ) : (() => {
-                        // Group events by date for carousel
+                        // Group events by date
                         const grouped: { date: string; events: typeof upcomingExams }[] = [];
                         upcomingExams.forEach(exam => {
                             const existing = grouped.find(g => g.date === exam.date);
                             if (existing) existing.events.push(exam);
                             else grouped.push({ date: exam.date, events: [exam] });
                         });
-                        const displayGroups = grouped.slice(0, 4);
-
-                        return displayGroups.map((group, gi) => {
-                            const d = new Date(group.date + 'T00:00:00');
-                            const today2 = new Date(); today2.setHours(0, 0, 0, 0); d.setHours(0, 0, 0, 0);
-                            const daysLeft = Math.round((d.getTime() - today2.getTime()) / 86400000);
-                            const day = d.getDate();
-                            const mon = d.toLocaleDateString('en-US', { month: 'short' }).toUpperCase();
-                            const weekday = d.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase();
-                            const isLast = gi === displayGroups.length - 1;
-                            const typeColors: Record<string, string> = {
-                                exam: '#EF4444', holiday: '#10B981',
-                                deadline: '#F59E0B', event: '#3B82F6',
-                            };
-                            // For multi-event days, use a carousel inside
-                            return (
-                                <GroupCard
-                                    key={gi}
-                                    group={group}
-                                    daysLeft={daysLeft}
-                                    day={day} mon={mon} weekday={weekday}
-                                    typeColors={typeColors}
-                                    isLast={isLast}
-                                    theme={theme}
-                                    styles={styles}
-                                    onPress={() => navigation.navigate('Schedule')}
-                                />
-                            );
-                        });
+                        return (
+                            <UpcomingExamWidget
+                                groups={grouped.slice(0, 5)}
+                                theme={theme}
+                                styles={styles}
+                                onPress={() => navigation.navigate('Schedule')}
+                            />
+                        );
                     })()}
                 </View>
 
