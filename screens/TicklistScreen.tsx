@@ -10,13 +10,14 @@ import {
   TextInput,
   KeyboardAvoidingView,
   Platform,
-  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { TicklistScreenNavigationProp } from '../types/navigation';
 import { useAuth } from '../auth/AuthProvider';
 import { getTicklistsForUser, upsertTicklist, deleteTicklist } from '../supabaseConfig';
 import supabase from '../supabaseClient';
+import { getCachedTicklists, setCachedTicklists } from '../services/cacheService';
+import { TicklistScreenSkeleton } from '../components/SkeletonLoader';
 
 interface TicklistItem {
   id: string;
@@ -43,12 +44,12 @@ const TicklistScreen: React.FC<TicklistScreenProps> = ({ navigation }) => {
   const [subjects, setSubjects] = React.useState<Subject[]>([]);
   const [filter, setFilter] = React.useState<'all' | 'pending' | 'completed'>('all');
   const [loading, setLoading] = React.useState(true);
-  
+
   // Modal states
   const [showAddSubjectModal, setShowAddSubjectModal] = React.useState(false);
   const [showAddItemModal, setShowAddItemModal] = React.useState(false);
   const [selectedSubjectId, setSelectedSubjectId] = React.useState<string>('');
-  
+
   // Form states
   const [subjectName, setSubjectName] = React.useState('');
   const [subjectCode, setSubjectCode] = React.useState('');
@@ -69,17 +70,23 @@ const TicklistScreen: React.FC<TicklistScreenProps> = ({ navigation }) => {
     })();
   }, []);
 
-  // Load subjects from Supabase when supabaseUser changes
+  // Load subjects from cache first, then refresh from Supabase
   React.useEffect(() => {
     if (!supabaseUser) {
       setLoading(false);
       return;
     }
 
-    setLoading(true);
-
     (async () => {
       try {
+        // 1. Try cache first for instant UI
+        const cached = await getCachedTicklists();
+        if (cached && cached.length > 0) {
+          setSubjects(cached);
+          setLoading(false);
+        }
+
+        // 2. Refresh from Supabase in background
         const lists = await getTicklistsForUser(supabaseUser.id);
         const loadedSubjects: Subject[] = (lists || []).map((r: any) => ({
           id: r.id,
@@ -89,9 +96,12 @@ const TicklistScreen: React.FC<TicklistScreenProps> = ({ navigation }) => {
           items: r.items || [],
         }));
         setSubjects(loadedSubjects);
+        await setCachedTicklists(loadedSubjects);
       } catch (error) {
         console.error('Error loading ticklist:', error);
-        Alert.alert('Error', 'Failed to load checklist. Please check your connection.');
+        if (!subjects.length) {
+          Alert.alert('Error', 'Failed to load checklist. Please check your connection.');
+        }
       } finally {
         setLoading(false);
       }
@@ -118,13 +128,17 @@ const TicklistScreen: React.FC<TicklistScreenProps> = ({ navigation }) => {
       items: [],
     };
 
+    // Close modal and clear form immediately
+    setShowAddSubjectModal(false);
+    setSubjectName('');
+    setSubjectCode('');
+
+    // Optimistic update — show in UI immediately
+    const updatedSubjects = [...subjects, newSubject];
+    setSubjects(updatedSubjects);
+    setCachedTicklists(updatedSubjects);
+
     try {
-      // Close modal and clear form immediately for better UX
-      setShowAddSubjectModal(false);
-      setSubjectName('');
-      setSubjectCode('');
-      
-      // Save to Firestore in the background
       await upsertTicklist({
         id: newSubjectId,
         user_id: supabaseUser.id,
@@ -135,6 +149,9 @@ const TicklistScreen: React.FC<TicklistScreenProps> = ({ navigation }) => {
       });
     } catch (error) {
       console.error('Error adding subject:', error);
+      // Revert optimistic update on failure
+      setSubjects(subjects);
+      setCachedTicklists(subjects);
       Alert.alert('Error', 'Failed to add subject. Please try again.');
     }
   };
@@ -156,16 +173,22 @@ const TicklistScreen: React.FC<TicklistScreenProps> = ({ navigation }) => {
       completed: false,
     };
 
-    try {
-      const subject = subjects.find(s => s.id === selectedSubjectId);
-      if (!subject) return;
+    const subject = subjects.find(s => s.id === selectedSubjectId);
+    if (!subject) return;
 
-      // Close modal and clear form immediately for better UX
-      setShowAddItemModal(false);
-      setItemTitle('');
-      
-      // Save to Supabase in the background
-      const updatedItems = [...subject.items, newItem];
+    // Close modal and clear form immediately
+    setShowAddItemModal(false);
+    setItemTitle('');
+
+    // Optimistic update — show in UI immediately
+    const updatedItems = [...subject.items, newItem];
+    const updatedSubjects = subjects.map(s =>
+      s.id === selectedSubjectId ? { ...s, items: updatedItems } : s
+    );
+    setSubjects(updatedSubjects);
+    setCachedTicklists(updatedSubjects);
+
+    try {
       await upsertTicklist({
         id: selectedSubjectId,
         user_id: supabaseUser.id,
@@ -176,6 +199,9 @@ const TicklistScreen: React.FC<TicklistScreenProps> = ({ navigation }) => {
       });
     } catch (error) {
       console.error('Error adding item:', error);
+      // Revert optimistic update
+      setSubjects(subjects);
+      setCachedTicklists(subjects);
       Alert.alert('Error', 'Failed to add item. Please try again.');
     }
   };
@@ -189,12 +215,19 @@ const TicklistScreen: React.FC<TicklistScreenProps> = ({ navigation }) => {
         {
           text: 'Delete',
           style: 'destructive',
-            onPress: async () => {
+          onPress: async () => {
             if (!supabaseUser) return;
+            // Optimistic update
+            const updatedSubjects = subjects.filter(s => s.id !== subjectId);
+            setSubjects(updatedSubjects);
+            setCachedTicklists(updatedSubjects);
             try {
               await deleteTicklist(subjectId, supabaseUser.id);
             } catch (error) {
               console.error('Error deleting subject:', error);
+              // Revert on failure
+              setSubjects(subjects);
+              setCachedTicklists(subjects);
               Alert.alert('Error', 'Failed to delete subject. Please try again.');
             }
           },
@@ -232,15 +265,22 @@ const TicklistScreen: React.FC<TicklistScreenProps> = ({ navigation }) => {
 
   const toggleItem = async (subjectId: string, itemId: string) => {
     if (!supabaseUser) return;
-    
+
+    const subject = subjects.find(s => s.id === subjectId);
+    if (!subject) return;
+
+    const updatedItems = subject.items.map(item =>
+      item.id === itemId ? { ...item, completed: !item.completed } : item
+    );
+
+    // Optimistic update
+    const updatedSubjects = subjects.map(s =>
+      s.id === subjectId ? { ...s, items: updatedItems } : s
+    );
+    setSubjects(updatedSubjects);
+    setCachedTicklists(updatedSubjects);
+
     try {
-      const subject = subjects.find(s => s.id === subjectId);
-      if (!subject) return;
-
-      const updatedItems = subject.items.map(item =>
-        item.id === itemId ? { ...item, completed: !item.completed } : item
-      );
-
       await upsertTicklist({
         id: subjectId,
         user_id: supabaseUser.id,
@@ -251,6 +291,9 @@ const TicklistScreen: React.FC<TicklistScreenProps> = ({ navigation }) => {
       });
     } catch (error) {
       console.error('Error toggling item:', error);
+      // Revert on failure
+      setSubjects(subjects);
+      setCachedTicklists(subjects);
       Alert.alert('Error', 'Failed to update item. Please try again.');
     }
   };
@@ -291,10 +334,7 @@ const TicklistScreen: React.FC<TicklistScreenProps> = ({ navigation }) => {
   if (loading) {
     return (
       <SafeAreaView style={styles.container} edges={['bottom']}>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#007AFF" />
-          <Text style={styles.loadingText}>Loading your checklist...</Text>
-        </View>
+        <TicklistScreenSkeleton />
       </SafeAreaView>
     );
   }
@@ -365,7 +405,7 @@ const TicklistScreen: React.FC<TicklistScreenProps> = ({ navigation }) => {
             <Text style={styles.emptyText}>
               Start by adding your subjects and modules to track your study progress.
             </Text>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.addButton}
               onPress={() => setShowAddSubjectModal(true)}
             >
@@ -374,102 +414,102 @@ const TicklistScreen: React.FC<TicklistScreenProps> = ({ navigation }) => {
           </View>
         ) : (
           getFilteredSubjects().map(subject => {
-          const progress = getSubjectProgress(subject);
-          const displayItems =
-            filter === 'all'
-              ? subject.items
-              : subject.items.filter(item =>
+            const progress = getSubjectProgress(subject);
+            const displayItems =
+              filter === 'all'
+                ? subject.items
+                : subject.items.filter(item =>
                   filter === 'pending' ? !item.completed : item.completed
                 );
 
-          // Show subjects even if they have no items yet (when filter is 'all')
-          if (displayItems.length === 0 && filter !== 'all') return null;
+            // Show subjects even if they have no items yet (when filter is 'all')
+            if (displayItems.length === 0 && filter !== 'all') return null;
 
-          return (
-            <View key={subject.id} style={styles.subjectCard}>
-              <View style={styles.subjectHeader}>
-                <View style={[styles.subjectColorBar, { backgroundColor: subject.color }]} />
-                <View style={styles.subjectInfo}>
-                  <Text style={styles.subjectName}>{subject.name}</Text>
-                  <Text style={styles.subjectCode}>{subject.code}</Text>
-                </View>
-                <View style={styles.subjectProgress}>
-                  <Text style={styles.subjectProgressText}>
-                    {progress.completed}/{progress.total}
-                  </Text>
-                  <Text style={styles.subjectProgressPercent}>{progress.percentage}%</Text>
-                </View>
-              </View>
-
-              <View style={styles.progressBar}>
-                <View
-                  style={[
-                    styles.progressFill,
-                    { width: `${progress.percentage}%`, backgroundColor: subject.color },
-                  ]}
-                />
-              </View>
-
-              <View style={styles.itemsList}>
-                {displayItems.length === 0 && filter === 'all' ? (
-                  <View style={styles.noItemsContainer}>
-                    <Text style={styles.noItemsText}>No modules added yet. Tap below to add your first module!</Text>
+            return (
+              <View key={subject.id} style={styles.subjectCard}>
+                <View style={styles.subjectHeader}>
+                  <View style={[styles.subjectColorBar, { backgroundColor: subject.color }]} />
+                  <View style={styles.subjectInfo}>
+                    <Text style={styles.subjectName}>{subject.name}</Text>
+                    <Text style={styles.subjectCode}>{subject.code}</Text>
                   </View>
-                ) : (
-                  displayItems.map(item => (
-                    <TouchableOpacity
-                      key={item.id}
-                      style={styles.tickItem}
-                      onPress={() => toggleItem(subject.id, item.id)}
-                      onLongPress={() => deleteItem(subject.id, item.id)}
-                      activeOpacity={0.7}
-                    >
-                      <View
-                        style={[
-                          styles.checkbox,
-                          item.completed && [styles.checkboxChecked, { backgroundColor: subject.color }],
-                        ]}
+                  <View style={styles.subjectProgress}>
+                    <Text style={styles.subjectProgressText}>
+                      {progress.completed}/{progress.total}
+                    </Text>
+                    <Text style={styles.subjectProgressPercent}>{progress.percentage}%</Text>
+                  </View>
+                </View>
+
+                <View style={styles.progressBar}>
+                  <View
+                    style={[
+                      styles.progressFill,
+                      { width: `${progress.percentage}%`, backgroundColor: subject.color },
+                    ]}
+                  />
+                </View>
+
+                <View style={styles.itemsList}>
+                  {displayItems.length === 0 && filter === 'all' ? (
+                    <View style={styles.noItemsContainer}>
+                      <Text style={styles.noItemsText}>No modules added yet. Tap below to add your first module!</Text>
+                    </View>
+                  ) : (
+                    displayItems.map(item => (
+                      <TouchableOpacity
+                        key={item.id}
+                        style={styles.tickItem}
+                        onPress={() => toggleItem(subject.id, item.id)}
+                        onLongPress={() => deleteItem(subject.id, item.id)}
+                        activeOpacity={0.7}
                       >
-                        {item.completed && <Text style={styles.checkmark}>✓</Text>}
-                      </View>
-                      <View style={styles.itemContent}>
-                        <Text
-                          style={[styles.itemText, item.completed && styles.itemTextCompleted]}
+                        <View
+                          style={[
+                            styles.checkbox,
+                            item.completed && [styles.checkboxChecked, { backgroundColor: subject.color }],
+                          ]}
                         >
-                          {item.title}
-                        </Text>
-                        {item.isTrending && (
-                          <View style={styles.trendingBadge}>
-                            <Text style={styles.trendingText}>🔥 Trending</Text>
-                          </View>
-                        )}
-                      </View>
-                    </TouchableOpacity>
-                  ))
-                )}
-                
-                {/* Add Item Button */}
+                          {item.completed && <Text style={styles.checkmark}>✓</Text>}
+                        </View>
+                        <View style={styles.itemContent}>
+                          <Text
+                            style={[styles.itemText, item.completed && styles.itemTextCompleted]}
+                          >
+                            {item.title}
+                          </Text>
+                          {item.isTrending && (
+                            <View style={styles.trendingBadge}>
+                              <Text style={styles.trendingText}>🔥 Trending</Text>
+                            </View>
+                          )}
+                        </View>
+                      </TouchableOpacity>
+                    ))
+                  )}
+
+                  {/* Add Item Button */}
+                  <TouchableOpacity
+                    style={styles.addItemButton}
+                    onPress={() => {
+                      setSelectedSubjectId(subject.id);
+                      setShowAddItemModal(true);
+                    }}
+                  >
+                    <Text style={styles.addItemButtonText}>+ Add Module/Topic</Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Delete Subject Button */}
                 <TouchableOpacity
-                  style={styles.addItemButton}
-                  onPress={() => {
-                    setSelectedSubjectId(subject.id);
-                    setShowAddItemModal(true);
-                  }}
+                  style={styles.deleteSubjectButton}
+                  onPress={() => deleteSubject(subject.id)}
                 >
-                  <Text style={styles.addItemButtonText}>+ Add Module/Topic</Text>
+                  <Text style={styles.deleteSubjectButtonText}>Delete Subject</Text>
                 </TouchableOpacity>
               </View>
-
-              {/* Delete Subject Button */}
-              <TouchableOpacity
-                style={styles.deleteSubjectButton}
-                onPress={() => deleteSubject(subject.id)}
-              >
-                <Text style={styles.deleteSubjectButtonText}>Delete Subject</Text>
-              </TouchableOpacity>
-            </View>
-          );
-        })
+            );
+          })
         )}
 
         <View style={{ height: 20 }} />

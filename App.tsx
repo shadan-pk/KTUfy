@@ -29,6 +29,14 @@ import GPACalculatorScreen from './screens/GPACalculatorScreen';
 import SyllabusViewerScreen from './screens/SyllabusViewerScreen';
 import PYPScreen from './screens/PYPScreen';
 import ExploreScreen from './screens/ExploreScreen';
+import FlashcardScreen from './screens/FlashcardScreen';
+import MatchGameScreen from './screens/MatchGameScreen';
+import QuizGameScreen from './screens/QuizGameScreen';
+import MediaToolsScreen from './screens/MediaToolsScreen';
+import VideoToolsScreen from './screens/VideoToolsScreen';
+import AudioToolsScreen from './screens/AudioToolsScreen';
+import ImageToolsScreen from './screens/ImageToolsScreen';
+import PdfToolsScreen from './screens/PdfToolsScreen';
 
 // Import custom tab bar
 import BottomNavBar from './components/BottomNavBar';
@@ -108,8 +116,16 @@ function AppContent() {
             <Stack.Screen name="SyllabusViewer" component={SyllabusViewerScreen} />
             <Stack.Screen name="PYP" component={PYPScreen} />
             <Stack.Screen name="Explore" component={ExploreScreen} />
+            <Stack.Screen name="Flashcards" component={FlashcardScreen} />
+            <Stack.Screen name="MatchGame" component={MatchGameScreen} />
+            <Stack.Screen name="QuizGame" component={QuizGameScreen} />
             <Stack.Screen name="Settings" component={SettingsScreen} />
             <Stack.Screen name="Help" component={HelpScreen} />
+            <Stack.Screen name="MediaTools" component={MediaToolsScreen} />
+            <Stack.Screen name="VideoTools" component={VideoToolsScreen} />
+            <Stack.Screen name="AudioTools" component={AudioToolsScreen} />
+            <Stack.Screen name="ImageTools" component={ImageToolsScreen} />
+            <Stack.Screen name="PdfTools" component={PdfToolsScreen} />
           </>
         ) : (
           // Non-authenticated stack

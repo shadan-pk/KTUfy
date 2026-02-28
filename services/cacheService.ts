@@ -17,6 +17,10 @@ const KEYS = {
     USER_PROFILE: '@KTUfy:cache:user_profile',
     CHAT_SESSIONS: '@KTUfy:cache:chat_sessions',
     CHAT_HISTORY: (sessionId: string) => `@KTUfy:cache:chat_history:${sessionId}`,
+    TICKLISTS: '@KTUfy:cache:ticklists',
+    SCHEDULE_EVENTS: '@KTUfy:cache:schedule_events',
+    SYLLABUS: (branch: string, semester: string) => `@KTUfy:cache:syllabus:${branch}:${semester}`,
+    STUDY_DASHBOARD: '@KTUfy:cache:study_dashboard',
 };
 
 // ─── TTL Values (milliseconds) ────────────────────────────────────
@@ -24,6 +28,10 @@ const TTL = {
     USER_PROFILE: 30 * 60 * 1000,   // 30 minutes
     CHAT_SESSIONS: 5 * 60 * 1000,   // 5 minutes
     CHAT_HISTORY: 10 * 60 * 1000,   // 10 minutes
+    TICKLISTS: 60 * 60 * 1000,      // 60 minutes
+    SCHEDULE: 6 * 60 * 60 * 1000,   // 6 hours
+    SYLLABUS: 24 * 60 * 60 * 1000,  // 24 hours
+    STUDY_DASHBOARD: 30 * 60 * 1000, // 30 minutes
 };
 
 // ─── Internal Helpers ─────────────────────────────────────────────
@@ -111,6 +119,50 @@ export async function setCachedChatHistory(sessionId: string, messages: any[]): 
 
 export async function clearCachedChatHistory(sessionId: string): Promise<void> {
     return removeCache(KEYS.CHAT_HISTORY(sessionId));
+}
+
+/**
+ * Ticklists
+ */
+export async function getCachedTicklists(): Promise<any[] | null> {
+    return getCache(KEYS.TICKLISTS, TTL.TICKLISTS);
+}
+
+export async function setCachedTicklists(ticklists: any[]): Promise<void> {
+    return setCache(KEYS.TICKLISTS, ticklists);
+}
+
+/**
+ * Schedule Events
+ */
+export async function getCachedSchedule(): Promise<any[] | null> {
+    return getCache(KEYS.SCHEDULE_EVENTS, TTL.SCHEDULE);
+}
+
+export async function setCachedSchedule(events: any[]): Promise<void> {
+    return setCache(KEYS.SCHEDULE_EVENTS, events);
+}
+
+/**
+ * Syllabus (per branch+semester)
+ */
+export async function getCachedSyllabus(branch: string, semester: string): Promise<any[] | null> {
+    return getCache(KEYS.SYLLABUS(branch, semester), TTL.SYLLABUS);
+}
+
+export async function setCachedSyllabus(branch: string, semester: string, subjects: any[]): Promise<void> {
+    return setCache(KEYS.SYLLABUS(branch, semester), subjects);
+}
+
+/**
+ * Study Dashboard
+ */
+export async function getCachedStudyDashboard(): Promise<any | null> {
+    return getCache(KEYS.STUDY_DASHBOARD, TTL.STUDY_DASHBOARD);
+}
+
+export async function setCachedStudyDashboard(dashboard: any): Promise<void> {
+    return setCache(KEYS.STUDY_DASHBOARD, dashboard);
 }
 
 /**

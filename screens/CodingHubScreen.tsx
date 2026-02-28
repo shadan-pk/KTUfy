@@ -16,6 +16,7 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../types/navigation';
 import { useAuth } from '../auth/AuthProvider';
 import supabase from '../supabaseClient';
+import { executeCode } from '../services/codingService';
 
 type CodingHubScreenProps = {
   navigation: StackNavigationProp<RootStackParamList, 'CodingHub'>;
@@ -220,7 +221,7 @@ const CodingHubScreen: React.FC<CodingHubScreenProps> = ({ navigation }) => {
 
     try {
       const updatedProgress = { ...userProgress, ...newProgress };
-      
+
       const { error } = await supabase
         .from('coding_progress')
         .upsert({
@@ -232,7 +233,7 @@ const CodingHubScreen: React.FC<CodingHubScreenProps> = ({ navigation }) => {
         });
 
       if (error) throw error;
-      
+
       setUserProgress(updatedProgress);
     } catch (error) {
       console.error('Error saving progress:', error);
@@ -253,86 +254,70 @@ const CodingHubScreen: React.FC<CodingHubScreenProps> = ({ navigation }) => {
     }
   };
 
-  const runCode = () => {
+  const runCode = async () => {
     if (!selectedProblem) return;
 
     setIsRunning(true);
     setOutput('Running code...\n');
 
-    // Simulate code execution (in a real app, you'd use an API or backend)
-    setTimeout(() => {
-      try {
-        // Simple simulation - check if code contains expected patterns
-        const codeLines = code.toLowerCase();
-        let simulatedOutput = '';
+    try {
+      const result = await executeCode(code, selectedLanguage);
 
-        // Very basic simulation based on problem ID
-        if (selectedProblem.id === 'prob1') {
-          if (codeLines.includes('hello') && codeLines.includes('world')) {
-            simulatedOutput = 'Hello, World!';
-          }
-        } else if (selectedProblem.id === 'prob2') {
-          if (codeLines.includes('5') && codeLines.includes('3') && (codeLines.includes('+') || codeLines.includes('add'))) {
-            simulatedOutput = '8';
-          }
-        } else if (selectedProblem.id === 'prob3') {
-          simulatedOutput = '1\n2\n3\n4\n5\n6\n7\n8\n9\n10';
-        } else if (selectedProblem.id === 'prob4') {
-          if (codeLines.includes('factorial') || codeLines.includes('*=')) {
-            simulatedOutput = '120';
-          }
-        } else if (selectedProblem.id === 'prob5') {
-          if (codeLines.includes('max')) {
-            simulatedOutput = '9';
-          }
-        } else if (selectedProblem.id === 'prob6') {
-          simulatedOutput = '0\n1\n1\n2\n3\n5\n8\n13\n21\n34';
-        } else if (selectedProblem.id === 'prob7') {
-          if (codeLines.includes('reverse') || codeLines.includes('[::-1]') || codeLines.includes('i--')) {
-            simulatedOutput = 'olleH';
-          }
-        } else if (selectedProblem.id === 'prob8') {
-          if (codeLines.includes('prime')) {
-            simulatedOutput = 'Prime';
-          }
-        }
-
-        if (simulatedOutput === '') {
-          simulatedOutput = 'Error: Check your code and try again.';
-          setOutput(`❌ Output:\n${simulatedOutput}\n\nExpected:\n${selectedProblem.expectedOutput}`);
-        } else {
-          const isCorrect = simulatedOutput.trim() === selectedProblem.expectedOutput.trim();
-          
-          if (isCorrect) {
-            setOutput(`✅ Success! Output:\n${simulatedOutput}\n\nCorrect! Problem solved!`);
-            
-            // Mark as completed
-            if (!userProgress.completedProblems.includes(selectedProblem.id)) {
-              const newCompleted = [...userProgress.completedProblems, selectedProblem.id];
-              saveProgress({
-                completedProblems: newCompleted,
-                totalAttempts: userProgress.totalAttempts + 1,
-                successfulRuns: userProgress.successfulRuns + 1,
-              });
-              
-              Alert.alert('🎉 Problem Solved!', 'Great job! You can now try more problems.');
-            } else {
-              saveProgress({
-                totalAttempts: userProgress.totalAttempts + 1,
-                successfulRuns: userProgress.successfulRuns + 1,
-              });
-            }
-          } else {
-            setOutput(`⚠️ Output:\n${simulatedOutput}\n\nExpected:\n${selectedProblem.expectedOutput}\n\nTry again!`);
-            saveProgress({ totalAttempts: userProgress.totalAttempts + 1 });
-          }
-        }
-      } catch (error) {
-        setOutput(`❌ Error: ${error}`);
-      } finally {
-        setIsRunning(false);
+      // Check for compilation errors
+      if (result.compile_output) {
+        setOutput(`❌ Compilation Error:\n${result.compile_output}`);
+        saveProgress({ totalAttempts: userProgress.totalAttempts + 1 });
+        return;
       }
-    }, 1500);
+
+      // Check for runtime errors
+      if (result.stderr) {
+        setOutput(`❌ Runtime Error:\n${result.stderr}`);
+        saveProgress({ totalAttempts: userProgress.totalAttempts + 1 });
+        return;
+      }
+
+      // Check status
+      if (result.status && result.status.id !== 3) {
+        // Status 3 = Accepted in Judge0
+        setOutput(`⚠️ ${result.status.description}\n${result.stderr || result.compile_output || 'Check your code and try again.'}`);
+        saveProgress({ totalAttempts: userProgress.totalAttempts + 1 });
+        return;
+      }
+
+      const actualOutput = (result.stdout || '').trim();
+      const expectedOutput = selectedProblem.expectedOutput.trim();
+      const isCorrect = actualOutput === expectedOutput;
+
+      if (isCorrect) {
+        const timeInfo = result.time ? ` (${result.time}s)` : '';
+        setOutput(`✅ Success!${timeInfo}\nOutput:\n${actualOutput}\n\nCorrect! Problem solved!`);
+
+        // Mark as completed
+        if (!userProgress.completedProblems.includes(selectedProblem.id)) {
+          const newCompleted = [...userProgress.completedProblems, selectedProblem.id];
+          saveProgress({
+            completedProblems: newCompleted,
+            totalAttempts: userProgress.totalAttempts + 1,
+            successfulRuns: userProgress.successfulRuns + 1,
+          });
+          Alert.alert('🎉 Problem Solved!', 'Great job! You can now try more problems.');
+        } else {
+          saveProgress({
+            totalAttempts: userProgress.totalAttempts + 1,
+            successfulRuns: userProgress.successfulRuns + 1,
+          });
+        }
+      } else {
+        setOutput(`⚠️ Output:\n${actualOutput}\n\nExpected:\n${expectedOutput}\n\nTry again!`);
+        saveProgress({ totalAttempts: userProgress.totalAttempts + 1 });
+      }
+    } catch (error: any) {
+      console.error('Code execution error:', error);
+      setOutput(`❌ Error: ${error?.message || 'Failed to execute code. Check your connection.'}`);
+    } finally {
+      setIsRunning(false);
+    }
   };
 
   const getRandomChallenge = () => {
@@ -409,7 +394,7 @@ const CodingHubScreen: React.FC<CodingHubScreenProps> = ({ navigation }) => {
           <View style={styles.challengeCard}>
             <Text style={styles.challengeTitle}>🎯 Challenge Mode</Text>
             <Text style={styles.challengeDesc}>Get a random problem based on your preferences</Text>
-            
+
             <View style={styles.filterRow}>
               <View style={styles.filterGroup}>
                 <Text style={styles.filterLabel}>Category:</Text>
@@ -456,7 +441,7 @@ const CodingHubScreen: React.FC<CodingHubScreenProps> = ({ navigation }) => {
           {/* Problem List */}
           <View style={styles.problemListCard}>
             <Text style={styles.sectionTitle}>📝 All Problems ({filteredProblems.length})</Text>
-            
+
             {filteredProblems.map((problem) => {
               const isCompleted = userProgress.completedProblems.includes(problem.id);
               return (
@@ -512,7 +497,7 @@ const CodingHubScreen: React.FC<CodingHubScreenProps> = ({ navigation }) => {
             <Text style={styles.categoryBadge}>{selectedProblem?.category}</Text>
           </View>
           <Text style={styles.problemDescription}>{selectedProblem?.description}</Text>
-          
+
           {selectedProblem && selectedProblem.hints.length > 0 && (
             <View style={styles.hintsSection}>
               <Text style={styles.hintsTitle}>💡 Hints:</Text>

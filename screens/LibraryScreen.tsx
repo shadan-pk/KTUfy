@@ -5,968 +5,447 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  ActivityIndicator,
+  TextInput,
+  Modal,
+  KeyboardAvoidingView,
+  Platform,
   Alert,
   Linking,
-  Platform,
+  StatusBar,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import * as DocumentPicker from 'expo-document-picker';
-import * as ExpoFileSystem from 'expo-file-system';
 import { LibraryScreenNavigationProp } from '../types/navigation';
-import { useTheme } from '../contexts/ThemeContext';
-import { supabase } from '../supabaseClient';
 import { useAuth } from '../auth/AuthProvider';
-import { listFiles, getPublicUrl, uploadFile, deleteFile, STORAGE_BUCKET } from '../supabaseStorage';
+import { useTheme } from '../contexts/ThemeContext';
+import supabase from '../supabaseClient';
+import { LibraryScreenSkeleton } from '../components/SkeletonLoader';
 
-// Types
 interface Note {
   id: string;
-  fileName: string;
-  fileType: 'pdf' | 'image' | 'doc' | 'ppt';
-  fileUrl: string;
-  uploadedDate: string;
-  size?: string;
+  title: string;
+  content: string;
+  subject?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+interface Bookmark {
+  id: string;
+  title: string;
+  url: string;
+  subject?: string;
+  created_at: string;
 }
 
 interface LibraryScreenProps {
   navigation: LibraryScreenNavigationProp;
 }
 
-// Library Features
-const LIBRARY_FEATURES = [
-  {
-    id: 'syllabus',
-    title: 'Syllabus Viewer',
-    description: 'View complete KTU syllabus by branch and semester',
-    icon: '🧾',
-    color: '#6366F1',
-    route: 'SyllabusViewer' as const,
-  },
-  {
-    id: 'pyp',
-    title: 'Previous Year Papers',
-    description: 'Access and download solved and unsolved KTU papers',
-    icon: '📄',
-    color: '#F59E0B',
-    route: 'PYP' as const,
-  },
-  {
-    id: 'quiz',
-    title: 'Quiz Session',
-    description: 'Test your knowledge with interactive quizzes and assessments',
-    icon: '📋',
-    color: '#06B6D4',
-    route: 'QuizSession' as const,
-  },
-  {
-    id: 'notes',
-    title: 'Notes',
-    description: 'Browse and download subject notes',
-    icon: '📝',
-    color: '#10B981',
-    route: null,
-  },
-  {
-    id: 'textbooks',
-    title: 'Textbooks',
-    description: 'Access recommended textbooks and reference materials',
-    icon: '📚',
-    color: '#8B5CF6',
-    route: null,
-  },
-  {
-    id: 'references',
-    title: 'References',
-    description: 'Additional learning resources and references',
-    icon: '📖',
-    color: '#EC4899',
-    route: null,
-  },
-];
-
-// KTU Data
-const YEARS = ['First Year', 'Second Year', 'Third Year', 'Fourth Year'];
-
-const SEMESTERS = {
-  'First Year': ['S1', 'S2'],
-  'Second Year': ['S3', 'S4'],
-  'Third Year': ['S5', 'S6'],
-  'Fourth Year': ['S7', 'S8'],
-};
-
-const BRANCHES = [
-  'CSE', 'ECE', 'EEE', 'ME', 'CE', 'IT', 'AE', 'BT', 'CHE', 'IE'
-];
-
 const LibraryScreen: React.FC<LibraryScreenProps> = ({ navigation }) => {
   const { theme, isDark } = useTheme();
-
-  // View Mode State ('menu' or 'notes')
-  const [viewMode, setViewMode] = useState<'menu' | 'notes'>('menu');
-
-  // Navigation State
-  const [selectedYear, setSelectedYear] = useState<string | null>(null);
-  const [selectedSemester, setSelectedSemester] = useState<string | null>(null);
-  const [selectedBranch, setSelectedBranch] = useState<string | null>(null);
-  const [selectedSubject, setSelectedSubject] = useState<string | null>(null);
-
-  // Data State
-  const [subjects, setSubjects] = useState<string[]>([]);
+  const { user } = useAuth();
+  const [activeTab, setActiveTab] = useState<'notes' | 'bookmarks'>('notes');
   const [notes, setNotes] = useState<Note[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [bookmarks, setBookmarks] = useState<Bookmark[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const handleFeatureSelect = (feature: typeof LIBRARY_FEATURES[0]) => {
-    if (feature.route) {
-      // @ts-ignore - Navigation types will be updated
-      navigation.navigate(feature.route);
-    } else if (feature.id === 'notes') {
-      setViewMode('notes');
-    } else {
-      Alert.alert(
-        feature.title,
-        `${feature.description}\n\nThis feature will be available soon!`,
-        [{ text: 'OK' }]
-      );
-    }
-  };
+  // Note modal
+  const [showNoteModal, setShowNoteModal] = useState(false);
+  const [editingNote, setEditingNote] = useState<Note | null>(null);
+  const [noteTitle, setNoteTitle] = useState('');
+  const [noteContent, setNoteContent] = useState('');
+  const [noteSubject, setNoteSubject] = useState('');
 
-  const handleBackToMenu = () => {
-    setViewMode('menu');
-    setSelectedYear(null);
-    setSelectedSemester(null);
-    setSelectedBranch(null);
-    setSelectedSubject(null);
-    setSubjects([]);
-    setNotes([]);
-  };
+  // Bookmark modal
+  const [showBookmarkModal, setShowBookmarkModal] = useState(false);
+  const [bookmarkTitle, setBookmarkTitle] = useState('');
+  const [bookmarkUrl, setBookmarkUrl] = useState('');
+  const [bookmarkSubject, setBookmarkSubject] = useState('');
 
-  // Fetch subjects when branch is selected
   useEffect(() => {
-    if (selectedYear && selectedSemester && selectedBranch) {
-      fetchSubjects();
-    }
-  }, [selectedYear, selectedSemester, selectedBranch]);
+    loadData();
+  }, [user]);
 
-  // Fetch notes when subject is selected
-  useEffect(() => {
-    if (selectedYear && selectedSemester && selectedBranch && selectedSubject) {
-      fetchNotes();
-    }
-  }, [selectedSubject]);
-
-  const fetchSubjects = async () => {
-    setLoading(true);
+  const loadData = async () => {
+    if (!user) { setIsLoading(false); return; }
+    setIsLoading(true);
     try {
-      const yearNum = YEARS.indexOf(selectedYear!) + 1;
-      const semNum = selectedSemester!.replace('S', '');
-      const path = `Library/Year_${yearNum}/Sem_${semNum}/${selectedBranch}`;
+      // Load notes
+      const { data: notesData } = await supabase
+        .from('user_notes')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('updated_at', { ascending: false });
+      if (notesData) setNotes(notesData);
 
-      // For demo, using mock data. Replace with actual Firestore query:
-      // const subjectsRef = collection(db, path);
-      // const snapshot = await getDocs(subjectsRef);
-      // const subjectsList = snapshot.docs.map(doc => doc.id);
-
-      // Mock subjects for demonstration
-      const mockSubjects = ['Artificial Intelligence', 'Machine Learning', 'Data Science', 'Computer Networks'];
-      setSubjects(mockSubjects);
-    } catch (error) {
-      console.error('Error fetching subjects:', error);
-      Alert.alert('Error', 'Failed to load subjects');
+      // Load bookmarks
+      const { data: bookmarksData } = await supabase
+        .from('user_bookmarks')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+      if (bookmarksData) setBookmarks(bookmarksData);
+    } catch (err) {
+      // Tables may not exist yet — silent fail
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   };
 
-  const fetchNotes = async () => {
-    setLoading(true);
-    try {
-      const yearNum = YEARS.indexOf(selectedYear!) + 1;
-      const semNum = selectedSemester!.replace('S', '');
-      const folderPath = `Year_${yearNum}/Sem_${semNum}/${selectedBranch}/${selectedSubject}`;
-
-      console.log('📂 Fetching notes from:', folderPath);
-
-      // List all files in the folder from Supabase Storage
-      const filesList = await listFiles(folderPath);
-
-      if (!filesList || filesList.length === 0) {
-        console.log('No notes found in this folder');
-        setNotes([]);
-        return;
-      }
-
-      // Transform the files into Note objects
-      const notesList: Note[] = filesList
-        .filter(file => file.name !== '.emptyFolderPlaceholder') // Filter out placeholder files
-        .map(file => {
-          const fileExt = file.name.split('.').pop()?.toLowerCase() || '';
-          let fileType: 'pdf' | 'image' | 'doc' | 'ppt' = 'pdf';
-
-          if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(fileExt)) {
-            fileType = 'image';
-          } else if (['doc', 'docx'].includes(fileExt)) {
-            fileType = 'doc';
-          } else if (['ppt', 'pptx'].includes(fileExt)) {
-            fileType = 'ppt';
-          }
-
-          return {
-            id: file.id || file.name,
-            fileName: file.name,
-            fileType,
-            fileUrl: getPublicUrl(`${folderPath}/${file.name}`),
-            uploadedDate: file.created_at || new Date().toISOString(),
-            size: file.metadata?.size
-              ? `${(file.metadata.size / 1024 / 1024).toFixed(2)} MB`
-              : undefined,
-          };
-        });
-
-      console.log('✅ Found', notesList.length, 'notes');
-      setNotes(notesList);
-    } catch (error) {
-      console.error('Error fetching notes:', error);
-      Alert.alert('Error', 'Failed to load notes from storage');
-      setNotes([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const getFileTypeIcon = (fileType: string) => {
-    switch (fileType) {
-      case 'pdf':
-        return '📄';
-      case 'image':
-        return '🖼️';
-      case 'doc':
-        return '📝';
-      case 'ppt':
-        return '📊';
-      default:
-        return '📁';
-    }
-  };
-
-  const handleNoteOpen = (note: Note) => {
-    Alert.alert(
-      note.fileName,
-      `Type: ${note.fileType.toUpperCase()}\n${note.size ? `Size: ${note.size}\n` : ''}Uploaded: ${new Date(note.uploadedDate).toLocaleDateString()}`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'View',
-          onPress: () => {
-            // Open URL in browser or viewer
-            Linking.openURL(note.fileUrl).catch(() => {
-              Alert.alert('Error', 'Cannot open this file');
-            });
-          }
-        },
-        Platform.OS !== 'web' && {
-          text: 'Download',
-          onPress: () => handleDownload(note),
-        },
-      ].filter(Boolean) as any
-    );
-  };
-
-  const handleDownload = async (note: Note) => {
-    try {
-      // For all platforms, just open the URL (browser will handle download)
-      Linking.openURL(note.fileUrl);
-      Alert.alert('Opening File', 'The file will open in your browser or default app');
-    } catch (error) {
-      console.error('Download error:', error);
-      Alert.alert('Error', 'Could not open the file');
-    }
-  };
-
-  const handleUploadNote = async () => {
-    if (!selectedYear || !selectedSemester || !selectedBranch || !selectedSubject) {
-      Alert.alert('Error', 'Please select year, semester, branch, and subject first');
+  const saveNote = async () => {
+    if (!noteTitle.trim()) {
+      Alert.alert('Error', 'Please enter a title');
       return;
     }
+    if (!user) return;
+
+    const noteData = {
+      user_id: user.id,
+      title: noteTitle.trim(),
+      content: noteContent.trim(),
+      subject: noteSubject.trim() || undefined,
+      updated_at: new Date().toISOString(),
+    };
 
     try {
-      // Pick a document
-      const result = await DocumentPicker.getDocumentAsync({
-        type: ['application/pdf', 'image/*', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/vnd.ms-powerpoint', 'application/vnd.openxmlformats-officedocument.presentationml.presentation'],
-        copyToCacheDirectory: true,
-      });
-
-      if (result.canceled || !result.assets || result.assets.length === 0) {
-        return;
+      if (editingNote) {
+        // Update
+        await supabase.from('user_notes').update(noteData).eq('id', editingNote.id);
+        setNotes(prev => prev.map(n =>
+          n.id === editingNote.id ? { ...n, ...noteData } : n
+        ));
+      } else {
+        // Insert
+        const newNote: Note = { ...noteData, id: Date.now().toString(), created_at: new Date().toISOString() };
+        const { error } = await supabase.from('user_notes').insert(newNote);
+        if (!error) setNotes(prev => [newNote as Note, ...prev]);
       }
+    } catch (err) {
+      Alert.alert('Error', 'Failed to save note');
+    }
 
-      const file = result.assets[0];
-      console.log('Selected file:', file);
-      console.log('File URI:', file.uri);
-      console.log('File type:', file.mimeType);
-      console.log('File name:', file.name);
-      console.log('File size:', file.size);
+    setShowNoteModal(false);
+    resetNoteForm();
+  };
 
-      Alert.alert('Uploading', 'Please wait...');
+  const deleteNote = (id: string) => {
+    Alert.alert('Delete Note', 'Are you sure?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete', style: 'destructive',
+        onPress: async () => {
+          setNotes(prev => prev.filter(n => n.id !== id));
+          try { await supabase.from('user_notes').delete().eq('id', id); } catch { }
+        },
+      },
+    ]);
+  };
 
-      const yearNum = YEARS.indexOf(selectedYear) + 1;
-      const semNum = selectedSemester.replace('S', '');
-      const filePath = `Year_${yearNum}/Sem_${semNum}/${selectedBranch}/${selectedSubject}/${file.name}`;
+  const saveBookmark = async () => {
+    if (!bookmarkTitle.trim() || !bookmarkUrl.trim()) {
+      Alert.alert('Error', 'Please fill title and URL');
+      return;
+    }
+    if (!user) return;
 
-      // Helper function to read file data
-      const readFileData = async (): Promise<any> => {
-        try {
-          console.log('Reading file from URI:', file.uri);
-          console.log('Platform:', Platform.OS);
-          console.log('File info:', { name: file.name, mimeType: file.mimeType, size: file.size });
+    const bm = {
+      id: Date.now().toString(),
+      user_id: user.id,
+      title: bookmarkTitle.trim(),
+      url: bookmarkUrl.trim(),
+      subject: bookmarkSubject.trim() || null,
+      created_at: new Date().toISOString(),
+    };
 
-          // Fetch the file and get blob directly
-          const response = await fetch(file.uri);
-          if (!response.ok) {
-            throw new Error(`Failed to fetch file: ${response.status} ${response.statusText}`);
-          }
+    setBookmarks(prev => [bm as Bookmark, ...prev]);
+    setShowBookmarkModal(false);
+    resetBookmarkForm();
 
-          const blob = await response.blob();
-          console.log('Blob created successfully, size:', blob.size, 'type:', blob.type);
-          return blob;
-        } catch (error) {
-          console.error('Error reading file:', error);
-          throw new Error('Failed to read file: ' + (error instanceof Error ? error.message : String(error)));
-        }
-      };
-
-      // Upload to Supabase Storage
-      try {
-        const fileData = await readFileData();
-        await uploadFile(filePath, fileData, {
-          contentType: file.mimeType || 'application/octet-stream',
-          upsert: false,
-        });
-
-        Alert.alert('Success', 'File uploaded successfully!');
-        fetchNotes(); // Refresh the list
-      } catch (uploadError: any) {
-        if (uploadError.message && uploadError.message.includes('already exists')) {
-          Alert.alert(
-            'File Exists',
-            'A file with this name already exists. Do you want to replace it?',
-            [
-              { text: 'Cancel', style: 'cancel' },
-              {
-                text: 'Replace',
-                onPress: async () => {
-                  try {
-                    // Delete old file and upload new one
-                    await deleteFile(filePath);
-                    const newFileData = await readFileData();
-                    await uploadFile(filePath, newFileData, {
-                      contentType: file.mimeType || 'application/octet-stream',
-                      upsert: true,
-                    });
-
-                    Alert.alert('Success', 'File replaced successfully!');
-                    fetchNotes(); // Refresh the list
-                  } catch (replaceError: any) {
-                    Alert.alert('Upload Failed', replaceError.message);
-                  }
-                },
-              },
-            ]
-          );
-        } else {
-          throw uploadError;
-        }
-      }
-    } catch (error: any) {
-      console.error('Upload error:', error);
-      Alert.alert('Upload Failed', error.message || 'Could not upload the file');
+    try {
+      await supabase.from('user_bookmarks').insert(bm);
+    } catch {
+      setBookmarks(prev => prev.filter(b => b.id !== bm.id));
     }
   };
 
-  const handleBack = () => {
-    if (selectedSubject) {
-      setSelectedSubject(null);
-      setNotes([]);
-    } else if (selectedBranch) {
-      setSelectedBranch(null);
-      setSubjects([]);
-    } else if (selectedSemester) {
-      setSelectedSemester(null);
-    } else if (selectedYear) {
-      setSelectedYear(null);
-    } else if (viewMode === 'notes') {
-      handleBackToMenu();
-    }
+  const deleteBookmark = (id: string) => {
+    Alert.alert('Delete Bookmark', 'Are you sure?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete', style: 'destructive',
+        onPress: async () => {
+          setBookmarks(prev => prev.filter(b => b.id !== id));
+          try { await supabase.from('user_bookmarks').delete().eq('id', id); } catch { }
+        },
+      },
+    ]);
   };
 
-  const getBreadcrumb = () => {
-    const parts = [];
-    if (selectedYear) parts.push(selectedYear);
-    if (selectedSemester) parts.push(selectedSemester);
-    if (selectedBranch) parts.push(selectedBranch);
-    if (selectedSubject) parts.push(selectedSubject);
-    return parts.join(' → ');
+  const resetNoteForm = () => {
+    setNoteTitle(''); setNoteContent(''); setNoteSubject(''); setEditingNote(null);
+  };
+
+  const resetBookmarkForm = () => {
+    setBookmarkTitle(''); setBookmarkUrl(''); setBookmarkSubject('');
+  };
+
+  const openEditNote = (note: Note) => {
+    setEditingNote(note);
+    setNoteTitle(note.title);
+    setNoteContent(note.content);
+    setNoteSubject(note.subject || '');
+    setShowNoteModal(true);
+  };
+
+  const formatDate = (dateStr: string) => {
+    const d = new Date(dateStr);
+    return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['bottom']}>
-      {/* Header */}
-      <View style={[styles.header, { backgroundColor: theme.card, borderBottomColor: theme.cardBorder }]}>
-        <View style={styles.headerTop}>
-          <Text style={[styles.headerTitle, { color: theme.text }]}>Library</Text>
-          {(viewMode === 'notes' || selectedYear || selectedSemester || selectedBranch || selectedSubject) && (
-            <TouchableOpacity style={[styles.backButton, { backgroundColor: theme.primaryLight }]} onPress={handleBack}>
-              <Text style={[styles.backButtonText, { color: theme.primary }]}>← Back</Text>
-            </TouchableOpacity>
-          )}
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={theme.background} />
+      <SafeAreaView edges={['top']} style={{ backgroundColor: theme.background }}>
+        <View style={[styles.header, { borderBottomColor: theme.divider }]}>
+          <TouchableOpacity onPress={() => navigation.goBack()}>
+            <Text style={[styles.backIcon, { color: theme.text }]}>←</Text>
+          </TouchableOpacity>
+          <Text style={[styles.headerTitle, { color: theme.text }]}>📚 My Library</Text>
+          <View style={{ width: 40 }} />
         </View>
+      </SafeAreaView>
 
-        {getBreadcrumb() && (
-          <View style={[styles.breadcrumbContainer, { backgroundColor: theme.primaryLight }]}>
-            <Text style={[styles.breadcrumbText, { color: theme.primary }]}>{getBreadcrumb()}</Text>
-          </View>
-        )}
+      {/* Tabs */}
+      <View style={[styles.tabRow, { backgroundColor: theme.backgroundSecondary }]}>
+        <TouchableOpacity
+          style={[styles.tab, activeTab === 'notes' && [styles.tabActive, { borderBottomColor: theme.primary }]]}
+          onPress={() => setActiveTab('notes')}
+        >
+          <Text style={[styles.tabText, { color: activeTab === 'notes' ? theme.primary : theme.textSecondary }]}>
+            📝 Notes ({notes.length})
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.tab, activeTab === 'bookmarks' && [styles.tabActive, { borderBottomColor: theme.primary }]]}
+          onPress={() => setActiveTab('bookmarks')}
+        >
+          <Text style={[styles.tabText, { color: activeTab === 'bookmarks' ? theme.primary : theme.textSecondary }]}>
+            🔗 Bookmarks ({bookmarks.length})
+          </Text>
+        </TouchableOpacity>
       </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {viewMode === 'menu' ? (
-          /* Main Library Menu */
-          <View>
-            <Text style={[styles.menuSectionTitle, { color: theme.text }]}>Library Resources</Text>
-
-            {LIBRARY_FEATURES.map((feature) => (
-              <TouchableOpacity
-                key={feature.id}
-                style={[styles.featureCard, { backgroundColor: theme.card, borderLeftColor: feature.color, borderColor: theme.cardBorder }]}
-                onPress={() => handleFeatureSelect(feature)}
-                activeOpacity={0.7}
-              >
-                <View style={[styles.featureIconContainer, { backgroundColor: feature.color + '20' }]}>
-                  <Text style={styles.featureIcon}>{feature.icon}</Text>
-                </View>
-                <View style={styles.featureContent}>
-                  <Text style={[styles.featureTitle, { color: theme.text }]}>{feature.title}</Text>
-                  <Text style={[styles.featureDescription, { color: theme.textSecondary }]}>{feature.description}</Text>
-                </View>
-                <Text style={[styles.featureArrow, { color: theme.textSecondary }]}>›</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        ) : loading ? (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color={theme.primary} />
-            <Text style={[styles.loadingText, { color: theme.textSecondary }]}>Loading...</Text>
-          </View>
-        ) : !selectedYear ? (
-          /* Step 1: Select Year */
-          <View style={styles.selectionContainer}>
-            <Text style={styles.selectionTitle}>Select Year</Text>
-            <Text style={styles.selectionSubtitle}>Choose your academic year</Text>
-
-            {YEARS.map((year, index) => (
-              <TouchableOpacity
-                key={year}
-                style={styles.selectionCard}
-                onPress={() => setSelectedYear(year)}
-                activeOpacity={0.7}
-              >
-                <View style={styles.selectionCardIcon}>
-                  <Text style={styles.selectionCardEmoji}>📖</Text>
-                </View>
-                <View style={styles.selectionCardContent}>
-                  <Text style={styles.selectionCardTitle}>{year}</Text>
-                  <Text style={styles.selectionCardSubtitle}>
-                    Year {index + 1} • {SEMESTERS[year as keyof typeof SEMESTERS].join(', ')}
-                  </Text>
-                </View>
-                <Text style={styles.selectionCardArrow}>›</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        ) : !selectedSemester ? (
-          /* Step 2: Select Semester */
-          <View style={styles.selectionContainer}>
-            <Text style={styles.selectionTitle}>Select Semester</Text>
-            <Text style={styles.selectionSubtitle}>Choose your current semester</Text>
-
-            {SEMESTERS[selectedYear as keyof typeof SEMESTERS].map((semester) => (
-              <TouchableOpacity
-                key={semester}
-                style={styles.selectionCard}
-                onPress={() => setSelectedSemester(semester)}
-                activeOpacity={0.7}
-              >
-                <View style={styles.selectionCardIcon}>
-                  <Text style={styles.selectionCardEmoji}>📅</Text>
-                </View>
-                <View style={styles.selectionCardContent}>
-                  <Text style={styles.selectionCardTitle}>Semester {semester.replace('S', '')}</Text>
-                  <Text style={styles.selectionCardSubtitle}>{semester}</Text>
-                </View>
-                <Text style={styles.selectionCardArrow}>›</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        ) : !selectedBranch ? (
-          /* Step 3: Select Branch */
-          <View style={styles.selectionContainer}>
-            <Text style={styles.selectionTitle}>Select Branch</Text>
-            <Text style={styles.selectionSubtitle}>Choose your engineering branch</Text>
-
-            <View style={styles.branchGrid}>
-              {BRANCHES.map((branch) => (
-                <TouchableOpacity
-                  key={branch}
-                  style={styles.branchCard}
-                  onPress={() => setSelectedBranch(branch)}
-                  activeOpacity={0.7}
-                >
-                  <Text style={styles.branchCardText}>{branch}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-        ) : !selectedSubject ? (
-          /* Step 4: Select Subject */
-          <View style={styles.selectionContainer}>
-            <Text style={styles.selectionTitle}>Select Subject</Text>
-            <Text style={styles.selectionSubtitle}>Choose a subject to view notes</Text>
-
-            {subjects.length === 0 ? (
+      {isLoading ? (
+        <LibraryScreenSkeleton />
+      ) : (
+        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+          {activeTab === 'notes' ? (
+            notes.length === 0 ? (
               <View style={styles.emptyState}>
-                <Text style={styles.emptyIcon}>📚</Text>
-                <Text style={styles.emptyTitle}>No subjects available</Text>
-                <Text style={styles.emptyText}>
-                  Subjects for this branch are being added
+                <Text style={styles.emptyIcon}>📝</Text>
+                <Text style={[styles.emptyTitle, { color: theme.text }]}>No Notes Yet</Text>
+                <Text style={[styles.emptyDesc, { color: theme.textSecondary }]}>
+                  Save your study notes and quick thoughts here
                 </Text>
               </View>
             ) : (
-              subjects.map((subject) => (
-                <TouchableOpacity
-                  key={subject}
-                  style={styles.selectionCard}
-                  onPress={() => setSelectedSubject(subject)}
-                  activeOpacity={0.7}
-                >
-                  <View style={styles.selectionCardIcon}>
-                    <Text style={styles.selectionCardEmoji}>📘</Text>
-                  </View>
-                  <View style={styles.selectionCardContent}>
-                    <Text style={styles.selectionCardTitle}>{subject}</Text>
-                    <Text style={styles.selectionCardSubtitle}>{selectedBranch} • {selectedSemester}</Text>
-                  </View>
-                  <Text style={styles.selectionCardArrow}>›</Text>
-                </TouchableOpacity>
-              ))
-            )}
-          </View>
-        ) : (
-          /* Step 5: Display Notes */
-          <View style={styles.notesContainer}>
-            <View style={styles.notesHeader}>
-              <View>
-                <Text style={[styles.notesTitle, { color: theme.text }]}>📄 Available Notes</Text>
-                <Text style={[styles.notesCount, { color: theme.primary, backgroundColor: theme.primaryLight }]}>{notes.length} file{notes.length !== 1 ? 's' : ''}</Text>
-              </View>
-              <TouchableOpacity
-                style={[styles.uploadButton, { backgroundColor: theme.primary }]}
-                onPress={handleUploadNote}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.uploadButtonText}>📤 Upload</Text>
-              </TouchableOpacity>
-            </View>
-
-            {notes.length === 0 ? (
-              <View style={styles.emptyState}>
-                <Text style={styles.emptyIcon}>📭</Text>
-                <Text style={styles.emptyTitle}>No notes available</Text>
-                <Text style={styles.emptyText}>
-                  Notes for {selectedSubject} will be added soon
-                </Text>
-              </View>
-            ) : (
-              notes.map((note) => (
+              notes.map(note => (
                 <TouchableOpacity
                   key={note.id}
-                  style={styles.noteCard}
-                  onPress={() => handleNoteOpen(note)}
-                  activeOpacity={0.7}
+                  style={[styles.noteCard, { backgroundColor: theme.backgroundSecondary, borderColor: theme.border }]}
+                  onPress={() => openEditNote(note)}
+                  onLongPress={() => deleteNote(note.id)}
                 >
-                  <View style={styles.noteIconContainer}>
-                    <Text style={styles.noteIcon}>{getFileTypeIcon(note.fileType)}</Text>
+                  <View style={styles.noteHeader}>
+                    <Text style={[styles.noteTitle, { color: theme.text }]}>{note.title}</Text>
+                    <Text style={[styles.noteDate, { color: theme.textTertiary }]}>{formatDate(note.updated_at)}</Text>
                   </View>
-
-                  <View style={styles.noteInfo}>
-                    <Text style={styles.noteFileName} numberOfLines={2}>
-                      {note.fileName}
+                  {note.content ? (
+                    <Text style={[styles.notePreview, { color: theme.textSecondary }]} numberOfLines={2}>
+                      {note.content}
                     </Text>
-                    <View style={styles.noteMeta}>
-                      <Text style={styles.noteMetaText}>
-                        {note.fileType.toUpperCase()}
-                      </Text>
-                      {note.size && (
-                        <>
-                          <Text style={styles.noteMetaDot}>•</Text>
-                          <Text style={styles.noteMetaText}>{note.size}</Text>
-                        </>
-                      )}
-                      <Text style={styles.noteMetaDot}>•</Text>
-                      <Text style={styles.noteMetaText}>
-                        {new Date(note.uploadedDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                      </Text>
+                  ) : null}
+                  {note.subject ? (
+                    <View style={[styles.subjectBadge, { backgroundColor: theme.primary + '14' }]}>
+                      <Text style={[styles.subjectBadgeText, { color: theme.primary }]}>{note.subject}</Text>
                     </View>
-                  </View>
-
-                  <TouchableOpacity
-                    style={styles.downloadButton}
-                    onPress={() => handleNoteOpen(note)}
-                  >
-                    <Text style={styles.downloadButtonText}>View</Text>
-                  </TouchableOpacity>
+                  ) : null}
                 </TouchableOpacity>
               ))
-            )}
-          </View>
-        )}
+            )
+          ) : (
+            bookmarks.length === 0 ? (
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyIcon}>🔗</Text>
+                <Text style={[styles.emptyTitle, { color: theme.text }]}>No Bookmarks Yet</Text>
+                <Text style={[styles.emptyDesc, { color: theme.textSecondary }]}>
+                  Save useful links and resources here
+                </Text>
+              </View>
+            ) : (
+              bookmarks.map(bm => (
+                <TouchableOpacity
+                  key={bm.id}
+                  style={[styles.noteCard, { backgroundColor: theme.backgroundSecondary, borderColor: theme.border }]}
+                  onPress={() => Linking.openURL(bm.url)}
+                  onLongPress={() => deleteBookmark(bm.id)}
+                >
+                  <View style={styles.noteHeader}>
+                    <Text style={[styles.noteTitle, { color: theme.text }]}>{bm.title}</Text>
+                    <Text style={[styles.noteDate, { color: theme.textTertiary }]}>{formatDate(bm.created_at)}</Text>
+                  </View>
+                  <Text style={[styles.notePreview, { color: theme.primary }]} numberOfLines={1}>
+                    🌐 {bm.url}
+                  </Text>
+                  {bm.subject ? (
+                    <View style={[styles.subjectBadge, { backgroundColor: theme.primary + '14' }]}>
+                      <Text style={[styles.subjectBadgeText, { color: theme.primary }]}>{bm.subject}</Text>
+                    </View>
+                  ) : null}
+                </TouchableOpacity>
+              ))
+            )
+          )}
+          <View style={{ height: 80 }} />
+        </ScrollView>
+      )}
 
-        <View style={{ height: 100 }} />
-      </ScrollView>
-    </SafeAreaView>
+      {/* FAB */}
+      <TouchableOpacity
+        style={[styles.fab, { backgroundColor: theme.primary }]}
+        onPress={() => {
+          if (activeTab === 'notes') {
+            resetNoteForm();
+            setShowNoteModal(true);
+          } else {
+            resetBookmarkForm();
+            setShowBookmarkModal(true);
+          }
+        }}
+      >
+        <Text style={styles.fabText}>+</Text>
+      </TouchableOpacity>
+
+      {/* Note Modal */}
+      <Modal visible={showNoteModal} animationType="slide" transparent onRequestClose={() => setShowNoteModal(false)}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: theme.backgroundSecondary }]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: theme.text }]}>{editingNote ? 'Edit Note' : 'New Note'}</Text>
+              <TouchableOpacity onPress={() => setShowNoteModal(false)}>
+                <Text style={[styles.modalClose, { color: theme.textSecondary }]}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <TextInput
+              style={[styles.modalInput, { color: theme.text, backgroundColor: theme.background, borderColor: theme.border }]}
+              placeholder="Note title"
+              placeholderTextColor={theme.textTertiary}
+              value={noteTitle}
+              onChangeText={setNoteTitle}
+            />
+            <TextInput
+              style={[styles.modalInput, styles.modalTextArea, { color: theme.text, backgroundColor: theme.background, borderColor: theme.border }]}
+              placeholder="Write your note..."
+              placeholderTextColor={theme.textTertiary}
+              value={noteContent}
+              onChangeText={setNoteContent}
+              multiline
+              textAlignVertical="top"
+            />
+            <TextInput
+              style={[styles.modalInput, { color: theme.text, backgroundColor: theme.background, borderColor: theme.border }]}
+              placeholder="Subject (optional)"
+              placeholderTextColor={theme.textTertiary}
+              value={noteSubject}
+              onChangeText={setNoteSubject}
+            />
+            <TouchableOpacity style={[styles.modalSaveBtn, { backgroundColor: theme.primary }]} onPress={saveNote}>
+              <Text style={styles.modalSaveBtnText}>{editingNote ? 'Update' : 'Save'}</Text>
+            </TouchableOpacity>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Bookmark Modal */}
+      <Modal visible={showBookmarkModal} animationType="slide" transparent onRequestClose={() => setShowBookmarkModal(false)}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: theme.backgroundSecondary }]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: theme.text }]}>Add Bookmark</Text>
+              <TouchableOpacity onPress={() => setShowBookmarkModal(false)}>
+                <Text style={[styles.modalClose, { color: theme.textSecondary }]}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <TextInput
+              style={[styles.modalInput, { color: theme.text, backgroundColor: theme.background, borderColor: theme.border }]}
+              placeholder="Title"
+              placeholderTextColor={theme.textTertiary}
+              value={bookmarkTitle}
+              onChangeText={setBookmarkTitle}
+            />
+            <TextInput
+              style={[styles.modalInput, { color: theme.text, backgroundColor: theme.background, borderColor: theme.border }]}
+              placeholder="URL (https://...)"
+              placeholderTextColor={theme.textTertiary}
+              value={bookmarkUrl}
+              onChangeText={setBookmarkUrl}
+              autoCapitalize="none"
+              keyboardType="url"
+            />
+            <TextInput
+              style={[styles.modalInput, { color: theme.text, backgroundColor: theme.background, borderColor: theme.border }]}
+              placeholder="Subject (optional)"
+              placeholderTextColor={theme.textTertiary}
+              value={bookmarkSubject}
+              onChangeText={setBookmarkSubject}
+            />
+            <TouchableOpacity style={[styles.modalSaveBtn, { backgroundColor: theme.primary }]} onPress={saveBookmark}>
+              <Text style={styles.modalSaveBtnText}>Save Bookmark</Text>
+            </TouchableOpacity>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F8F9FD',
-  },
+  container: { flex: 1 },
   header: {
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 20,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
-    paddingTop: Platform.OS === 'android' ? 50 : 0,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1,
   },
-  headerTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#1F2937',
-  },
-  backButton: {
-    backgroundColor: '#F3F4F6',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 10,
-  },
-  backButtonText: {
-    color: '#6366F1',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  breadcrumbContainer: {
-    marginTop: 12,
-    backgroundColor: '#EEF2FF',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-  },
-  breadcrumbText: {
-    fontSize: 13,
-    color: '#6366F1',
-    fontWeight: '500',
-  },
-  content: {
-    flex: 1,
-  },
-  loadingContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 100,
-  },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 14,
-    color: '#6B7280',
-  },
-  selectionContainer: {
-    padding: 20,
-  },
-  selectionTitle: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: '#1F2937',
-    marginBottom: 8,
-  },
-  selectionSubtitle: {
-    fontSize: 14,
-    color: '#6B7280',
-    marginBottom: 24,
-  },
-  selectionCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  selectionCardIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#EEF2FF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 16,
-  },
-  selectionCardEmoji: {
-    fontSize: 24,
-  },
-  selectionCardContent: {
-    flex: 1,
-  },
-  selectionCardTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1F2937',
-    marginBottom: 4,
-  },
-  selectionCardSubtitle: {
-    fontSize: 13,
-    color: '#6B7280',
-  },
-  selectionCardArrow: {
-    fontSize: 24,
-    color: '#9CA3AF',
-  },
-  branchGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-  },
-  branchCard: {
-    width: '47%',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    paddingVertical: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 6,
-    elevation: 3,
-  },
-  branchCardText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#6366F1',
-  },
-  notesContainer: {
-    padding: 20,
-  },
-  notesHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  notesTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#1F2937',
-    marginBottom: 4,
-  },
-  notesCount: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#6366F1',
-    backgroundColor: '#EEF2FF',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-    alignSelf: 'flex-start',
-  },
-  uploadButton: {
-    backgroundColor: '#6366F1',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    shadowColor: '#6366F1',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  uploadButtonText: {
-    color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  noteCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    padding: 16,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  noteIconContainer: {
-    width: 56,
-    height: 56,
-    borderRadius: 12,
-    backgroundColor: '#EEF2FF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 16,
-  },
-  noteIcon: {
-    fontSize: 28,
-  },
-  noteInfo: {
-    flex: 1,
-    marginRight: 12,
-  },
-  noteFileName: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#1F2937',
-    marginBottom: 6,
-  },
-  noteMeta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flexWrap: 'wrap',
-  },
-  noteMetaText: {
-    fontSize: 12,
-    color: '#6B7280',
-  },
-  noteMetaDot: {
-    fontSize: 12,
-    color: '#D1D5DB',
-    marginHorizontal: 6,
-  },
-  downloadButton: {
-    backgroundColor: '#6366F1',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 10,
-  },
-  downloadButtonText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  emptyState: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 60,
-  },
-  emptyIcon: {
-    fontSize: 64,
-    marginBottom: 16,
-  },
-  emptyTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#1F2937',
-    marginBottom: 8,
-  },
-  emptyText: {
-    fontSize: 14,
-    color: '#6B7280',
-    textAlign: 'center',
-  },
-  welcomeCard: {
-    backgroundColor: '#EEF2FF',
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 24,
-    borderLeftWidth: 4,
-    borderLeftColor: '#6366F1',
-  },
-  welcomeTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#1F2937',
-    marginBottom: 8,
-  },
-  welcomeDescription: {
-    fontSize: 14,
-    color: '#6B7280',
-    lineHeight: 20,
-  },
-  menuSectionTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#1F2937',
-    marginBottom: 16,
-  },
-  featureCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    borderLeftWidth: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  featureIconContainer: {
-    width: 56,
-    height: 56,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 16,
-  },
-  featureIcon: {
-    fontSize: 28,
-  },
-  featureContent: {
-    flex: 1,
-  },
-  featureTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#1F2937',
-    marginBottom: 4,
-  },
-  featureDescription: {
-    fontSize: 13,
-    color: '#64748B',
-    lineHeight: 18,
-  },
-  featureArrow: {
-    fontSize: 24,
-    color: '#CBD5E1',
-    fontWeight: '300',
-  },
+  backIcon: { fontSize: 22, fontWeight: '500' },
+  headerTitle: { fontSize: 18, fontWeight: '700' },
+  tabRow: { flexDirection: 'row' },
+  tab: { flex: 1, paddingVertical: 14, alignItems: 'center', borderBottomWidth: 2, borderBottomColor: 'transparent' },
+  tabActive: { borderBottomWidth: 2 },
+  tabText: { fontSize: 14, fontWeight: '600' },
+  scroll: { flex: 1 },
+  scrollContent: { padding: 16 },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  emptyState: { alignItems: 'center', paddingTop: 60 },
+  emptyIcon: { fontSize: 56, marginBottom: 16 },
+  emptyTitle: { fontSize: 20, fontWeight: '700', marginBottom: 8 },
+  emptyDesc: { fontSize: 14, textAlign: 'center', lineHeight: 20 },
+  noteCard: { borderRadius: 14, padding: 16, borderWidth: 1, marginBottom: 12 },
+  noteHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
+  noteTitle: { fontSize: 15, fontWeight: '700', flex: 1 },
+  noteDate: { fontSize: 11, marginLeft: 8 },
+  notePreview: { fontSize: 13, lineHeight: 19 },
+  subjectBadge: { marginTop: 8, alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 3, borderRadius: 10 },
+  subjectBadgeText: { fontSize: 11, fontWeight: '600' },
+  fab: { position: 'absolute', bottom: 24, right: 24, width: 56, height: 56, borderRadius: 28, justifyContent: 'center', alignItems: 'center', elevation: 5, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 4 },
+  fabText: { fontSize: 28, color: '#FFF', fontWeight: '300', marginTop: -2 },
+  modalOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' },
+  modalContent: { borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: Platform.OS === 'ios' ? 36 : 20, maxHeight: '80%' },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
+  modalTitle: { fontSize: 18, fontWeight: '700' },
+  modalClose: { fontSize: 20, padding: 4 },
+  modalInput: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, marginBottom: 12 },
+  modalTextArea: { minHeight: 100, maxHeight: 200 },
+  modalSaveBtn: { borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 4 },
+  modalSaveBtnText: { color: '#FFF', fontSize: 15, fontWeight: '700' },
 });
 
 export default LibraryScreen;

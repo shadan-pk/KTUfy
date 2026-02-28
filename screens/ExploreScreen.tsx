@@ -8,12 +8,15 @@ import {
     Dimensions,
     Platform,
     StatusBar,
+    Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../auth/AuthProvider';
 import { getUserProfile, getTicklistsForUser, upsertTicklist } from '../supabaseConfig';
 import { ExploreScreenNavigationProp } from '../types/navigation';
 import { useTheme } from '../contexts/ThemeContext';
+import { getCachedTicklists, setCachedTicklists, getCachedStudyDashboard, setCachedStudyDashboard } from '../services/cacheService';
+import supabase from '../supabaseClient';
 
 const { width } = Dimensions.get('window');
 
@@ -51,7 +54,7 @@ const ExploreScreen: React.FC<ExploreScreenProps> = ({ navigation }) => {
     const [userData, setUserData] = useState<UserData | null>(null);
     const [subjects, setSubjects] = useState<Subject[]>([]);
     const [currentTime, setCurrentTime] = useState(new Date());
-    const [studyStreak] = useState(7);
+    const [studyStreak, setStudyStreak] = useState(0);
 
     const loadUserData = React.useCallback(async () => {
         if (!authUser) return;
@@ -79,6 +82,12 @@ const ExploreScreen: React.FC<ExploreScreenProps> = ({ navigation }) => {
         (async () => {
             if (!supabaseUser) return;
             try {
+                // Cache-first for ticklists
+                const cached = await getCachedTicklists();
+                if (cached && cached.length > 0) {
+                    setSubjects(cached);
+                }
+
                 const lists = await getTicklistsForUser(supabaseUser.id);
                 const loadedSubjects: Subject[] = (lists || []).map((r: any) => ({
                     id: r.id,
@@ -88,8 +97,56 @@ const ExploreScreen: React.FC<ExploreScreenProps> = ({ navigation }) => {
                     items: r.items || [],
                 }));
                 setSubjects(loadedSubjects);
+                await setCachedTicklists(loadedSubjects);
             } catch (err) {
                 console.error('Error loading ticklist:', err);
+            }
+        })();
+    }, [supabaseUser]);
+
+    // Load study dashboard
+    useEffect(() => {
+        (async () => {
+            if (!supabaseUser) return;
+            try {
+                // Try cache first
+                const cachedDash = await getCachedStudyDashboard();
+                if (cachedDash) {
+                    setStudyStreak(cachedDash.study_streak || 0);
+                }
+
+                // Try Supabase
+                const { data, error } = await supabase
+                    .from('study_dashboard')
+                    .select('*')
+                    .eq('user_id', supabaseUser.id)
+                    .maybeSingle();
+
+                if (error && error.code !== '42P01') {
+                    console.error('Error loading dashboard:', error);
+                    return;
+                }
+
+                if (data) {
+                    setStudyStreak(data.study_streak || 0);
+                    await setCachedStudyDashboard(data);
+                } else {
+                    // Create dashboard for new user
+                    const newDash = {
+                        user_id: supabaseUser.id,
+                        study_streak: 0,
+                        total_study_time: 0,
+                        last_active: new Date().toISOString(),
+                    };
+                    const { error: insertErr } = await supabase
+                        .from('study_dashboard')
+                        .insert(newDash);
+                    if (insertErr && insertErr.code !== '42P01') {
+                        console.error('Error creating dashboard:', insertErr);
+                    }
+                }
+            } catch (err) {
+                console.error('Error with study dashboard:', err);
             }
         })();
     }, [supabaseUser]);
@@ -145,17 +202,19 @@ const ExploreScreen: React.FC<ExploreScreenProps> = ({ navigation }) => {
     const totalProgress = getTotalProgress();
 
     // Tool cards data
+    const WHATSAPP_GROUP_LINK = 'https://chat.whatsapp.com/XXXXXXXXXX'; // TODO: Replace with actual group link
+
     const toolCards = [
-        { key: 'Chatbot', label: 'AI Assistant', icon: '◎', desc: 'Ask anything about your studies', color: '#2563EB' },
-        { key: 'CodingHub', label: 'Coding Hub', icon: '⟨/⟩', desc: 'Practice coding problems', color: '#34D399' },
-        { key: 'GroupStudy', label: 'Group Study', icon: '⊕', desc: 'Join or create study groups', color: '#FBBF24' },
-        { key: 'GPACalculator', label: 'GPA Calculator', icon: '∑', desc: 'Calculate SGPA & CGPA', color: '#A78BFA' },
-        { key: 'Schedule', label: 'Schedule', icon: '▦', desc: 'View your class schedule', color: '#60A5FA' },
-        { key: 'LearningZone', label: 'Learning Zone', icon: '◇', desc: 'Quizzes and challenges', color: '#F472B6' },
-        { key: 'Library', label: 'Library', icon: '▤', desc: 'Study materials & uploads', color: '#38BDF8' },
         { key: 'Ticklist', label: 'Study Checklist', icon: '☐', desc: 'Track your study progress', color: '#FB923C' },
+        { key: 'Flashcards', label: 'AI Flashcards', icon: '🃏', desc: 'Generate flashcards by topic', color: '#8B5CF6' },
+        { key: 'CodingHub', label: 'Coding Hub', icon: '⟨/⟩', desc: 'Practice coding problems', color: '#34D399' },
+        { key: 'WhatsApp', label: 'WhatsApp Group', icon: '💬', desc: 'Join our student community', color: '#25D366' },
+        { key: 'GPACalculator', label: 'GPA Calculator', icon: '∑', desc: 'Calculate SGPA & CGPA', color: '#A78BFA' },
+        { key: 'Schedule', label: 'Schedule', icon: '▦', desc: 'View exam schedule', color: '#60A5FA' },
+        { key: 'LearningZone', label: 'Learning Zone', icon: '◇', desc: 'Topic quizzes & games', color: '#F472B6' },
+        { key: 'Library', label: 'Library', icon: '▤', desc: 'Notes & bookmarks', color: '#38BDF8' },
         { key: 'SyllabusViewer', label: 'Syllabus', icon: '≡', desc: 'Browse KTU syllabus', color: '#4ADE80' },
-        { key: 'PYP', label: 'Previous Papers', icon: '⊞', desc: 'Past year question papers', color: '#E879F9' },
+        { key: 'MediaTools', label: 'Media Tools', icon: '⬡', desc: 'Video, Audio, Image & PDF', color: '#F43F5E' },
     ];
 
     return (
@@ -224,7 +283,13 @@ const ExploreScreen: React.FC<ExploreScreenProps> = ({ navigation }) => {
                         <TouchableOpacity
                             key={tool.key}
                             style={[styles.toolCard, { backgroundColor: theme.backgroundSecondary, borderColor: theme.border }]}
-                            onPress={() => navigation.navigate(tool.key as any)}
+                            onPress={() => {
+                                if (tool.key === 'WhatsApp') {
+                                    Linking.openURL(WHATSAPP_GROUP_LINK);
+                                } else {
+                                    navigation.navigate(tool.key as any);
+                                }
+                            }}
                             activeOpacity={0.7}
                         >
                             <View style={[styles.toolIconContainer, { backgroundColor: tool.color + '18' }]}>

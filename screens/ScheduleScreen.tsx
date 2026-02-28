@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,6 +8,9 @@ import {
   SafeAreaView,
 } from 'react-native';
 import { ScheduleScreenNavigationProp } from '../types/navigation';
+import { getExamSchedule, ExamEvent } from '../services/scheduleService';
+import { ScheduleScreenSkeleton } from '../components/SkeletonLoader';
+
 
 interface CalendarEvent {
   date: string;
@@ -21,45 +24,51 @@ interface ScheduleScreenProps {
 }
 
 const ScheduleScreen: React.FC<ScheduleScreenProps> = ({ navigation }) => {
-  const [selectedMonth, setSelectedMonth] = useState<'October' | 'November' | 'December'>('October');
+  const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const [months, setMonths] = useState<string[]>([]);
+  const [selectedMonth, setSelectedMonth] = useState<string>('');
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const academicCalendar: CalendarEvent[] = [
-    // October 2025
-    { date: '2025-10-01', title: 'Onam Holiday', type: 'holiday' },
-    { date: '2025-10-02', title: 'Gandhi Jayanthi & Vijaya Dashami', type: 'holiday' },
-    { date: '2025-10-03', title: 'Onam Holiday', type: 'holiday' },
-    { date: '2025-10-05', title: 'Series Test 2 (S3/S5/S7)', type: 'exam', description: 'Day 1' },
-    { date: '2025-10-06', title: 'Series Test 2 (S3/S5/S7)', type: 'exam', description: 'Day 2' },
-    { date: '2025-10-07', title: 'Series Test 2 (S3/S5/S7)', type: 'exam', description: 'Day 3' },
-    { date: '2025-10-08', title: 'Series Test 2 (S3/S5/S7)', type: 'exam', description: 'Day 4' },
-    { date: '2025-10-12', title: 'Module 3 Completion', type: 'deadline', description: '75% labs completed' },
-    { date: '2025-10-15', title: 'Deepavali', type: 'holiday' },
-    { date: '2025-10-20', title: 'Working Day', type: 'event', description: 'Compensation for Oct 3' },
-    { date: '2025-10-31', title: 'ERP Report Submission', type: 'deadline', description: 'Monthly completion report' },
-    
-    // November 2025
-    { date: '2025-11-08', title: 'Module 5 Completion', type: 'deadline', description: 'S5 & S7' },
-    { date: '2025-11-10', title: 'Internal Lab/Retests Start', type: 'exam', description: 'All semesters' },
-    { date: '2025-11-11', title: 'Internal Lab/Retests', type: 'exam' },
-    { date: '2025-11-12', title: 'Internal Lab/Retests', type: 'exam' },
-    { date: '2025-11-13', title: 'Internal Lab/Retests', type: 'exam' },
-    { date: '2025-11-14', title: 'Internal Lab/Retests', type: 'exam' },
-    { date: '2025-11-15', title: 'Internal Lab/Retests', type: 'exam' },
-    { date: '2025-11-16', title: 'Internal Lab/Retests', type: 'exam' },
-    { date: '2025-11-17', title: 'Internal Lab/Retests', type: 'exam' },
-    { date: '2025-11-18', title: 'Final Assignment Submission', type: 'deadline' },
-    { date: '2025-11-19', title: 'Internal Lab/Retests', type: 'exam' },
-    { date: '2025-11-20', title: 'Internal Lab/Retests', type: 'exam' },
-    { date: '2025-11-21', title: 'Internal Lab/Retests End', type: 'exam' },
-    { date: '2025-11-22', title: 'Final IA Marks Published', type: 'event' },
-    { date: '2025-11-25', title: 'S7 University Exam Starts', type: 'exam' },
-    { date: '2025-11-27', title: 'S5 University Exam Starts', type: 'exam' },
-    { date: '2025-11-29', title: 'S3 University Exam Starts', type: 'exam' },
-    
-    // December 2025
-    { date: '2025-12-01', title: 'University Exams Continue', type: 'exam' },
-    { date: '2025-12-20', title: 'University Exams End', type: 'exam', description: 'Valuation camp begins' },
-  ];
+  useEffect(() => {
+    loadSchedule();
+  }, []);
+
+  const loadSchedule = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const data = await getExamSchedule();
+      const calendarEvents: CalendarEvent[] = data.map((e: ExamEvent) => ({
+        date: e.date,
+        title: e.title,
+        type: e.type,
+        description: e.description,
+      }));
+      setEvents(calendarEvents);
+
+      // Extract unique months
+      const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+      const uniqueMonths = [...new Set(calendarEvents.map(e => {
+        const monthIndex = parseInt(e.date.split('-')[1]) - 1;
+        return monthNames[monthIndex];
+      }))];
+      setMonths(uniqueMonths);
+      if (uniqueMonths.length > 0) setSelectedMonth(uniqueMonths[0]);
+    } catch (err: any) {
+      console.error('Error loading schedule:', err);
+      setError('Could not load schedule. Backend may be offline.');
+      // No fallback data — show error state
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const getMonthNumber = (monthName: string): string => {
+    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    const index = monthNames.indexOf(monthName) + 1;
+    return index < 10 ? `0${index}` : `${index}`;
+  };
 
   const getEventColor = (type: string) => {
     switch (type) {
@@ -83,12 +92,48 @@ const ScheduleScreen: React.FC<ScheduleScreenProps> = ({ navigation }) => {
     };
   };
 
-  const filterEventsByMonth = (month: string) => {
-    const monthNumber = month === 'October' ? '10' : month === 'November' ? '11' : '12';
-    return academicCalendar.filter(event => event.date.includes(`-${monthNumber}-`));
+  const filterEventsByMonth = (month: string): CalendarEvent[] => {
+    const monthNum = getMonthNumber(month);
+    return events.filter((event: CalendarEvent) => event.date.includes(`-${monthNum}-`));
   };
 
   const currentMonthEvents = filterEventsByMonth(selectedMonth);
+
+  if (isLoading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+            <Text style={styles.backButtonText}>←</Text>
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Academic Calendar</Text>
+          <View style={styles.backButton} />
+        </View>
+        <ScheduleScreenSkeleton />
+      </SafeAreaView>
+    );
+  }
+
+  if (error) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+            <Text style={styles.backButtonText}>←</Text>
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Academic Calendar</Text>
+          <View style={styles.backButton} />
+        </View>
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 }}>
+          <Text style={{ fontSize: 48, marginBottom: 16 }}>📅</Text>
+          <Text style={{ fontSize: 16, color: '#666', textAlign: 'center', marginBottom: 16 }}>{error}</Text>
+          <TouchableOpacity style={{ backgroundColor: '#007AFF', paddingHorizontal: 24, paddingVertical: 12, borderRadius: 8 }} onPress={loadSchedule}>
+            <Text style={{ color: '#fff', fontWeight: '600' }}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -102,39 +147,26 @@ const ScheduleScreen: React.FC<ScheduleScreenProps> = ({ navigation }) => {
       </View>
 
       {/* Month Selector */}
-      <View style={styles.monthSelector}>
-        <TouchableOpacity 
-          style={[styles.monthButton, selectedMonth === 'October' && styles.monthButtonActive]}
-          onPress={() => setSelectedMonth('October')}
-        >
-          <Text style={[styles.monthButtonText, selectedMonth === 'October' && styles.monthButtonTextActive]}>
-            October
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity 
-          style={[styles.monthButton, selectedMonth === 'November' && styles.monthButtonActive]}
-          onPress={() => setSelectedMonth('November')}
-        >
-          <Text style={[styles.monthButtonText, selectedMonth === 'November' && styles.monthButtonTextActive]}>
-            November
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity 
-          style={[styles.monthButton, selectedMonth === 'December' && styles.monthButtonActive]}
-          onPress={() => setSelectedMonth('December')}
-        >
-          <Text style={[styles.monthButtonText, selectedMonth === 'December' && styles.monthButtonTextActive]}>
-            December
-          </Text>
-        </TouchableOpacity>
-      </View>
+      <ScrollView horizontal style={styles.monthSelector} showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10, paddingHorizontal: 16, paddingVertical: 12 }}>
+        {months.map((month) => (
+          <TouchableOpacity
+            key={month}
+            style={[styles.monthButton, selectedMonth === month && styles.monthButtonActive]}
+            onPress={() => setSelectedMonth(month)}
+          >
+            <Text style={[styles.monthButtonText, selectedMonth === month && styles.monthButtonTextActive]}>
+              {month}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
 
       {/* Events List */}
       <ScrollView style={styles.eventsList} showsVerticalScrollIndicator={false}>
         <Text style={styles.monthTitle}>{selectedMonth} 2025</Text>
         <Text style={styles.eventCount}>{currentMonthEvents.length} events this month</Text>
 
-        {currentMonthEvents.map((event, index) => {
+        {currentMonthEvents.map((event: CalendarEvent, index: number) => {
           const dateInfo = formatDate(event.date);
           return (
             <View key={index} style={styles.eventCard}>
@@ -143,7 +175,7 @@ const ScheduleScreen: React.FC<ScheduleScreenProps> = ({ navigation }) => {
                 <Text style={styles.eventMonth}>{dateInfo.month}</Text>
                 <Text style={styles.eventWeekday}>{dateInfo.weekday}</Text>
               </View>
-              
+
               <View style={styles.eventDetailsContainer}>
                 <View style={styles.eventHeader}>
                   <Text style={styles.eventTitle}>{event.title}</Text>
@@ -217,9 +249,6 @@ const styles = StyleSheet.create({
     color: '#fff',
   },
   monthSelector: {
-    flexDirection: 'row',
-    padding: 16,
-    gap: 10,
     backgroundColor: '#fff',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },

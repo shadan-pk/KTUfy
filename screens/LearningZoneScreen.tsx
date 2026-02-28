@@ -5,14 +5,12 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Platform,
-  Alert,
-  Animated,
-  Modal,
+  StatusBar,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../types/navigation';
+import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../auth/AuthProvider';
 import supabase from '../supabaseClient';
 
@@ -21,682 +19,227 @@ type LearningZoneScreenProps = {
 };
 
 interface GameStats {
-  memoryBestScore: number;
-  quizScore: number;
-  dailyStreak: number;
   totalPoints: number;
-  achievements: string[];
-}
-
-interface QuizQuestion {
-  question: string;
-  options: string[];
-  correctAnswer: number;
-  category: string;
+  gamesPlayed: number;
+  dailyStreak: number;
 }
 
 const LearningZoneScreen: React.FC<LearningZoneScreenProps> = ({ navigation }) => {
+  const { theme, isDark } = useTheme();
   const { user } = useAuth();
-  const [gameStats, setGameStats] = useState<GameStats>({
-    memoryBestScore: 0,
-    quizScore: 0,
-    dailyStreak: 0,
-    totalPoints: 0,
-    achievements: [],
-  });
-
-  // Memory Game States
-  const [memoryCards, setMemoryCards] = useState<string[]>([]);
-  const [flippedCards, setFlippedCards] = useState<number[]>([]);
-  const [matchedCards, setMatchedCards] = useState<number[]>([]);
-  const [memoryMoves, setMemoryMoves] = useState(0);
-  const [memoryGameActive, setMemoryGameActive] = useState(false);
-
-  // Quiz Game States
-  const [currentQuizQuestion, setCurrentQuizQuestion] = useState(0);
-  const [quizScore, setQuizScore] = useState(0);
-  const [quizActive, setQuizActive] = useState(false);
-  const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
-
-  // Flashcard States
-  const [flashcardIndex, setFlashcardIndex] = useState(0);
-  const [flashcardFlipped, setFlashcardFlipped] = useState(false);
-
-  // Typing Speed Test States
-  const [typingText, setTypingText] = useState('');
-  const [targetText, setTargetText] = useState('The quick brown fox jumps over the lazy dog');
-  const [typingStartTime, setTypingStartTime] = useState<number | null>(null);
-  const [wpm, setWpm] = useState(0);
-  const [typingActive, setTypingActive] = useState(false);
-
-  const quizQuestions: QuizQuestion[] = [
-    {
-      question: "What is the capital of France?",
-      options: ["London", "Berlin", "Paris", "Madrid"],
-      correctAnswer: 2,
-      category: "Geography"
-    },
-    {
-      question: "What is 15 × 8?",
-      options: ["110", "120", "130", "140"],
-      correctAnswer: 1,
-      category: "Math"
-    },
-    {
-      question: "Who wrote 'Romeo and Juliet'?",
-      options: ["Charles Dickens", "William Shakespeare", "Jane Austen", "Mark Twain"],
-      correctAnswer: 1,
-      category: "Literature"
-    },
-    {
-      question: "What is the chemical symbol for Gold?",
-      options: ["Go", "Au", "Gd", "Ag"],
-      correctAnswer: 1,
-      category: "Science"
-    },
-    {
-      question: "Which planet is known as the Red Planet?",
-      options: ["Venus", "Mars", "Jupiter", "Saturn"],
-      correctAnswer: 1,
-      category: "Science"
-    },
-  ];
-
-  const flashcards = [
-    { front: "Algorithm", back: "A step-by-step procedure for solving a problem" },
-    { front: "Variable", back: "A named storage location in memory" },
-    { front: "Function", back: "A reusable block of code that performs a specific task" },
-    { front: "Loop", back: "A control structure that repeats a block of code" },
-    { front: "Array", back: "A collection of elements stored at contiguous memory locations" },
-  ];
+  const [stats, setStats] = useState<GameStats>({ totalPoints: 0, gamesPlayed: 0, dailyStreak: 0 });
 
   useEffect(() => {
-    loadGameStats();
+    loadStats();
   }, []);
 
-  const loadGameStats = async () => {
+  const loadStats = async () => {
     if (!user) return;
-
     try {
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from('game_stats')
         .select('*')
         .eq('user_id', user.id)
-        .single();
-
-      if (error && error.code !== 'PGRST116') {
-        throw error;
-      }
+        .maybeSingle();
 
       if (data) {
-        setGameStats({
-          memoryBestScore: data.memory_best_score || 0,
-          quizScore: data.quiz_score || 0,
-          dailyStreak: data.daily_streak || 0,
+        setStats({
           totalPoints: data.total_points || 0,
-          achievements: data.achievements || [],
+          gamesPlayed: data.games_played || 0,
+          dailyStreak: data.daily_streak || 0,
         });
       }
-    } catch (error) {
-      console.error('Error loading game stats:', error);
+    } catch (err) {
+      // Table may not exist yet — silent fail
     }
   };
 
-  const saveGameStats = async (newStats: Partial<GameStats>) => {
-    if (!user) return;
+  const games = [
+    {
+      id: 'quiz',
+      title: 'Topic Quiz',
+      description: 'Test your knowledge with AI-generated questions on any topic',
+      icon: '🧠',
+      color: '#F472B6',
+      gradient: ['#F472B6', '#EC4899'],
+      onPress: () => navigation.navigate('QuizGame', { topic: '' }),
+    },
+    {
+      id: 'match',
+      title: 'Match the Following',
+      description: 'Match terms to their definitions — perfect for memorizing concepts',
+      icon: '🔗',
+      color: '#8B5CF6',
+      gradient: ['#8B5CF6', '#7C3AED'],
+      onPress: () => navigation.navigate('MatchGame', { topic: '' }),
+    },
+    {
+      id: 'flashcards',
+      title: 'AI Flashcards',
+      description: 'Generate flashcards for any topic and flip to study',
+      icon: '🃏',
+      color: '#3B82F6',
+      gradient: ['#3B82F6', '#2563EB'],
+      onPress: () => navigation.navigate('Flashcards'),
+    },
+  ];
 
-    try {
-      const updatedStats = { ...gameStats, ...newStats };
-      
-      const { error } = await supabase
-        .from('game_stats')
-        .upsert({
-          user_id: user.id,
-          memory_best_score: updatedStats.memoryBestScore,
-          quiz_score: updatedStats.quizScore,
-          daily_streak: updatedStats.dailyStreak,
-          total_points: updatedStats.totalPoints,
-          achievements: updatedStats.achievements,
-          updated_at: new Date().toISOString(),
-        });
-
-      if (error) throw error;
-      
-      setGameStats(updatedStats);
-    } catch (error) {
-      console.error('Error saving game stats:', error);
-    }
-  };
-
-  // Memory Game Functions
-  const startMemoryGame = () => {
-    const emojis = ['🎯', '🎨', '🎭', '🎪', '🎸', '🎮', '🎲', '🎰'];
-    const shuffled = [...emojis, ...emojis].sort(() => Math.random() - 0.5);
-    setMemoryCards(shuffled);
-    setFlippedCards([]);
-    setMatchedCards([]);
-    setMemoryMoves(0);
-    setMemoryGameActive(true);
-  };
-
-  const handleCardFlip = (index: number) => {
-    if (flippedCards.length === 2 || flippedCards.includes(index) || matchedCards.includes(index)) {
-      return;
-    }
-
-    const newFlipped = [...flippedCards, index];
-    setFlippedCards(newFlipped);
-
-    if (newFlipped.length === 2) {
-      setMemoryMoves(memoryMoves + 1);
-      const [first, second] = newFlipped;
-      
-      if (memoryCards[first] === memoryCards[second]) {
-        const newMatched = [...matchedCards, first, second];
-        setMatchedCards(newMatched);
-        setFlippedCards([]);
-        
-        if (newMatched.length === memoryCards.length) {
-          const score = Math.max(0, 100 - memoryMoves * 5);
-          if (score > gameStats.memoryBestScore) {
-            saveGameStats({ 
-              memoryBestScore: score,
-              totalPoints: gameStats.totalPoints + score 
-            });
-            Alert.alert('New Record! 🎉', `Amazing! You scored ${score} points!`);
-          } else {
-            Alert.alert('Game Complete! 🎊', `You finished in ${memoryMoves} moves!`);
-          }
-          setMemoryGameActive(false);
-        }
-      } else {
-        setTimeout(() => setFlippedCards([]), 1000);
-      }
-    }
-  };
-
-  // Quiz Game Functions
-  const startQuiz = () => {
-    setQuizActive(true);
-    setCurrentQuizQuestion(0);
-    setQuizScore(0);
-    setSelectedAnswer(null);
-  };
-
-  const handleQuizAnswer = (answerIndex: number) => {
-    setSelectedAnswer(answerIndex);
-    const correct = answerIndex === quizQuestions[currentQuizQuestion].correctAnswer;
-    
-    if (correct) {
-      setQuizScore(quizScore + 20);
-    }
-
-    setTimeout(() => {
-      if (currentQuizQuestion < quizQuestions.length - 1) {
-        setCurrentQuizQuestion(currentQuizQuestion + 1);
-        setSelectedAnswer(null);
-      } else {
-        const finalScore = correct ? quizScore + 20 : quizScore;
-        saveGameStats({ 
-          quizScore: Math.max(gameStats.quizScore, finalScore),
-          totalPoints: gameStats.totalPoints + finalScore 
-        });
-        Alert.alert('Quiz Complete! 🎓', `Your score: ${finalScore}/${quizQuestions.length * 20}`);
-        setQuizActive(false);
-      }
-    }, 1000);
-  };
-
-  // Flashcard Functions
-  const nextFlashcard = () => {
-    setFlashcardFlipped(false);
-    setFlashcardIndex((flashcardIndex + 1) % flashcards.length);
-  };
-
-  const previousFlashcard = () => {
-    setFlashcardFlipped(false);
-    setFlashcardIndex((flashcardIndex - 1 + flashcards.length) % flashcards.length);
-  };
+  const suggestedTopics = [
+    'Data Structures', 'Computer Networks', 'DBMS', 'Operating Systems',
+    'Algorithms', 'Machine Learning', 'Digital Electronics', 'Compiler Design',
+  ];
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Text style={styles.backButton}>← Back</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>🎮 Learning Zone</Text>
-        <View style={{ width: 60 }} />
-      </View>
-
-      <ScrollView style={styles.scrollView}>
-        {/* Stats Overview */}
-        <View style={styles.statsCard}>
-          <Text style={styles.statsTitle}>Your Stats</Text>
-          <View style={styles.statsGrid}>
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>{gameStats.totalPoints}</Text>
-              <Text style={styles.statLabel}>Total Points</Text>
-            </View>
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>{gameStats.dailyStreak}</Text>
-              <Text style={styles.statLabel}>Day Streak</Text>
-            </View>
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>{gameStats.memoryBestScore}</Text>
-              <Text style={styles.statLabel}>Memory Best</Text>
-            </View>
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>{gameStats.quizScore}</Text>
-              <Text style={styles.statLabel}>Quiz Best</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Memory Match Game */}
-        <View style={styles.gameCard}>
-          <View style={styles.gameHeader}>
-            <Text style={styles.gameTitle}>🧠 Memory Match</Text>
-            <Text style={styles.gameSubtitle}>Match all pairs of emojis</Text>
-          </View>
-          {!memoryGameActive ? (
-            <TouchableOpacity style={styles.startButton} onPress={startMemoryGame}>
-              <Text style={styles.startButtonText}>Start Game</Text>
-            </TouchableOpacity>
-          ) : (
-            <>
-              <Text style={styles.movesText}>Moves: {memoryMoves}</Text>
-              <View style={styles.memoryGrid}>
-                {memoryCards.map((card, index) => (
-                  <TouchableOpacity
-                    key={index}
-                    style={[
-                      styles.memoryCard,
-                      (flippedCards.includes(index) || matchedCards.includes(index)) && styles.memoryCardFlipped
-                    ]}
-                    onPress={() => handleCardFlip(index)}
-                  >
-                    <Text style={styles.memoryCardText}>
-                      {flippedCards.includes(index) || matchedCards.includes(index) ? card : '❓'}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </>
-          )}
-        </View>
-
-        {/* Quick Quiz */}
-        <View style={styles.gameCard}>
-          <View style={styles.gameHeader}>
-            <Text style={styles.gameTitle}>📝 Quick Quiz</Text>
-            <Text style={styles.gameSubtitle}>Test your knowledge</Text>
-          </View>
-          {!quizActive ? (
-            <TouchableOpacity style={styles.startButton} onPress={startQuiz}>
-              <Text style={styles.startButtonText}>Start Quiz</Text>
-            </TouchableOpacity>
-          ) : (
-            <>
-              <View style={styles.quizProgress}>
-                <Text style={styles.quizProgressText}>
-                  Question {currentQuizQuestion + 1}/{quizQuestions.length}
-                </Text>
-                <Text style={styles.quizScoreText}>Score: {quizScore}</Text>
-              </View>
-              <View style={styles.quizCard}>
-                <Text style={styles.categoryBadge}>
-                  {quizQuestions[currentQuizQuestion].category}
-                </Text>
-                <Text style={styles.quizQuestion}>
-                  {quizQuestions[currentQuizQuestion].question}
-                </Text>
-                {quizQuestions[currentQuizQuestion].options.map((option, index) => (
-                  <TouchableOpacity
-                    key={index}
-                    style={[
-                      styles.quizOption,
-                      selectedAnswer === index && (
-                        index === quizQuestions[currentQuizQuestion].correctAnswer
-                          ? styles.quizOptionCorrect
-                          : styles.quizOptionWrong
-                      )
-                    ]}
-                    onPress={() => selectedAnswer === null && handleQuizAnswer(index)}
-                    disabled={selectedAnswer !== null}
-                  >
-                    <Text style={[
-                      styles.quizOptionText,
-                      selectedAnswer === index && styles.quizOptionTextSelected
-                    ]}>
-                      {option}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </>
-          )}
-        </View>
-
-        {/* Flashcards */}
-        <View style={styles.gameCard}>
-          <View style={styles.gameHeader}>
-            <Text style={styles.gameTitle}>🎴 Study Flashcards</Text>
-            <Text style={styles.gameSubtitle}>Learn programming concepts</Text>
-          </View>
-          <TouchableOpacity
-            style={styles.flashcard}
-            onPress={() => setFlashcardFlipped(!flashcardFlipped)}
-          >
-            <Text style={styles.flashcardLabel}>
-              {flashcardFlipped ? 'Answer' : 'Question'}
-            </Text>
-            <Text style={styles.flashcardText}>
-              {flashcardFlipped 
-                ? flashcards[flashcardIndex].back 
-                : flashcards[flashcardIndex].front}
-            </Text>
-            <Text style={styles.flashcardHint}>Tap to flip</Text>
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={theme.background} />
+      <SafeAreaView edges={['top']} style={{ backgroundColor: theme.background }}>
+        <View style={[styles.header, { borderBottomColor: theme.divider }]}>
+          <TouchableOpacity onPress={() => navigation.goBack()}>
+            <Text style={[styles.backIcon, { color: theme.text }]}>←</Text>
           </TouchableOpacity>
-          <View style={styles.flashcardNav}>
-            <TouchableOpacity style={styles.navButton} onPress={previousFlashcard}>
-              <Text style={styles.navButtonText}>← Previous</Text>
+          <Text style={[styles.headerTitle, { color: theme.text }]}>Learning Zone</Text>
+          <View style={{ width: 40 }} />
+        </View>
+      </SafeAreaView>
+
+      <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+
+        {/* Stats Bar */}
+        <View style={[styles.statsBar, { backgroundColor: theme.backgroundSecondary, borderColor: theme.border }]}>
+          <View style={styles.statItem}>
+            <Text style={[styles.statValue, { color: theme.primary }]}>{stats.totalPoints}</Text>
+            <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Points</Text>
+          </View>
+          <View style={[styles.statDivider, { backgroundColor: theme.divider }]} />
+          <View style={styles.statItem}>
+            <Text style={[styles.statValue, { color: '#F472B6' }]}>{stats.gamesPlayed}</Text>
+            <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Games</Text>
+          </View>
+          <View style={[styles.statDivider, { backgroundColor: theme.divider }]} />
+          <View style={styles.statItem}>
+            <Text style={[styles.statValue, { color: '#F59E0B' }]}>🔥 {stats.dailyStreak}</Text>
+            <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Streak</Text>
+          </View>
+        </View>
+
+        {/* Section Title */}
+        <Text style={[styles.sectionTitle, { color: theme.text }]}>Study Activities</Text>
+        <Text style={[styles.sectionSubtitle, { color: theme.textSecondary }]}>Pick a topic, let AI create the challenge</Text>
+
+        {/* Game Cards */}
+        {games.map((game) => (
+          <TouchableOpacity
+            key={game.id}
+            style={[styles.gameCard, { backgroundColor: theme.backgroundSecondary, borderColor: theme.border }]}
+            onPress={game.onPress}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.gameIconContainer, { backgroundColor: game.color + '18' }]}>
+              <Text style={styles.gameIcon}>{game.icon}</Text>
+            </View>
+            <View style={styles.gameInfo}>
+              <Text style={[styles.gameTitle, { color: theme.text }]}>{game.title}</Text>
+              <Text style={[styles.gameDesc, { color: theme.textSecondary }]}>{game.description}</Text>
+            </View>
+            <Text style={[styles.gameArrow, { color: theme.textTertiary }]}>›</Text>
+          </TouchableOpacity>
+        ))}
+
+        {/* Suggested Topics */}
+        <Text style={[styles.sectionTitle, { color: theme.text, marginTop: 24 }]}>Suggested Topics</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.topicsRow}>
+          {suggestedTopics.map((topic) => (
+            <TouchableOpacity
+              key={topic}
+              style={[styles.topicChip, { backgroundColor: theme.primary + '12', borderColor: theme.primary + '30' }]}
+              onPress={() => navigation.navigate('QuizGame', { topic })}
+            >
+              <Text style={[styles.topicChipText, { color: theme.primary }]}>{topic}</Text>
             </TouchableOpacity>
-            <Text style={styles.flashcardCounter}>
-              {flashcardIndex + 1}/{flashcards.length}
-            </Text>
-            <TouchableOpacity style={styles.navButton} onPress={nextFlashcard}>
-              <Text style={styles.navButtonText}>Next →</Text>
-            </TouchableOpacity>
+          ))}
+        </ScrollView>
+
+        {/* How it Works */}
+        <View style={[styles.howItWorks, { backgroundColor: theme.backgroundSecondary, borderColor: theme.border }]}>
+          <Text style={[styles.howTitle, { color: theme.text }]}>How It Works</Text>
+          <View style={styles.howStep}>
+            <Text style={styles.howStepNum}>1</Text>
+            <Text style={[styles.howStepText, { color: theme.textSecondary }]}>Choose an activity from above</Text>
+          </View>
+          <View style={styles.howStep}>
+            <Text style={styles.howStepNum}>2</Text>
+            <Text style={[styles.howStepText, { color: theme.textSecondary }]}>Enter any topic you want to study</Text>
+          </View>
+          <View style={styles.howStep}>
+            <Text style={styles.howStepNum}>3</Text>
+            <Text style={[styles.howStepText, { color: theme.textSecondary }]}>AI generates personalized questions & pairs</Text>
+          </View>
+          <View style={styles.howStep}>
+            <Text style={styles.howStepNum}>4</Text>
+            <Text style={[styles.howStepText, { color: theme.textSecondary }]}>Play, learn, and earn points!</Text>
           </View>
         </View>
 
-        {/* Word Scramble */}
-        <View style={styles.gameCard}>
-          <View style={styles.gameHeader}>
-            <Text style={styles.gameTitle}>🔤 Word Scramble</Text>
-            <Text style={styles.gameSubtitle}>Coming Soon!</Text>
-          </View>
-          <View style={styles.comingSoonBox}>
-            <Text style={styles.comingSoonText}>🚧</Text>
-            <Text style={styles.comingSoonDesc}>
-              Unscramble words to test your vocabulary
-            </Text>
-          </View>
-        </View>
-
-        {/* Math Challenge */}
-        <View style={styles.gameCard}>
-          <View style={styles.gameHeader}>
-            <Text style={styles.gameTitle}>➗ Math Sprint</Text>
-            <Text style={styles.gameSubtitle}>Coming Soon!</Text>
-          </View>
-          <View style={styles.comingSoonBox}>
-            <Text style={styles.comingSoonText}>🚧</Text>
-            <Text style={styles.comingSoonDesc}>
-              Solve math problems as fast as you can
-            </Text>
-          </View>
-        </View>
-
-        <View style={{ height: 100 }} />
+        <View style={{ height: 40 }} />
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-  },
+  container: { flex: 1 },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1,
   },
-  backButton: {
-    fontSize: 16,
-    color: '#6366F1',
-    fontWeight: '600',
+  backIcon: { fontSize: 22, fontWeight: '500' },
+  headerTitle: { fontSize: 20, fontWeight: '700' },
+  scroll: { flex: 1 },
+  scrollContent: { padding: 16 },
+
+  // Stats
+  statsBar: {
+    flexDirection: 'row', alignItems: 'center', borderRadius: 16, padding: 16,
+    borderWidth: 1, marginBottom: 24,
   },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#1E293B',
-  },
-  scrollView: {
-    flex: 1,
-  },
-  statsCard: {
-    margin: 20,
-    padding: 20,
-    backgroundColor: '#F8FAFC',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  statsTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#1E293B',
-    marginBottom: 16,
-    textAlign: 'center',
-  },
-  statsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-  },
-  statItem: {
-    width: '48%',
-    backgroundColor: '#FFFFFF',
-    padding: 16,
-    borderRadius: 12,
-    alignItems: 'center',
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  statValue: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#6366F1',
-    marginBottom: 4,
-  },
-  statLabel: {
-    fontSize: 12,
-    color: '#64748B',
-  },
+  statItem: { flex: 1, alignItems: 'center' },
+  statValue: { fontSize: 20, fontWeight: '800', marginBottom: 2 },
+  statLabel: { fontSize: 11, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
+  statDivider: { width: 1, height: 30 },
+
+  // Section
+  sectionTitle: { fontSize: 18, fontWeight: '700', marginBottom: 4 },
+  sectionSubtitle: { fontSize: 13, marginBottom: 16 },
+
+  // Game Cards
   gameCard: {
-    margin: 20,
-    marginTop: 0,
-    padding: 20,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
+    flexDirection: 'row', alignItems: 'center', borderRadius: 16, padding: 16,
+    borderWidth: 1, marginBottom: 12,
   },
-  gameHeader: {
-    marginBottom: 16,
+  gameIconContainer: {
+    width: 52, height: 52, borderRadius: 14, justifyContent: 'center', alignItems: 'center',
   },
-  gameTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#1E293B',
-    marginBottom: 4,
+  gameIcon: { fontSize: 26 },
+  gameInfo: { flex: 1, marginLeft: 14 },
+  gameTitle: { fontSize: 16, fontWeight: '700', marginBottom: 3 },
+  gameDesc: { fontSize: 12, lineHeight: 17 },
+  gameArrow: { fontSize: 22, fontWeight: '300', marginLeft: 8 },
+
+  // Topics
+  topicsRow: { gap: 8, paddingBottom: 4 },
+  topicChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1 },
+  topicChipText: { fontSize: 13, fontWeight: '600' },
+
+  // How it works
+  howItWorks: { borderRadius: 16, padding: 18, borderWidth: 1, marginTop: 24 },
+  howTitle: { fontSize: 16, fontWeight: '700', marginBottom: 14 },
+  howStep: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
+  howStepNum: {
+    width: 24, height: 24, borderRadius: 12, backgroundColor: '#8B5CF620',
+    textAlign: 'center', lineHeight: 24, fontSize: 12, fontWeight: '700', color: '#8B5CF6',
+    marginRight: 10, overflow: 'hidden',
   },
-  gameSubtitle: {
-    fontSize: 14,
-    color: '#64748B',
-  },
-  startButton: {
-    backgroundColor: '#6366F1',
-    padding: 16,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  startButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#FFFFFF',
-  },
-  movesText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1E293B',
-    marginBottom: 16,
-    textAlign: 'center',
-  },
-  memoryGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-  },
-  memoryCard: {
-    width: '23%',
-    aspectRatio: 1,
-    backgroundColor: '#6366F1',
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  memoryCardFlipped: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 2,
-    borderColor: '#6366F1',
-  },
-  memoryCardText: {
-    fontSize: 32,
-  },
-  quizProgress: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  quizProgressText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#64748B',
-  },
-  quizScoreText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#10B981',
-  },
-  quizCard: {
-    backgroundColor: '#F8FAFC',
-    padding: 16,
-    borderRadius: 12,
-  },
-  categoryBadge: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#6366F1',
-    backgroundColor: '#EEF2FF',
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 12,
-    alignSelf: 'flex-start',
-    marginBottom: 12,
-  },
-  quizQuestion: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#1E293B',
-    marginBottom: 16,
-  },
-  quizOption: {
-    backgroundColor: '#FFFFFF',
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 8,
-    borderWidth: 2,
-    borderColor: '#E2E8F0',
-  },
-  quizOptionCorrect: {
-    borderColor: '#10B981',
-    backgroundColor: '#D1FAE5',
-  },
-  quizOptionWrong: {
-    borderColor: '#EF4444',
-    backgroundColor: '#FEE2E2',
-  },
-  quizOptionText: {
-    fontSize: 16,
-    color: '#1E293B',
-  },
-  quizOptionTextSelected: {
-    fontWeight: '600',
-  },
-  flashcard: {
-    backgroundColor: '#6366F1',
-    padding: 32,
-    borderRadius: 16,
-    minHeight: 200,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  flashcardLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#FFFFFF',
-    opacity: 0.8,
-    marginBottom: 12,
-  },
-  flashcardText: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    textAlign: 'center',
-    marginBottom: 16,
-  },
-  flashcardHint: {
-    fontSize: 12,
-    color: '#FFFFFF',
-    opacity: 0.6,
-  },
-  flashcardNav: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  navButton: {
-    backgroundColor: '#F1F5F9',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
-  },
-  navButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#6366F1',
-  },
-  flashcardCounter: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#64748B',
-  },
-  comingSoonBox: {
-    backgroundColor: '#F8FAFC',
-    padding: 32,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  comingSoonText: {
-    fontSize: 48,
-    marginBottom: 12,
-  },
-  comingSoonDesc: {
-    fontSize: 14,
-    color: '#64748B',
-    textAlign: 'center',
-  },
+  howStepText: { fontSize: 13, flex: 1 },
 });
 
 export default LearningZoneScreen;

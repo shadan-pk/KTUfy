@@ -3,14 +3,14 @@
 
 ✅ Implemented
 
-
 GET /api/v1/auth/me - Get current user profile
 
+---
 
-❌ Priority 1: Core Features (Must Implement)
+🔴 Priority 1: Core Features (Must Implement)
 
 
-Authentication & User Management
+Authentication & User Management (4 endpoints)
 
 PUT /api/v1/auth/me - Update user profile
 POST /api/v1/auth/change-password - Change password
@@ -27,69 +27,84 @@ DELETE /api/v1/ticklists/{id} - Delete ticklist
 POST /api/v1/ticklists/{id}/items - Add item to ticklist
 PUT /api/v1/ticklists/{id}/items/{item_id}/toggle - Toggle item completion
 
-AI Chatbot (3 endpoints)
+AI Chatbot (3 endpoints - partially implemented via chatService.ts)
 
-POST /api/v1/chatbot/message - Send chat message
-GET /api/v1/chatbot/history?user_id={id} - Get chat history
-DELETE /api/v1/chatbot/history/{user_id} - Clear chat history
+POST /api/v1/chat/message - Send chat message & get AI response
+GET /api/v1/chat/sessions - Get all chat sessions
+GET /api/v1/chat/sessions/{id} - Get chat session with messages
+POST /api/v1/chat/sessions - Create new chat session
+PUT /api/v1/chat/sessions/{id} - Update chat session title
+DELETE /api/v1/chat/sessions/{id} - Delete chat session
 
+---
 
-❌ Priority 2: Important Features
-
-
-Library/Study Materials (6 endpoints)
-
-GET /api/v1/library/materials - List study materials
-GET /api/v1/library/materials/{id} - Get material details
-POST /api/v1/library/materials - Upload material (multipart/form-data)
-DELETE /api/v1/library/materials/{id} - Delete material
-GET /api/v1/library/syllabus?branch={branch}&semester={sem} - Get syllabus
-GET /api/v1/library/pyp?year={year}&branch={branch} - Get previous year papers
-
-Group Study (9 endpoints + WebSocket)
-
-GET /api/v1/groups?user_id={id} - Get user's groups
-POST /api/v1/groups - Create group
-POST /api/v1/groups/{id}/join - Join group with code
-GET /api/v1/groups/{id}/members - Get group members
-GET /api/v1/groups/{id}/chat - Get group chat messages
-POST /api/v1/groups/{id}/chat - Send chat message (or WebSocket)
-GET /api/v1/groups/{id}/checklist - Get group checklist
-PUT /api/v1/groups/{id}/checklist - Update group checklist
-DELETE /api/v1/groups/{id} - Delete/leave group
+🟡 Priority 2: New Features (Frontend Ready)
 
 
-⏸️ Priority 3: Optional Features
+AI Flashcards (1 endpoint)
+
+POST /api/v1/flashcards/generate - Generate flashcards for a topic
+  Request: { topic: string, count?: number }
+  Response: { flashcards: [{ front: string, back: string }], topic: string }
+
+Schedule / Exam Calendar (2 endpoints)
+
+GET /api/v1/schedule/exams - Get all exam schedule events
+  Response: [{ id: string, date: string, title: string, type: 'holiday'|'exam'|'deadline'|'event', description?: string }]
+GET /api/v1/schedule/upcoming - Get upcoming events (next 30 days)
+
+Syllabus Viewer (3 endpoints)
+
+GET /api/v1/syllabus/branches - Get available branches
+  Response: [{ code: string, name: string }]
+GET /api/v1/syllabus/subjects?branch={branch}&semester={semester} - Get subjects
+  Response: [{ name: string, code: string, credits: number }]
+GET /api/v1/syllabus/subject/{subjectCode} - Get detailed syllabus for a subject
+  Response: { subject_name, subject_code, credits, modules: [{ module_number, title, topics, hours }], course_outcomes?, textbooks?, references? }
+
+Learning Zone - Topic Quizzes (2 endpoints)
+
+POST /api/v1/learning/quiz/generate - Generate quiz questions for a topic
+  Request: { topic: string, count?: number, difficulty?: 'easy'|'medium'|'hard' }
+  Response: { questions: [{ question: string, options: string[], correctAnswer: number, explanation?: string }], topic: string }
+
+POST /api/v1/learning/match/generate - Generate match-the-following pairs
+  Request: { topic: string, count?: number }
+  Response: { pairs: [{ term: string, definition: string }], topic: string }
+
+Coding Hub - Code Execution (1 endpoint)
+
+POST /api/v1/coding/execute - Execute code in sandbox
+  Request: { source_code: string, language: string, stdin?: string }
+  Response: { stdout, stderr, compile_output, status: { id, description }, time, memory }
+  Note: Frontend also has Judge0 free API fallback
+
+---
+
+⏸️ Priority 3: Future/Deferred Features
 
 
-Schedule/Calendar (3 endpoints)
+Group Study (Deferred - using WhatsApp group link instead)
+  Frontend app links to WhatsApp group invite URL.
+  Backend group study endpoints NOT needed for MVP.
 
-GET /api/v1/schedule/calendar - Get academic calendar
-GET /api/v1/schedule/events - Get upcoming events
-POST /api/v1/schedule/reminders - Set personal reminders
+Previous Year Papers (Hidden)
+  PYP page hidden from UI. Will revisit when actual papers are sourced.
 
-Coding Hub (4 endpoints)
+Library → Personal Notes/Bookmarks (Repurposed)
+  Library is being repurposed from study material uploads to
+  personal notes/bookmarks. New endpoints TBD.
 
-GET /api/v1/coding/problems - List coding problems
-GET /api/v1/coding/problems/{id} - Get problem details
-POST /api/v1/coding/submit - Submit code for evaluation
-GET /api/v1/coding/leaderboard - Get leaderboard
-
-Learning Zone (5 endpoints)
-
-GET /api/v1/learning/courses - List courses
-GET /api/v1/learning/courses/{id} - Get course details
-POST /api/v1/learning/progress - Update progress
-GET /api/v1/learning/quizzes - Get quizzes
-POST /api/v1/learning/quiz/submit - Submit quiz answers
-
+---
 
 📊 Summary
-Total Endpoints: 42
+
+Total Endpoints: 30
 
 ✅ Implemented: 1
-❌ Priority 1 (Core): 14 endpoints
-❌ Priority 2 (Important): 15 endpoints
-⏸️ Priority 3 (Optional): 12 endpoints
+🔴 Priority 1 (Core): 17 endpoints (auth, ticklist, chat)
+🟡 Priority 2 (New): 8 endpoints (flashcards, schedule, syllabus, quiz, coding)
+⏸️ Priority 3 (Future): 4+ endpoints (group study, PYP, library repurpose)
+
 Minimum Viable Product (MVP):
-Implement Priority 1 only = 15 endpoints total (1 done + 14 pending)
+Priority 1 + Priority 2 = 26 endpoints (1 done + 25 pending)

@@ -21,6 +21,14 @@ export type RootStackParamList = {
   SyllabusViewer: undefined;
   PYP: undefined;
   Explore: undefined;
+  Flashcards: undefined;
+  MatchGame: { topic: string };
+  QuizGame: { topic: string };
+  MediaTools: undefined;
+  VideoTools: undefined;
+  AudioTools: undefined;
+  ImageTools: undefined;
+  PdfTools: undefined;
 };
 
 export type LoginScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Login'>;
@@ -41,6 +49,14 @@ export type GPACalculatorScreenNavigationProp = StackNavigationProp<RootStackPar
 export type SyllabusViewerScreenNavigationProp = StackNavigationProp<RootStackParamList, 'SyllabusViewer'>;
 export type PYPScreenNavigationProp = StackNavigationProp<RootStackParamList, 'PYP'>;
 export type ExploreScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Explore'>;
+export type FlashcardScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Flashcards'>;
+export type MatchGameScreenNavigationProp = StackNavigationProp<RootStackParamList, 'MatchGame'>;
+export type QuizGameScreenNavigationProp = StackNavigationProp<RootStackParamList, 'QuizGame'>;
+export type MediaToolsScreenNavigationProp = StackNavigationProp<RootStackParamList, 'MediaTools'>;
+export type VideoToolsScreenNavigationProp = StackNavigationProp<RootStackParamList, 'VideoTools'>;
+export type AudioToolsScreenNavigationProp = StackNavigationProp<RootStackParamList, 'AudioTools'>;
+export type ImageToolsScreenNavigationProp = StackNavigationProp<RootStackParamList, 'ImageTools'>;
+export type PdfToolsScreenNavigationProp = StackNavigationProp<RootStackParamList, 'PdfTools'>;
 
 export type LoginScreenRouteProp = RouteProp<RootStackParamList, 'Login'>;
 export type SignupScreenRouteProp = RouteProp<RootStackParamList, 'Signup'>;
@@ -60,3 +76,6 @@ export type GPACalculatorScreenRouteProp = RouteProp<RootStackParamList, 'GPACal
 export type SyllabusViewerScreenRouteProp = RouteProp<RootStackParamList, 'SyllabusViewer'>;
 export type PYPScreenRouteProp = RouteProp<RootStackParamList, 'PYP'>;
 export type ExploreScreenRouteProp = RouteProp<RootStackParamList, 'Explore'>;
+export type FlashcardScreenRouteProp = RouteProp<RootStackParamList, 'Flashcards'>;
+export type MatchGameScreenRouteProp = RouteProp<RootStackParamList, 'MatchGame'>;
+export type QuizGameScreenRouteProp = RouteProp<RootStackParamList, 'QuizGame'>;
