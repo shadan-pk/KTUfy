@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
     View,
     Text,
     TouchableOpacity,
     StyleSheet,
     ScrollView,
+    FlatList,
     Dimensions,
     Platform,
     StatusBar,
@@ -20,6 +21,106 @@ import supabase from '../supabaseClient';
 import { getExamSchedule, ExamEvent } from '../services/scheduleService';
 
 const { width } = Dimensions.get('window');
+
+// ── GroupCard: shows a date box + carousel of events for that day ──────────
+const GroupCard = ({ group, daysLeft, day, mon, weekday, typeColors, isLast, theme, styles, onPress }: any) => {
+    const [activeIdx, setActiveIdx] = useState(0);
+    const flatRef = useRef<FlatList>(null);
+
+    const goTo = (idx: number) => {
+        flatRef.current?.scrollToIndex({ index: idx, animated: true });
+        setActiveIdx(idx);
+    };
+
+    return (
+        <View style={[styles.calCard, { backgroundColor: theme.background, borderColor: theme.border, marginBottom: isLast ? 0 : 8, overflow: 'hidden' }]}>
+            {/* Date box — uses first event's color */}
+            {(() => {
+                const firstColor = typeColors[group.events[0]?.type] ?? '#8B5CF6';
+                return (
+                    <View style={[styles.calDateBox, { backgroundColor: firstColor + '18', borderColor: firstColor + '30' }]}>
+                        <Text style={[styles.calWeekday, { color: firstColor + 'CC' }]}>{weekday}</Text>
+                        <Text style={[styles.calDay, { color: firstColor }]}>{day}</Text>
+                        <Text style={[styles.calMon, { color: firstColor + 'CC' }]}>{mon}</Text>
+                    </View>
+                );
+            })()}
+
+            {/* Carousel of events for this day */}
+            <View style={{ flex: 1 }}>
+                <FlatList
+                    ref={flatRef}
+                    data={group.events}
+                    horizontal
+                    pagingEnabled
+                    showsHorizontalScrollIndicator={false}
+                    keyExtractor={(_, i) => String(i)}
+                    onMomentumScrollEnd={e => {
+                        const idx = Math.round(e.nativeEvent.contentOffset.x / (e.nativeEvent.layoutMeasurement.width));
+                        setActiveIdx(idx);
+                    }}
+                    renderItem={({ item: exam }) => {
+                        const color = typeColors[exam.type] ?? '#8B5CF6';
+                        const isUrgent = daysLeft <= 3 && exam.type === 'exam';
+                        return (
+                            <TouchableOpacity
+                                style={{ width: '100%', paddingHorizontal: 0 }}
+                                onPress={onPress}
+                                activeOpacity={0.7}
+                            >
+                                <View style={styles.calInfo}>
+                                    <Text style={[styles.calTitle, { color: theme.text }]} numberOfLines={2}>{exam.title}</Text>
+                                    <View style={styles.calMeta}>
+                                        {exam.subject_code ? (
+                                            <View style={[styles.calSubjectChip, { backgroundColor: color + '14', borderColor: color + '30' }]}>
+                                                <Text style={[styles.calSubjectText, { color }]}>{exam.subject_code}</Text>
+                                            </View>
+                                        ) : null}
+                                        {exam.description ? (
+                                            <Text style={[styles.calDesc, { color: theme.textSecondary }]} numberOfLines={1}>{exam.description}</Text>
+                                        ) : null}
+                                    </View>
+                                </View>
+                            </TouchableOpacity>
+                        );
+                    }}
+                />
+                {/* Dot indicators — only when >1 event */}
+                {group.events.length > 1 && (
+                    <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 4, paddingBottom: 6 }}>
+                        {group.events.map((_: any, i: number) => {
+                            const col = typeColors[group.events[i]?.type] ?? '#8B5CF6';
+                            return (
+                                <TouchableOpacity key={i} onPress={() => goTo(i)}>
+                                    <View style={{
+                                        width: activeIdx === i ? 16 : 6, height: 6,
+                                        borderRadius: 3,
+                                        backgroundColor: activeIdx === i ? col : theme.divider,
+                                    }} />
+                                </TouchableOpacity>
+                            );
+                        })}
+                    </View>
+                )}
+            </View>
+
+            {/* Days left */}
+            <View style={styles.calRight}>
+                {daysLeft === 0 ? (
+                    <Text style={[styles.calDaysNum, { color: typeColors[group.events[activeIdx]?.type] ?? '#8B5CF6' }]}>Today</Text>
+                ) : daysLeft === 1 ? (
+                    <Text style={[styles.calDaysNum, { color: typeColors[group.events[activeIdx]?.type] ?? '#8B5CF6' }]}>Tomorrow</Text>
+                ) : (
+                    <>
+                        <Text style={[styles.calDaysNum, { color: theme.textSecondary }]}>{daysLeft}</Text>
+                        <Text style={[styles.calDaysLabel, { color: theme.textTertiary }]}>days</Text>
+                    </>
+                )}
+                <View style={[styles.calTypeDot, { backgroundColor: typeColors[group.events[activeIdx]?.type] ?? '#8B5CF6' }]} />
+            </View>
+        </View>
+    );
+};
 
 interface ExploreScreenProps {
     navigation: ExploreScreenNavigationProp;
@@ -114,21 +215,22 @@ const ExploreScreen: React.FC<ExploreScreenProps> = ({ navigation }) => {
                 const sem = userData?.semester ?? '';
                 const branch = userData?.branch ?? '';
                 const data = await getExamSchedule(
-                    sem ? { semester: sem, branch } : undefined
+                    // forceRefresh so widget never shows stale cache
+                    { semester: sem || undefined, branch: branch || undefined, forceRefresh: true }
                 );
                 const today = new Date();
                 today.setHours(0, 0, 0, 0);
                 const upcoming = data
                     .filter(e => {
-                        const d = new Date(e.date);
+                        const d = new Date(e.date + 'T00:00:00');
                         d.setHours(0, 0, 0, 0);
                         return d >= today;
                     })
                     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-                    .slice(0, 4);
+                    .slice(0, 8); // allow more for grouping
                 setUpcomingExams(upcoming);
             } catch (err) {
-                // Backend offline — silent
+                // silent
             } finally {
                 setExamsLoading(false);
             }
@@ -267,80 +369,44 @@ const ExploreScreen: React.FC<ExploreScreenProps> = ({ navigation }) => {
                                 </Text>
                             </View>
                         </View>
-                    ) : (
-                        upcomingExams.map((exam, i) => {
-                            const d = new Date(exam.date);
-                            const today = new Date();
-                            today.setHours(0, 0, 0, 0);
-                            d.setHours(0, 0, 0, 0);
-                            const daysLeft = Math.round((d.getTime() - today.getTime()) / 86400000);
+                    ) : (() => {
+                        // Group events by date for carousel
+                        const grouped: { date: string; events: typeof upcomingExams }[] = [];
+                        upcomingExams.forEach(exam => {
+                            const existing = grouped.find(g => g.date === exam.date);
+                            if (existing) existing.events.push(exam);
+                            else grouped.push({ date: exam.date, events: [exam] });
+                        });
+                        const displayGroups = grouped.slice(0, 4);
+
+                        return displayGroups.map((group, gi) => {
+                            const d = new Date(group.date + 'T00:00:00');
+                            const today2 = new Date(); today2.setHours(0, 0, 0, 0); d.setHours(0, 0, 0, 0);
+                            const daysLeft = Math.round((d.getTime() - today2.getTime()) / 86400000);
                             const day = d.getDate();
                             const mon = d.toLocaleDateString('en-US', { month: 'short' }).toUpperCase();
                             const weekday = d.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase();
+                            const isLast = gi === displayGroups.length - 1;
                             const typeColors: Record<string, string> = {
                                 exam: '#EF4444', holiday: '#10B981',
                                 deadline: '#F59E0B', event: '#3B82F6',
                             };
-                            const color = typeColors[exam.type] ?? '#8B5CF6';
-                            const isUrgent = daysLeft <= 3 && exam.type === 'exam';
-                            const isLast = i === upcomingExams.length - 1;
+                            // For multi-event days, use a carousel inside
                             return (
-                                <TouchableOpacity
-                                    key={i}
-                                    style={[
-                                        styles.calCard,
-                                        { backgroundColor: theme.background, borderColor: isUrgent ? color + '60' : theme.border },
-                                        !isLast && { marginBottom: 8 },
-                                    ]}
+                                <GroupCard
+                                    key={gi}
+                                    group={group}
+                                    daysLeft={daysLeft}
+                                    day={day} mon={mon} weekday={weekday}
+                                    typeColors={typeColors}
+                                    isLast={isLast}
+                                    theme={theme}
+                                    styles={styles}
                                     onPress={() => navigation.navigate('Schedule')}
-                                    activeOpacity={0.7}
-                                >
-                                    {/* Left — Date Box */}
-                                    <View style={[styles.calDateBox, { backgroundColor: color + '18', borderColor: color + '30' }]}>
-                                        <Text style={[styles.calWeekday, { color: color + 'CC' }]}>{weekday}</Text>
-                                        <Text style={[styles.calDay, { color }]}>{day}</Text>
-                                        <Text style={[styles.calMon, { color: color + 'CC' }]}>{mon}</Text>
-                                    </View>
-
-                                    {/* Right — Info */}
-                                    <View style={styles.calInfo}>
-                                        <Text style={[styles.calTitle, { color: theme.text }]} numberOfLines={2}>
-                                            {exam.title}
-                                        </Text>
-                                        <View style={styles.calMeta}>
-                                            {exam.subject_code ? (
-                                                <View style={[styles.calSubjectChip, { backgroundColor: color + '14', borderColor: color + '30' }]}>
-                                                    <Text style={[styles.calSubjectText, { color }]}>{exam.subject_code}</Text>
-                                                </View>
-                                            ) : null}
-                                            {exam.description ? (
-                                                <Text style={[styles.calDesc, { color: theme.textSecondary }]} numberOfLines={1}>
-                                                    {exam.description}
-                                                </Text>
-                                            ) : null}
-                                        </View>
-                                    </View>
-
-                                    {/* Right edge — days left */}
-                                    <View style={styles.calRight}>
-                                        {daysLeft === 0 ? (
-                                            <Text style={[styles.calDaysNum, { color }]}>Today</Text>
-                                        ) : daysLeft === 1 ? (
-                                            <Text style={[styles.calDaysNum, { color }]}>Tomorrow</Text>
-                                        ) : (
-                                            <>
-                                                <Text style={[styles.calDaysNum, { color: isUrgent ? color : theme.textSecondary }]}>
-                                                    {daysLeft}
-                                                </Text>
-                                                <Text style={[styles.calDaysLabel, { color: theme.textTertiary }]}>days</Text>
-                                            </>
-                                        )}
-                                        <View style={[styles.calTypeDot, { backgroundColor: color }]} />
-                                    </View>
-                                </TouchableOpacity>
+                                />
                             );
-                        })
-                    )}
+                        });
+                    })()}
                 </View>
 
                 {/* Tools Grid */}

@@ -5,110 +5,83 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  SafeAreaView,
+  StatusBar,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { ScheduleScreenNavigationProp } from '../types/navigation';
 import { getExamSchedule, ExamEvent } from '../services/scheduleService';
 import { ScheduleScreenSkeleton } from '../components/SkeletonLoader';
-
-
-interface CalendarEvent {
-  date: string;
-  title: string;
-  type: 'holiday' | 'exam' | 'deadline' | 'event';
-  description?: string;
-}
+import { useTheme } from '../contexts/ThemeContext';
 
 interface ScheduleScreenProps {
   navigation: ScheduleScreenNavigationProp;
 }
 
+const MONTH_NAMES = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+];
+const MONTH_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+const TYPE_COLORS: Record<string, string> = {
+  holiday: '#22C55E',
+  exam: '#EF4444',
+  deadline: '#F59E0B',
+  event: '#3B82F6',
+};
+
 const ScheduleScreen: React.FC<ScheduleScreenProps> = ({ navigation }) => {
-  const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const { theme, isDark } = useTheme();
+  const [events, setEvents] = useState<ExamEvent[]>([]);
   const [months, setMonths] = useState<string[]>([]);
-  const [selectedMonth, setSelectedMonth] = useState<string>('');
+  const [selectedMonth, setSelectedMonth] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    loadSchedule();
-  }, []);
+  useEffect(() => { loadSchedule(); }, []);
 
   const loadSchedule = async () => {
     setIsLoading(true);
     setError(null);
     try {
-      const data = await getExamSchedule();
-      const calendarEvents: CalendarEvent[] = data.map((e: ExamEvent) => ({
-        date: e.date,
-        title: e.title,
-        type: e.type,
-        description: e.description,
-      }));
-      setEvents(calendarEvents);
-
-      // Extract unique months
-      const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-      const uniqueMonths = [...new Set(calendarEvents.map(e => {
-        const monthIndex = parseInt(e.date.split('-')[1]) - 1;
-        return monthNames[monthIndex];
-      }))];
-      setMonths(uniqueMonths);
-      if (uniqueMonths.length > 0) setSelectedMonth(uniqueMonths[0]);
+      const data = await getExamSchedule({ forceRefresh: true });
+      setEvents(data);
+      const unique = [...new Set(data.map(e => MONTH_NAMES[parseInt(e.date.split('-')[1]) - 1]))];
+      setMonths(unique);
+      if (unique.length > 0) setSelectedMonth(unique[0]);
     } catch (err: any) {
-      console.error('Error loading schedule:', err);
-      setError('Could not load schedule. Backend may be offline.');
-      // No fallback data — show error state
+      setError('Could not load schedule.');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const getMonthNumber = (monthName: string): string => {
-    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-    const index = monthNames.indexOf(monthName) + 1;
-    return index < 10 ? `0${index}` : `${index}`;
+  const selectedMonthEvents = events.filter(e => {
+    const m = parseInt(e.date.split('-')[1]) - 1;
+    return MONTH_NAMES[m] === selectedMonth;
+  });
+
+  const formatDate = (dateStr: string) => {
+    const d = new Date(dateStr + 'T00:00:00');
+    return { day: d.getDate(), month: MONTH_SHORT[d.getMonth()], weekday: WEEKDAYS[d.getDay()] };
   };
 
-  const getEventColor = (type: string) => {
-    switch (type) {
-      case 'holiday': return '#4CAF50';
-      case 'exam': return '#F44336';
-      case 'deadline': return '#FF9800';
-      case 'event': return '#2196F3';
-      default: return '#9E9E9E';
-    }
-  };
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    const day = date.getDate();
-    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    return {
-      day: day,
-      month: monthNames[date.getMonth()],
-      weekday: weekdays[date.getDay()]
-    };
-  };
-
-  const filterEventsByMonth = (month: string): CalendarEvent[] => {
-    const monthNum = getMonthNumber(month);
-    return events.filter((event: CalendarEvent) => event.date.includes(`-${monthNum}-`));
-  };
-
-  const currentMonthEvents = filterEventsByMonth(selectedMonth);
+  const Header = () => (
+    <View style={[styles.header, { backgroundColor: theme.primary }]}>
+      <TouchableOpacity onPress={() => navigation.goBack()} style={styles.iconBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+        <Text style={styles.headerIcon}>←</Text>
+      </TouchableOpacity>
+      <Text style={styles.headerTitle}>Academic Calendar</Text>
+      <View style={styles.iconBtn} />
+    </View>
+  );
 
   if (isLoading) {
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-            <Text style={styles.backButtonText}>←</Text>
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Academic Calendar</Text>
-          <View style={styles.backButton} />
-        </View>
+      <SafeAreaView style={[styles.screen, { backgroundColor: theme.background }]} edges={['top']}>
+        <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={theme.primary} />
+        <Header />
         <ScheduleScreenSkeleton />
       </SafeAreaView>
     );
@@ -116,19 +89,14 @@ const ScheduleScreen: React.FC<ScheduleScreenProps> = ({ navigation }) => {
 
   if (error) {
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-            <Text style={styles.backButtonText}>←</Text>
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Academic Calendar</Text>
-          <View style={styles.backButton} />
-        </View>
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 }}>
-          <Text style={{ fontSize: 48, marginBottom: 16 }}>📅</Text>
-          <Text style={{ fontSize: 16, color: '#666', textAlign: 'center', marginBottom: 16 }}>{error}</Text>
-          <TouchableOpacity style={{ backgroundColor: '#007AFF', paddingHorizontal: 24, paddingVertical: 12, borderRadius: 8 }} onPress={loadSchedule}>
-            <Text style={{ color: '#fff', fontWeight: '600' }}>Retry</Text>
+      <SafeAreaView style={[styles.screen, { backgroundColor: theme.background }]} edges={['top']}>
+        <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={theme.primary} />
+        <Header />
+        <View style={styles.centeredMsg}>
+          <Text style={styles.errorIcon}>📅</Text>
+          <Text style={[styles.errorText, { color: theme.textSecondary }]}>{error}</Text>
+          <TouchableOpacity style={[styles.retryBtn, { backgroundColor: theme.primary }]} onPress={loadSchedule}>
+            <Text style={styles.retryText}>Retry</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -136,255 +104,143 @@ const ScheduleScreen: React.FC<ScheduleScreenProps> = ({ navigation }) => {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-          <Text style={styles.backButtonText}>←</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Academic Calendar</Text>
-        <View style={styles.backButton} />
+    <SafeAreaView style={[styles.screen, { backgroundColor: theme.background }]} edges={['top']}>
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={theme.primary} />
+      <Header />
+
+      {/* Month pill selector */}
+      <View style={[styles.monthBar, { backgroundColor: theme.backgroundSecondary, borderBottomColor: theme.border }]}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.monthScroll}>
+          {months.map(m => (
+            <TouchableOpacity
+              key={m}
+              style={[
+                styles.monthPill,
+                { backgroundColor: selectedMonth === m ? theme.primary : theme.backgroundTertiary },
+              ]}
+              onPress={() => setSelectedMonth(m)}
+              activeOpacity={0.8}
+            >
+              <Text style={[styles.monthPillText, { color: selectedMonth === m ? '#FFF' : theme.textSecondary }]}>
+                {m}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
       </View>
 
-      {/* Month Selector */}
-      <ScrollView horizontal style={styles.monthSelector} showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10, paddingHorizontal: 16, paddingVertical: 12 }}>
-        {months.map((month) => (
-          <TouchableOpacity
-            key={month}
-            style={[styles.monthButton, selectedMonth === month && styles.monthButtonActive]}
-            onPress={() => setSelectedMonth(month)}
-          >
-            <Text style={[styles.monthButtonText, selectedMonth === month && styles.monthButtonTextActive]}>
-              {month}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
+      {/* Events */}
+      <ScrollView style={styles.list} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 32 }}>
+        <View style={styles.listHeader}>
+          <Text style={[styles.monthHeading, { color: theme.text }]}>{selectedMonth}</Text>
+          <Text style={[styles.eventCount, { color: theme.textTertiary }]}>
+            {selectedMonthEvents.length} event{selectedMonthEvents.length !== 1 ? 's' : ''}
+          </Text>
+        </View>
 
-      {/* Events List */}
-      <ScrollView style={styles.eventsList} showsVerticalScrollIndicator={false}>
-        <Text style={styles.monthTitle}>{selectedMonth} 2025</Text>
-        <Text style={styles.eventCount}>{currentMonthEvents.length} events this month</Text>
-
-        {currentMonthEvents.map((event: CalendarEvent, index: number) => {
-          const dateInfo = formatDate(event.date);
+        {selectedMonthEvents.length === 0 ? (
+          <View style={[styles.emptyCard, { backgroundColor: theme.backgroundSecondary, borderColor: theme.border }]}>
+            <Text style={[styles.emptyText, { color: theme.textSecondary }]}>No events this month</Text>
+          </View>
+        ) : selectedMonthEvents.map((event, i) => {
+          const { day, month, weekday } = formatDate(event.date);
+          const color = TYPE_COLORS[event.type] ?? '#9E9E9E';
           return (
-            <View key={index} style={styles.eventCard}>
-              <View style={styles.eventDateContainer}>
-                <Text style={styles.eventDay}>{dateInfo.day}</Text>
-                <Text style={styles.eventMonth}>{dateInfo.month}</Text>
-                <Text style={styles.eventWeekday}>{dateInfo.weekday}</Text>
+            <View
+              key={i}
+              style={[styles.card, { backgroundColor: theme.backgroundSecondary, borderColor: theme.border }]}
+            >
+              {/* Left color stripe */}
+              <View style={[styles.stripe, { backgroundColor: color }]} />
+
+              {/* Date box */}
+              <View style={[styles.dateBox, { backgroundColor: color + '18' }]}>
+                <Text style={[styles.dateWeekday, { color }]}>{weekday}</Text>
+                <Text style={[styles.dateDay, { color }]}>{day}</Text>
+                <Text style={[styles.dateMon, { color }]}>{month}</Text>
               </View>
 
-              <View style={styles.eventDetailsContainer}>
-                <View style={styles.eventHeader}>
-                  <Text style={styles.eventTitle}>{event.title}</Text>
-                  <View style={[styles.eventTypeBadge, { backgroundColor: getEventColor(event.type) }]}>
-                    <Text style={styles.eventTypeBadgeText}>{event.type}</Text>
+              {/* Info */}
+              <View style={styles.cardInfo}>
+                <View style={styles.cardTitleRow}>
+                  <Text style={[styles.cardTitle, { color: theme.text }]} numberOfLines={2}>{event.title}</Text>
+                  <View style={[styles.badge, { backgroundColor: color }]}>
+                    <Text style={styles.badgeText}>{event.type.toUpperCase()}</Text>
                   </View>
                 </View>
+                {event.subject_code && (
+                  <Text style={[styles.subjectCode, { color: theme.primary }]}>{event.subject_code}</Text>
+                )}
                 {event.description && (
-                  <Text style={styles.eventDescription}>{event.description}</Text>
+                  <Text style={[styles.cardDesc, { color: theme.textSecondary }]} numberOfLines={2}>
+                    {event.description}
+                  </Text>
                 )}
               </View>
-
-              <View style={[styles.eventIndicator, { backgroundColor: getEventColor(event.type) }]} />
             </View>
           );
         })}
-
-        <View style={{ height: 40 }} />
       </ScrollView>
 
       {/* Legend */}
-      <View style={styles.legend}>
-        <View style={styles.legendItem}>
-          <View style={[styles.legendDot, { backgroundColor: '#4CAF50' }]} />
-          <Text style={styles.legendText}>Holiday</Text>
-        </View>
-        <View style={styles.legendItem}>
-          <View style={[styles.legendDot, { backgroundColor: '#F44336' }]} />
-          <Text style={styles.legendText}>Exam</Text>
-        </View>
-        <View style={styles.legendItem}>
-          <View style={[styles.legendDot, { backgroundColor: '#FF9800' }]} />
-          <Text style={styles.legendText}>Deadline</Text>
-        </View>
-        <View style={styles.legendItem}>
-          <View style={[styles.legendDot, { backgroundColor: '#2196F3' }]} />
-          <Text style={styles.legendText}>Event</Text>
-        </View>
+      <View style={[styles.legend, { backgroundColor: theme.backgroundSecondary, borderTopColor: theme.border }]}>
+        {Object.entries(TYPE_COLORS).map(([type, color]) => (
+          <View key={type} style={styles.legendItem}>
+            <View style={[styles.legendDot, { backgroundColor: color }]} />
+            <Text style={[styles.legendLabel, { color: theme.textSecondary }]}>
+              {type.charAt(0).toUpperCase() + type.slice(1)}
+            </Text>
+          </View>
+        ))}
       </View>
     </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F5F7FA',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    backgroundColor: '#007AFF',
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  backButtonText: {
-    fontSize: 28,
-    color: '#fff',
-    fontWeight: 'bold',
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#fff',
-  },
-  monthSelector: {
-    backgroundColor: '#fff',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  monthButton: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 8,
-    backgroundColor: '#F0F0F0',
-    alignItems: 'center',
-  },
-  monthButtonActive: {
-    backgroundColor: '#007AFF',
-  },
-  monthButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#666',
-  },
-  monthButtonTextActive: {
-    color: '#fff',
-  },
-  eventsList: {
-    flex: 1,
-    padding: 16,
-  },
-  monthTitle: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#1a1a1a',
-    marginBottom: 4,
-  },
-  eventCount: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 20,
-  },
-  eventCard: {
-    flexDirection: 'row',
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 2,
-    position: 'relative',
-  },
-  eventDateContainer: {
-    width: 60,
-    alignItems: 'center',
-    marginRight: 16,
-  },
-  eventDay: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#1a1a1a',
-  },
-  eventMonth: {
-    fontSize: 12,
-    color: '#666',
-    textTransform: 'uppercase',
-  },
-  eventWeekday: {
-    fontSize: 11,
-    color: '#999',
-    marginTop: 2,
-  },
-  eventDetailsContainer: {
-    flex: 1,
-  },
-  eventHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 4,
-  },
-  eventTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1a1a1a',
-    flex: 1,
-    marginRight: 8,
-  },
-  eventTypeBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  eventTypeBadgeText: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: '#fff',
-    textTransform: 'uppercase',
-  },
-  eventDescription: {
-    fontSize: 13,
-    color: '#666',
-    marginTop: 4,
-  },
-  eventIndicator: {
-    position: 'absolute',
-    left: 0,
-    top: 0,
-    bottom: 0,
-    width: 4,
-    borderTopLeftRadius: 12,
-    borderBottomLeftRadius: 12,
-  },
-  legend: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    padding: 16,
-    backgroundColor: '#fff',
-    borderTopWidth: 1,
-    borderTopColor: '#E0E0E0',
-  },
-  legendItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  legendDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    marginRight: 6,
-  },
-  legendText: {
-    fontSize: 12,
-    color: '#666',
-  },
+  screen: { flex: 1 },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 14 },
+  iconBtn: { width: 40, height: 40, justifyContent: 'center', alignItems: 'center' },
+  headerIcon: { fontSize: 26, color: '#FFF', fontWeight: 'bold' },
+  headerTitle: { fontSize: 18, fontWeight: '700', color: '#FFF', letterSpacing: 0.3 },
+
+  monthBar: { borderBottomWidth: 1 },
+  monthScroll: { paddingHorizontal: 16, paddingVertical: 10, gap: 8 },
+  monthPill: { paddingHorizontal: 18, paddingVertical: 8, borderRadius: 20 },
+  monthPillText: { fontSize: 13, fontWeight: '600' },
+
+  list: { flex: 1, paddingHorizontal: 16 },
+  listHeader: { flexDirection: 'row', alignItems: 'baseline', gap: 10, paddingTop: 20, paddingBottom: 12 },
+  monthHeading: { fontSize: 24, fontWeight: '800' },
+  eventCount: { fontSize: 13 },
+
+  card: { flexDirection: 'row', borderRadius: 16, borderWidth: 1, marginBottom: 12, overflow: 'hidden' },
+  stripe: { width: 4 },
+  dateBox: { width: 64, alignItems: 'center', justifyContent: 'center', paddingVertical: 14, gap: 1 },
+  dateWeekday: { fontSize: 10, fontWeight: '600', letterSpacing: 0.5 },
+  dateDay: { fontSize: 26, fontWeight: '800', lineHeight: 30 },
+  dateMon: { fontSize: 10, fontWeight: '600', letterSpacing: 0.5 },
+  cardInfo: { flex: 1, padding: 12, gap: 2 },
+  cardTitleRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
+  cardTitle: { flex: 1, fontSize: 15, fontWeight: '600', lineHeight: 20 },
+  badge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
+  badgeText: { fontSize: 9, fontWeight: '700', color: '#FFF', letterSpacing: 0.5 },
+  subjectCode: { fontSize: 12, fontWeight: '700', marginTop: 2 },
+  cardDesc: { fontSize: 12, lineHeight: 17, marginTop: 2 },
+
+  emptyCard: { borderRadius: 16, borderWidth: 1, padding: 32, alignItems: 'center', marginTop: 8 },
+  emptyText: { fontSize: 14 },
+
+  centeredMsg: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32, gap: 16 },
+  errorIcon: { fontSize: 48 },
+  errorText: { fontSize: 15, textAlign: 'center' },
+  retryBtn: { paddingHorizontal: 28, paddingVertical: 12, borderRadius: 12 },
+  retryText: { color: '#FFF', fontWeight: '700', fontSize: 15 },
+
+  legend: { flexDirection: 'row', justifyContent: 'space-around', paddingVertical: 12, paddingHorizontal: 16, borderTopWidth: 1 },
+  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  legendDot: { width: 10, height: 10, borderRadius: 5 },
+  legendLabel: { fontSize: 12 },
 });
 
 export default ScheduleScreen;
