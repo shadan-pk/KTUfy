@@ -6,7 +6,6 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
-  ActivityIndicator,
   Modal,
   TextInput,
   Platform,
@@ -21,6 +20,7 @@ import { ProfileScreenNavigationProp } from '../types/navigation';
 import { useTheme } from '../contexts/ThemeContext';
 import { getCachedUserProfile, setCachedUserProfile } from '../services/cacheService';
 import { Settings, ChevronRight, ArrowLeft } from 'lucide-react-native';
+import { ProfileScreenSkeleton } from '../components/SkeletonLoader';
 
 const { width } = Dimensions.get('window');
 
@@ -231,9 +231,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
       </SafeAreaView>
 
       {loading ? (
-        <View style={styles.loadWrap}>
-          <ActivityIndicator size="large" color={theme.primary} />
-        </View>
+        <ProfileScreenSkeleton />
       ) : (
         <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
           {/* Avatar + Name Card */}

@@ -15,8 +15,9 @@ import { useAuth } from '../auth/AuthProvider';
 import { getUserProfile, getTicklistsForUser, upsertTicklist } from '../supabaseConfig';
 import { ExploreScreenNavigationProp } from '../types/navigation';
 import { useTheme } from '../contexts/ThemeContext';
-import { getCachedTicklists, setCachedTicklists, getCachedStudyDashboard, setCachedStudyDashboard } from '../services/cacheService';
+import { getCachedTicklists, setCachedTicklists } from '../services/cacheService';
 import supabase from '../supabaseClient';
+import { getExamSchedule, ExamEvent } from '../services/scheduleService';
 
 const { width } = Dimensions.get('window');
 
@@ -54,7 +55,8 @@ const ExploreScreen: React.FC<ExploreScreenProps> = ({ navigation }) => {
     const [userData, setUserData] = useState<UserData | null>(null);
     const [subjects, setSubjects] = useState<Subject[]>([]);
     const [currentTime, setCurrentTime] = useState(new Date());
-    const [studyStreak, setStudyStreak] = useState(0);
+    const [upcomingExams, setUpcomingExams] = useState<ExamEvent[]>([]);
+    const [examsLoading, setExamsLoading] = useState(true);
 
     const loadUserData = React.useCallback(async () => {
         if (!authUser) return;
@@ -104,52 +106,24 @@ const ExploreScreen: React.FC<ExploreScreenProps> = ({ navigation }) => {
         })();
     }, [supabaseUser]);
 
-    // Load study dashboard
+    // Load upcoming exams from schedule service
     useEffect(() => {
         (async () => {
-            if (!supabaseUser) return;
             try {
-                // Try cache first
-                const cachedDash = await getCachedStudyDashboard();
-                if (cachedDash) {
-                    setStudyStreak(cachedDash.study_streak || 0);
-                }
-
-                // Try Supabase
-                const { data, error } = await supabase
-                    .from('study_dashboard')
-                    .select('*')
-                    .eq('user_id', supabaseUser.id)
-                    .maybeSingle();
-
-                if (error && error.code !== '42P01') {
-                    console.error('Error loading dashboard:', error);
-                    return;
-                }
-
-                if (data) {
-                    setStudyStreak(data.study_streak || 0);
-                    await setCachedStudyDashboard(data);
-                } else {
-                    // Create dashboard for new user
-                    const newDash = {
-                        user_id: supabaseUser.id,
-                        study_streak: 0,
-                        total_study_time: 0,
-                        last_active: new Date().toISOString(),
-                    };
-                    const { error: insertErr } = await supabase
-                        .from('study_dashboard')
-                        .insert(newDash);
-                    if (insertErr && insertErr.code !== '42P01') {
-                        console.error('Error creating dashboard:', insertErr);
-                    }
-                }
+                const data = await getExamSchedule();
+                const today = new Date();
+                const upcoming = data
+                    .filter(e => new Date(e.date) >= today)
+                    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+                    .slice(0, 4);
+                setUpcomingExams(upcoming);
             } catch (err) {
-                console.error('Error with study dashboard:', err);
+                // Backend offline — silent
+            } finally {
+                setExamsLoading(false);
             }
         })();
-    }, [supabaseUser]);
+    }, []);
 
     const getSubjectProgress = (subject: Subject) => {
         const completed = subject.items.filter(item => item.completed).length;
@@ -205,6 +179,7 @@ const ExploreScreen: React.FC<ExploreScreenProps> = ({ navigation }) => {
     const WHATSAPP_GROUP_LINK = 'https://chat.whatsapp.com/XXXXXXXXXX'; // TODO: Replace with actual group link
 
     const toolCards = [
+        { key: 'MediaTools', label: 'Media Tools', icon: '⬡', desc: 'Video, Audio, Image & PDF', color: '#F43F5E' },
         { key: 'Ticklist', label: 'Study Checklist', icon: '☐', desc: 'Track your study progress', color: '#FB923C' },
         { key: 'Flashcards', label: 'AI Flashcards', icon: '🃏', desc: 'Generate flashcards by topic', color: '#8B5CF6' },
         { key: 'CodingHub', label: 'Coding Hub', icon: '⟨/⟩', desc: 'Practice coding problems', color: '#34D399' },
@@ -214,7 +189,6 @@ const ExploreScreen: React.FC<ExploreScreenProps> = ({ navigation }) => {
         { key: 'LearningZone', label: 'Learning Zone', icon: '◇', desc: 'Topic quizzes & games', color: '#F472B6' },
         { key: 'Library', label: 'Library', icon: '▤', desc: 'Notes & bookmarks', color: '#38BDF8' },
         { key: 'SyllabusViewer', label: 'Syllabus', icon: '≡', desc: 'Browse KTU syllabus', color: '#4ADE80' },
-        { key: 'MediaTools', label: 'Media Tools', icon: '⬡', desc: 'Video, Audio, Image & PDF', color: '#F43F5E' },
     ];
 
     return (
@@ -243,37 +217,57 @@ const ExploreScreen: React.FC<ExploreScreenProps> = ({ navigation }) => {
             </SafeAreaView>
 
             <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-                {/* Study Dashboard Card */}
+                {/* Upcoming Exams Card */}
                 <View style={[styles.dashboardCard, { backgroundColor: theme.backgroundSecondary, borderColor: theme.border }]}>
                     <View style={styles.dashboardHeader}>
-                        <Text style={[styles.dashboardTitle, { color: theme.text }]}>Study Dashboard</Text>
-                        <View style={[styles.streakBadge, { backgroundColor: theme.warning + '1F' }]}>
-                            <Text style={[styles.streakText, { color: theme.warning }]}>🔥 {studyStreak}d streak</Text>
-                        </View>
+                        <Text style={[styles.dashboardTitle, { color: theme.text }]}>Upcoming Exams</Text>
+                        <TouchableOpacity onPress={() => navigation.navigate('Schedule')}>
+                            <Text style={[styles.viewAllText, { color: theme.primary }]}>View All →</Text>
+                        </TouchableOpacity>
                     </View>
-                    <View style={styles.progressContainer}>
-                        <View style={styles.progressInfo}>
-                            <Text style={[styles.progressLabel, { color: theme.textSecondary }]}>Syllabus Completion</Text>
-                            <Text style={[styles.progressPercent, { color: theme.primary }]}>{totalProgress.percentage}%</Text>
+
+                    {examsLoading ? (
+                        <View style={{ paddingVertical: 12 }}>
+                            {[0, 1, 2].map(i => (
+                                <View key={i} style={[styles.examSkeletonRow, { backgroundColor: theme.divider }]} />
+                            ))}
                         </View>
-                        <View style={[styles.progressBar, { backgroundColor: theme.divider }]}>
-                            <View style={[styles.progressFill, { width: `${totalProgress.percentage}%`, backgroundColor: theme.primary }]} />
+                    ) : upcomingExams.length === 0 ? (
+                        <View style={styles.emptyExams}>
+                            <Text style={[styles.emptyExamsIcon]}>📅</Text>
+                            <Text style={[styles.emptyExamsText, { color: theme.textSecondary }]}>
+                                No upcoming exams found. Check back later.
+                            </Text>
                         </View>
-                    </View>
-                    <View style={styles.statsGrid}>
-                        <View style={styles.statItem}>
-                            <Text style={[styles.statValue, { color: theme.text }]}>{subjects.length}</Text>
-                            <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Subjects</Text>
-                        </View>
-                        <View style={styles.statItem}>
-                            <Text style={[styles.statValue, { color: theme.text }]}>--</Text>
-                            <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Days to Exam</Text>
-                        </View>
-                        <View style={styles.statItem}>
-                            <Text style={[styles.statValue, { color: theme.text }]}>{totalProgress.completed}/{totalProgress.total}</Text>
-                            <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Completed</Text>
-                        </View>
-                    </View>
+                    ) : (
+                        upcomingExams.map((exam, i) => {
+                            const d = new Date(exam.date);
+                            const day = d.getDate();
+                            const mon = d.toLocaleDateString('en-US', { month: 'short' });
+                            const typeColors: Record<string, string> = {
+                                exam: '#EF4444', holiday: '#10B981',
+                                deadline: '#F59E0B', event: '#3B82F6',
+                            };
+                            const color = typeColors[exam.type] ?? '#8B5CF6';
+                            return (
+                                <View key={i} style={[styles.examRow, { borderBottomColor: theme.divider }]}>
+                                    <View style={[styles.examDate, { backgroundColor: color + '18' }]}>
+                                        <Text style={[styles.examDay, { color }]}>{day}</Text>
+                                        <Text style={[styles.examMon, { color }]}>{mon}</Text>
+                                    </View>
+                                    <View style={styles.examInfo}>
+                                        <Text style={[styles.examTitle, { color: theme.text }]} numberOfLines={1}>{exam.title}</Text>
+                                        {exam.description ? (
+                                            <Text style={[styles.examDesc, { color: theme.textSecondary }]} numberOfLines={1}>{exam.description}</Text>
+                                        ) : null}
+                                    </View>
+                                    <View style={[styles.typeBadge, { backgroundColor: color + '18' }]}>
+                                        <Text style={[styles.typeBadgeText, { color }]}>{exam.type}</Text>
+                                    </View>
+                                </View>
+                            );
+                        })
+                    )}
                 </View>
 
                 {/* Tools Grid */}
@@ -552,6 +546,26 @@ const styles = StyleSheet.create({
     subjectMeta: {
         fontSize: 11,
     },
+    // Upcoming Exams
+    examSkeletonRow: { height: 52, borderRadius: 10, marginBottom: 8 },
+    emptyExams: { alignItems: 'center', paddingVertical: 20 },
+    emptyExamsIcon: { fontSize: 36, marginBottom: 8 },
+    emptyExamsText: { fontSize: 13, textAlign: 'center' },
+    examRow: {
+        flexDirection: 'row', alignItems: 'center', paddingVertical: 10,
+        borderBottomWidth: 1, gap: 12,
+    },
+    examDate: {
+        width: 44, height: 44, borderRadius: 10,
+        justifyContent: 'center', alignItems: 'center',
+    },
+    examDay: { fontSize: 16, fontWeight: '800' },
+    examMon: { fontSize: 10, fontWeight: '600', textTransform: 'uppercase' },
+    examInfo: { flex: 1 },
+    examTitle: { fontSize: 14, fontWeight: '600', marginBottom: 2 },
+    examDesc: { fontSize: 11 },
+    typeBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
+    typeBadgeText: { fontSize: 10, fontWeight: '700', textTransform: 'uppercase' },
 });
 
 export default ExploreScreen;

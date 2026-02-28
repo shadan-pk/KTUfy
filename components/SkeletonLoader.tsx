@@ -284,6 +284,51 @@ export const FlashcardScreenSkeleton: React.FC = () => {
     );
 };
 
+// ─── ProfileScreenSkeleton ────────────────────────────────────────────────────
+export const ProfileScreenSkeleton: React.FC = () => {
+    const { theme } = useTheme();
+    return (
+        <View style={[sk.container, { backgroundColor: theme.background, paddingHorizontal: 16 }]}>
+            {/* Avatar + name area */}
+            <View style={[sk.profileTop, { borderBottomColor: theme.divider }]}>
+                <SkeletonBox width={80} height={80} borderRadius={40} style={{ marginBottom: 14 }} />
+                <SkeletonBox width={160} height={22} borderRadius={8} style={{ marginBottom: 8 }} />
+                <SkeletonBox width={200} height={12} borderRadius={5} style={{ marginBottom: 14 }} />
+                {/* Badges row */}
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                    <SkeletonBox width={70} height={26} borderRadius={10} />
+                    <SkeletonBox width={90} height={26} borderRadius={10} />
+                    <SkeletonBox width={60} height={26} borderRadius={10} />
+                </View>
+            </View>
+            {/* Info card */}
+            <View style={[sk.card, { backgroundColor: theme.backgroundSecondary, marginTop: 16 }]}>
+                <SkeletonBox width="30%" height={10} borderRadius={4} style={{ marginBottom: 14 }} />
+                {[0, 1].map(i => (
+                    <View key={i} style={sk.cardRow}>
+                        <SkeletonBox width="35%" height={14} borderRadius={5} />
+                        <SkeletonBox width="45%" height={14} borderRadius={5} />
+                    </View>
+                ))}
+            </View>
+            {/* Account card */}
+            <View style={[sk.card, { backgroundColor: theme.backgroundSecondary }]}>
+                <SkeletonBox width="25%" height={10} borderRadius={4} style={{ marginBottom: 14 }} />
+                {[0, 1].map(i => (
+                    <View key={i} style={sk.cardRow}>
+                        <SkeletonBox width="35%" height={14} borderRadius={5} />
+                        <SkeletonBox width="30%" height={22} borderRadius={8} />
+                    </View>
+                ))}
+            </View>
+            {/* Action buttons */}
+            {[0, 1, 2].map(i => (
+                <SkeletonBox key={i} height={50} borderRadius={12} style={{ marginBottom: 8 }} />
+            ))}
+        </View>
+    );
+};
+
 // ─── Styles ───────────────────────────────────────────────────────────────────
 const sk = StyleSheet.create({
     container: { flex: 1 },
@@ -319,4 +364,8 @@ const sk = StyleSheet.create({
     filterRow: { flexDirection: 'row', paddingHorizontal: 16, marginBottom: 16, gap: 8 },
     subjectCard: { borderRadius: 16, padding: 16, marginHorizontal: 16, marginBottom: 16 },
     colorBar: { width: 4, height: 48, borderRadius: 2, marginRight: 12 },
+    profileTop: {
+        alignItems: 'center', paddingVertical: 28,
+        borderBottomWidth: 1, marginBottom: 0,
+    },
 });
