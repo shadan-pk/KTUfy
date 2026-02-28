@@ -9,6 +9,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  StatusBar,
 } from 'react-native';
 import { useAuth } from '../auth/AuthProvider';
 import { LoginScreenNavigationProp } from '../types/navigation';
@@ -21,7 +22,7 @@ interface LoginScreenProps {
 type LoginMode = 'initial' | 'email';
 
 const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
-  const { theme } = useTheme();
+  const { theme, isDark } = useTheme();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -51,15 +52,16 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
 
   return (
     <KeyboardAvoidingView
-      style={[styles.container, { backgroundColor: '#050816' }]}
+      style={[styles.container, { backgroundColor: theme.background }]}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      <ScrollView contentContainerStyle={styles.scrollContainer}>
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={theme.background} />
+      <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
         <View style={styles.logoContainer}>
           <Text
             style={[
               styles.logoText,
-              { color: '#3B82F6' },
+              { color: theme.primary },
             ]}
           >
             KTUfy
@@ -71,23 +73,23 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
             style={[
               styles.card,
               {
-                backgroundColor: '#050816',
+                backgroundColor: theme.background,
                 shadowColor: theme.shadow,
               },
             ]}
           >
-            <Text style={[styles.title, { color: '#E5E7EB' }]}>
+            <Text style={[styles.title, { color: theme.text }]}>
               Welcome back
             </Text>
 
             {mode === 'initial' && (
               <View style={styles.actionGroup}>
                 <TouchableOpacity
-                  style={styles.googleButton}
+                  style={[styles.googleButton, { backgroundColor: theme.backgroundTertiary, borderColor: theme.border }]}
                   activeOpacity={0.85}
                 >
                   <View style={styles.googleContent}>
-                    <Text style={styles.googleLabel}>Sign in with Google</Text>
+                    <Text style={[styles.googleLabel, { color: theme.text }]}>Sign in with Google</Text>
                   </View>
                 </TouchableOpacity>
 
@@ -115,16 +117,16 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
                   <TouchableOpacity onPress={() => setMode('initial')} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
                     <Text style={[styles.backLink, { color: theme.primary }]}>← All sign-in options</Text>
                   </TouchableOpacity>
-                  <Text style={[styles.stepPill, { backgroundColor: '#1E293B', color: '#E5E7EB' }]}>
+                  <Text style={[styles.stepPill, { backgroundColor: theme.backgroundTertiary, color: theme.textSecondary }]}>
                     1 / 1
                   </Text>
                 </View>
 
-                <Text style={[styles.sectionTitle, { color: '#E5E7EB' }]}>Sign in with email</Text>
+                <Text style={[styles.sectionTitle, { color: theme.text }]}>Sign in with email</Text>
 
                 {error && (
                   <View style={styles.errorContainer}>
-                    <Text style={styles.errorMessage}>{error}</Text>
+                    <Text style={[styles.errorMessage, { color: theme.error }]}>{error}</Text>
                   </View>
                 )}
 
@@ -132,13 +134,13 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
                   style={[
                     styles.input,
                     {
-                      backgroundColor: theme.backgroundSecondary,
-                      borderColor: error ? '#EF4444' : theme.border,
+                      backgroundColor: theme.backgroundTertiary,
+                      borderColor: error ? theme.error : theme.border,
                       color: theme.text,
                     },
                   ]}
                   placeholder="Email"
-                  placeholderTextColor={theme.textSecondary}
+                  placeholderTextColor={theme.textTertiary}
                   value={email}
                   onChangeText={(text) => {
                     setEmail(text);
@@ -153,13 +155,13 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
                   style={[
                     styles.input,
                     {
-                      backgroundColor: theme.backgroundSecondary,
-                      borderColor: error ? '#EF4444' : theme.border,
+                      backgroundColor: theme.backgroundTertiary,
+                      borderColor: error ? theme.error : theme.border,
                       color: theme.text,
                     },
                   ]}
                   placeholder="Password"
-                  placeholderTextColor={theme.textSecondary}
+                  placeholderTextColor={theme.textTertiary}
                   value={password}
                   onChangeText={(text) => {
                     setPassword(text);
@@ -187,7 +189,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
             )}
 
             <View style={styles.footer}>
-              <Text style={[styles.footerText, { color: '#9CA3AF' }]}>
+              <Text style={[styles.footerText, { color: theme.textSecondary }]}>
                 New to KTUfy?{' '}
               </Text>
               <TouchableOpacity onPress={() => navigation.navigate('Signup')}>

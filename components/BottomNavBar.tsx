@@ -12,15 +12,9 @@ import {
 import { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { Home, Sparkles, BookOpen, User } from 'lucide-react-native';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
+import { useTheme } from '../contexts/ThemeContext';
 
-const C = {
-    pill: '#2563EB',
-    pillText: '#FFFFFF',
-    inactive: '#484F58',
-    barBg: '#070B1E',
-    outerBg: '#01040f',
-};
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 const ICON_SIZE = 22;
 
@@ -38,6 +32,7 @@ const NAV_ITEMS: NavItemDef[] = [
 ];
 
 const BottomNavBar: React.FC<BottomTabBarProps> = ({ state, navigation }) => {
+    const { theme } = useTheme();
     const currentIndex = state.index;
     // Hide tab bar when Chatbot is active
     const currentRouteName = state.routes[currentIndex]?.name;
@@ -71,8 +66,8 @@ const BottomNavBar: React.FC<BottomTabBarProps> = ({ state, navigation }) => {
     };
 
     return (
-        <View style={styles.wrapper}>
-            <View style={styles.bar}>
+        <View style={[styles.wrapper, { backgroundColor: theme.background }]}>
+            <View style={[styles.bar, { backgroundColor: theme.backgroundSecondary }]}>
                 {/* Animated pill */}
                 <Animated.View
                     style={[
@@ -80,6 +75,7 @@ const BottomNavBar: React.FC<BottomTabBarProps> = ({ state, navigation }) => {
                         {
                             width: ITEM_WIDTH,
                             transform: [{ translateX: pillTranslateX }],
+                            backgroundColor: theme.primary,
                         },
                     ]}
                 />
@@ -97,11 +93,11 @@ const BottomNavBar: React.FC<BottomTabBarProps> = ({ state, navigation }) => {
                         >
                             <IconComp
                                 size={ICON_SIZE}
-                                color={isActive ? C.pillText : C.inactive}
+                                color={isActive ? '#FFFFFF' : theme.textTertiary}
                                 strokeWidth={isActive ? 2.2 : 1.6}
                             />
                             {isActive && (
-                                <Text style={styles.label}>{item.label}</Text>
+                                <Text style={[styles.label, { color: '#FFFFFF' }]}>{item.label}</Text>
                             )}
                         </TouchableOpacity>
                     );
@@ -113,7 +109,6 @@ const BottomNavBar: React.FC<BottomTabBarProps> = ({ state, navigation }) => {
 
 const styles = StyleSheet.create({
     wrapper: {
-        backgroundColor: C.outerBg,
         paddingHorizontal: 6,
         paddingTop: 8,
         paddingBottom: Platform.OS === 'ios' ? 28 : 16,
@@ -121,7 +116,6 @@ const styles = StyleSheet.create({
     bar: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: C.barBg,
         borderRadius: 24,
         padding: 6,
         position: 'relative',
@@ -131,7 +125,6 @@ const styles = StyleSheet.create({
         top: 6,
         left: 6,
         bottom: 6,
-        backgroundColor: C.pill,
         borderRadius: 20,
     },
     item: {
@@ -146,7 +139,6 @@ const styles = StyleSheet.create({
     label: {
         fontSize: 14,
         fontWeight: '600',
-        color: C.pillText,
     },
 });
 

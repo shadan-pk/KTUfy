@@ -18,6 +18,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRoute, RouteProp } from '@react-navigation/native';
 import { ChatbotScreenNavigationProp, RootStackParamList } from '../types/navigation';
+import { useTheme } from '../contexts/ThemeContext';
 import { ArrowLeft, Menu, Plus, Paperclip, ArrowRight, X, Pencil, Trash2 } from 'lucide-react-native';
 import {
   sendChatMessage,
@@ -39,36 +40,7 @@ import { useServerStatus } from '../hooks/useServerStatus';
 
 const { width } = Dimensions.get('window');
 
-// ─── Blue Theme ───────────────────────────────────────────────────
-const C = {
-  bg900: '#050816',
-  bg850: '#070B1E',
-  bg800: '#0A1128',
-  bg700: '#0F1A3E',
-  surface: '#0F1535',
-  accent: '#2563EB',
-  accentLight: '#3B82F6',
-  accentDim: 'rgba(37, 99, 235, 0.12)',
-  accentBorder: 'rgba(37, 99, 235, 0.3)',
-  userBubble: '#1E3A8A',
-  userBubbleBorder: 'rgba(37, 99, 235, 0.25)',
-  aiBubble: '#0F1535',
-  aiBubbleBorder: 'rgba(71, 85, 105, 0.25)',
-  textPrimary: '#E6EDF3',
-  textSecondary: '#8B949E',
-  textMuted: '#484F58',
-  inputBg: '#0A1128',
-  inputBorder: 'rgba(71, 85, 105, 0.4)',
-  headerBg: 'rgba(5, 8, 22, 0.95)',
-  headerBorder: 'rgba(71, 85, 105, 0.2)',
-  error: '#F87171',
-  errorBg: 'rgba(248, 113, 113, 0.08)',
-  white: '#FFFFFF',
-  sidebarBg: '#070B1E',
-  sidebarBorder: 'rgba(71, 85, 105, 0.25)',
-  activeSession: 'rgba(37, 99, 235, 0.1)',
-  success: '#34D399',
-};
+// ─── Blue Theme removed - using ThemeProvider ───────────────────
 
 // ─── Golden Ratio Typography ─────────────────────────────────────
 const FONT = { display: 39, h1: 24, h2: 20, body: 15, caption: 12, micro: 10 };
@@ -85,6 +57,7 @@ interface ChatbotScreenProps {
 }
 
 const ChatbotScreen: React.FC<ChatbotScreenProps> = ({ navigation }) => {
+  const { theme, isDark } = useTheme();
   const route = useRoute<RouteProp<RootStackParamList, 'Chatbot'>>();
   const initialPrompt = route.params?.initialPrompt;
 
@@ -391,34 +364,34 @@ const ChatbotScreen: React.FC<ChatbotScreenProps> = ({ navigation }) => {
   }, [sessions]);
 
   return (
-    <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor={C.bg900} />
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
+      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} backgroundColor={theme.background} />
 
       {/* Header */}
-      <SafeAreaView edges={['top']} style={styles.headerSafe}>
-        <View style={styles.header}>
+      <SafeAreaView edges={['top']} style={[styles.headerSafe, { backgroundColor: isDark ? 'rgba(5, 8, 22, 0.95)' : theme.backgroundSecondary }]}>
+        <View style={[styles.header, { borderBottomColor: theme.divider }]}>
           <TouchableOpacity style={styles.hBtn} onPress={() => navigation.goBack()}>
-            <ArrowLeft size={22} color={C.textPrimary} strokeWidth={2} />
+            <ArrowLeft size={22} color={theme.text} strokeWidth={2} />
           </TouchableOpacity>
           <TouchableOpacity style={styles.hBtn} onPress={openSidebar}>
-            <Menu size={22} color={C.textPrimary} strokeWidth={2} />
+            <Menu size={22} color={theme.text} strokeWidth={2} />
           </TouchableOpacity>
           <View style={styles.hTitleWrap}>
-            <Text style={styles.hTitle}>KTUfy AI</Text>
-            <View style={[styles.statusDot, !serverOnline && { backgroundColor: C.error }]} />
+            <Text style={[styles.hTitle, { color: theme.text }]}>KTUfy AI</Text>
+            <View style={[styles.statusDot, !serverOnline && { backgroundColor: theme.error }, serverOnline && { backgroundColor: theme.success }]} />
           </View>
           <TouchableOpacity style={styles.hBtn} onPress={handleNewChat}>
-            <Plus size={22} color={C.textPrimary} strokeWidth={2} />
+            <Plus size={22} color={theme.text} strokeWidth={2} />
           </TouchableOpacity>
         </View>
       </SafeAreaView>
 
       {/* Error */}
       {error && (
-        <View style={styles.errorBanner}>
-          <Text style={styles.errorText}>⚠ {error}</Text>
+        <View style={[styles.errorBanner, { backgroundColor: theme.error + '14', borderLeftColor: theme.error }]}>
+          <Text style={[styles.errorText, { color: theme.error }]}>⚠ {error}</Text>
           <TouchableOpacity onPress={() => setError(null)}>
-            <Text style={styles.errorClose}>✕</Text>
+            <Text style={[styles.errorClose, { color: theme.error }]}>✕</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -426,13 +399,13 @@ const ChatbotScreen: React.FC<ChatbotScreenProps> = ({ navigation }) => {
       {/* Chat */}
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={styles.chatArea}
+        style={[styles.chatArea, { backgroundColor: theme.background }]}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
       >
         {isLoading && messages.length === 0 ? (
           <View style={styles.loadWrap}>
-            <ActivityIndicator size="large" color={C.accent} />
-            <Text style={styles.loadText}>Loading chat...</Text>
+            <ActivityIndicator size="large" color={theme.primary} />
+            <Text style={[styles.loadText, { color: theme.textSecondary }]}>Loading chat...</Text>
           </View>
         ) : (
           <ScrollView
@@ -442,17 +415,21 @@ const ChatbotScreen: React.FC<ChatbotScreenProps> = ({ navigation }) => {
           >
             {messages.map(m => (
               <View key={m.id} style={[styles.msgRow, m.isUser ? styles.userRow : styles.aiRow]}>
-                <View style={[styles.bubble, m.isUser ? styles.userBubble : styles.aiBubble]}>
+                <View style={[
+                  styles.bubble,
+                  m.isUser ? [styles.userBubble, { backgroundColor: theme.primary, borderColor: theme.primaryLight + '40' }]
+                    : [styles.aiBubble, { backgroundColor: theme.backgroundSecondary, borderColor: theme.border }]
+                ]}>
                   {!m.isUser && (
                     <View style={styles.aiLabel}>
-                      <View style={styles.aiDot} />
-                      <Text style={styles.aiLabelText}>KTUfy AI</Text>
+                      <View style={[styles.aiDot, { backgroundColor: theme.primary }]} />
+                      <Text style={[styles.aiLabelText, { color: theme.primary }]}>KTUfy AI</Text>
                     </View>
                   )}
-                  <Text style={[styles.msgText, m.isUser ? styles.userText : styles.aiText]}>
+                  <Text style={[styles.msgText, { color: m.isUser ? '#FFFFFF' : theme.text }]}>
                     {m.text}
                   </Text>
-                  <Text style={[styles.msgTime, m.isUser ? styles.userTime : styles.aiTime]}>
+                  <Text style={[styles.msgTime, { color: m.isUser ? 'rgba(255,255,255,0.6)' : theme.textTertiary }]}>
                     {formatTime(m.timestamp)}
                   </Text>
                 </View>
@@ -460,15 +437,15 @@ const ChatbotScreen: React.FC<ChatbotScreenProps> = ({ navigation }) => {
             ))}
             {isTyping && (
               <View style={[styles.msgRow, styles.aiRow]}>
-                <View style={[styles.bubble, styles.aiBubble]}>
+                <View style={[styles.bubble, styles.aiBubble, { backgroundColor: theme.backgroundSecondary, borderColor: theme.border }]}>
                   <View style={styles.aiLabel}>
-                    <View style={styles.aiDot} />
-                    <Text style={styles.aiLabelText}>KTUfy AI</Text>
+                    <View style={[styles.aiDot, { backgroundColor: theme.primary }]} />
+                    <Text style={[styles.aiLabelText, { color: theme.primary }]}>KTUfy AI</Text>
                   </View>
                   <View style={styles.typing}>
-                    <View style={styles.dot} />
-                    <View style={[styles.dot, { opacity: 0.6 }]} />
-                    <View style={[styles.dot, { opacity: 0.9 }]} />
+                    <View style={[styles.dot, { backgroundColor: theme.primary }]} />
+                    <View style={[styles.dot, { backgroundColor: theme.primary, opacity: 0.6 }]} />
+                    <View style={[styles.dot, { backgroundColor: theme.primary, opacity: 0.3 }]} />
                   </View>
                 </View>
               </View>
@@ -478,20 +455,20 @@ const ChatbotScreen: React.FC<ChatbotScreenProps> = ({ navigation }) => {
 
         {/* Input */}
         <View style={styles.inputArea}>
-          <View style={styles.inputWrap}>
+          <View style={[styles.inputWrap, { backgroundColor: theme.backgroundSecondary, borderColor: theme.border }]}>
             <TouchableOpacity style={styles.attachBtn}>
-              <Paperclip size={20} color={C.textMuted} strokeWidth={1.8} />
+              <Paperclip size={20} color={theme.textTertiary} strokeWidth={1.8} />
             </TouchableOpacity>
             <TextInput
-              style={styles.input} placeholder="Message KTUfy AI..."
-              placeholderTextColor={C.textMuted} value={inputText}
+              style={[styles.input, { color: theme.text }]} placeholder="Message KTUfy AI..."
+              placeholderTextColor={theme.textTertiary} value={inputText}
               onChangeText={setInputText} multiline maxLength={2000} editable={!isTyping}
             />
             <TouchableOpacity
-              style={[styles.sendBtn, (!inputText.trim() || isTyping) && styles.sendBtnOff]}
+              style={[styles.sendBtn, { backgroundColor: theme.primary }, (!inputText.trim() || isTyping) && { backgroundColor: theme.primary + '40' }]}
               onPress={handleSend} disabled={!inputText.trim() || isTyping}
             >
-              <ArrowRight size={20} color={C.white} strokeWidth={2.5} />
+              <ArrowRight size={20} color="#FFFFFF" strokeWidth={2.5} />
             </TouchableOpacity>
           </View>
         </View>
@@ -512,27 +489,27 @@ const ChatbotScreen: React.FC<ChatbotScreenProps> = ({ navigation }) => {
             </Animated.View>
 
             <Animated.View
-              style={[styles.sidebar, { transform: [{ translateX: sidebarAnim }] }]}
+              style={[styles.sidebar, { transform: [{ translateX: sidebarAnim }], backgroundColor: theme.backgroundSecondary, borderRightColor: theme.border }]}
             >
-              <View style={styles.sbHeader}>
-                <Text style={styles.sbTitle}>Chat History</Text>
+              <View style={[styles.sbHeader, { borderBottomColor: theme.border }]}>
+                <Text style={[styles.sbTitle, { color: theme.text }]}>Chat History</Text>
                 <TouchableOpacity onPress={closeSidebar}>
-                  <X size={20} color={C.textSecondary} strokeWidth={2} />
+                  <X size={20} color={theme.textSecondary} strokeWidth={2} />
                 </TouchableOpacity>
               </View>
-              <TouchableOpacity style={styles.sbNew} onPress={handleNewChat}>
-                <Plus size={18} color={C.accent} strokeWidth={2} />
-                <Text style={styles.sbNewText}>New Chat</Text>
+              <TouchableOpacity style={[styles.sbNew, { borderColor: theme.primaryLight + '4D', backgroundColor: theme.primary + '14' }]} onPress={handleNewChat}>
+                <Plus size={18} color={theme.primary} strokeWidth={2} />
+                <Text style={[styles.sbNewText, { color: theme.primary }]}>New Chat</Text>
               </TouchableOpacity>
               <ScrollView style={styles.sbList} showsVerticalScrollIndicator={false}>
                 {Object.entries(groupedSessions).map(([group, gSessions]) => (
                   <View key={group} style={styles.sbGroup}>
-                    <Text style={styles.sbGroupTitle}>{group}</Text>
+                    <Text style={[styles.sbGroupTitle, { color: theme.textTertiary }]}>{group}</Text>
                     {gSessions.map(s => (
                       <View key={s.id} style={styles.sbItem}>
                         {editingSessionId === s.id ? (
                           <TextInput
-                            style={styles.sbEditInput} value={editingTitle}
+                            style={[styles.sbEditInput, { color: theme.text, backgroundColor: theme.backgroundTertiary, borderColor: theme.primaryLight + '4D' }]} value={editingTitle}
                             onChangeText={setEditingTitle}
                             onBlur={() => saveSessionTitle(s.id)}
                             onSubmitEditing={() => saveSessionTitle(s.id)}
@@ -541,20 +518,20 @@ const ChatbotScreen: React.FC<ChatbotScreenProps> = ({ navigation }) => {
                         ) : (
                           <>
                             <TouchableOpacity
-                              style={[styles.sbBtn, currentSessionId === s.id && styles.sbBtnActive]}
+                              style={[styles.sbBtn, currentSessionId === s.id && { backgroundColor: theme.primary + '1A' }]}
                               onPress={() => loadChatSession(s.id)}
                             >
-                              <Text style={[styles.sbBtnTitle, currentSessionId === s.id && { color: C.accent }]} numberOfLines={1}>
+                              <Text style={[styles.sbBtnTitle, { color: theme.text }, currentSessionId === s.id && { color: theme.primary }]} numberOfLines={1}>
                                 {s.title}
                               </Text>
-                              <Text style={styles.sbDate}>{formatSessionDate(s.created_at)}</Text>
+                              <Text style={[styles.sbDate, { color: theme.textTertiary }]}>{formatSessionDate(s.created_at)}</Text>
                             </TouchableOpacity>
                             <View style={styles.sbActions}>
                               <TouchableOpacity style={styles.sbActBtn} onPress={() => startEditingTitle(s)}>
-                                <Pencil size={14} color={C.textMuted} strokeWidth={1.8} />
+                                <Pencil size={14} color={theme.textTertiary} strokeWidth={1.8} />
                               </TouchableOpacity>
                               <TouchableOpacity style={styles.sbActBtn} onPress={() => handleDeleteSession(s.id)}>
-                                <Trash2 size={14} color={C.error} strokeWidth={1.8} />
+                                <Trash2 size={14} color={theme.error} strokeWidth={1.8} />
                               </TouchableOpacity>
                             </View>
                           </>
@@ -565,7 +542,7 @@ const ChatbotScreen: React.FC<ChatbotScreenProps> = ({ navigation }) => {
                 ))}
                 {sessions.length === 0 && (
                   <View style={styles.sbEmpty}>
-                    <Text style={styles.sbEmptyText}>No history yet.{'\n'}Start a conversation!</Text>
+                    <Text style={[styles.sbEmptyText, { color: theme.textTertiary }]}>No history yet.{'\n'}Start a conversation!</Text>
                   </View>
                 )}
               </ScrollView>
@@ -578,31 +555,30 @@ const ChatbotScreen: React.FC<ChatbotScreenProps> = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: C.bg900 },
+  container: { flex: 1 },
   // Header
-  headerSafe: { backgroundColor: C.headerBg },
+  headerSafe: {},
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: 12, paddingVertical: 10,
-    borderBottomWidth: 1, borderBottomColor: C.headerBorder,
+    borderBottomWidth: 1,
   },
   hBtn: { width: 40, height: 40, justifyContent: 'center', alignItems: 'center', borderRadius: 10 },
-  hBtnIcon: { fontSize: 20, color: C.textPrimary, fontWeight: '500' },
   hTitleWrap: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
-  hTitle: { fontSize: FONT.body, fontWeight: '700', color: C.textPrimary, letterSpacing: 0.5 },
-  statusDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: C.success, marginLeft: 8 },
+  hTitle: { fontSize: FONT.body, fontWeight: '700', letterSpacing: 0.5 },
+  statusDot: { width: 7, height: 7, borderRadius: 4, marginLeft: 8 },
   // Error
   errorBanner: {
-    backgroundColor: C.errorBg, borderLeftWidth: 3, borderLeftColor: C.error,
+    borderLeftWidth: 3,
     paddingHorizontal: 16, paddingVertical: 10, flexDirection: 'row',
     justifyContent: 'space-between', alignItems: 'center',
   },
-  errorText: { color: C.error, fontSize: FONT.caption, flex: 1 },
-  errorClose: { color: C.error, fontSize: 16, fontWeight: 'bold', paddingLeft: 12 },
+  errorText: { fontSize: FONT.caption, flex: 1 },
+  errorClose: { fontSize: 16, fontWeight: 'bold', paddingLeft: 12 },
   // Chat
-  chatArea: { flex: 1, backgroundColor: C.bg900 },
+  chatArea: { flex: 1 },
   loadWrap: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  loadText: { marginTop: 12, color: C.textSecondary, fontSize: FONT.caption },
+  loadText: { marginTop: 12, fontSize: FONT.caption },
   msgList: { flex: 1 },
   msgContent: { paddingVertical: 16, paddingHorizontal: 12 },
   // Messages
@@ -611,48 +587,38 @@ const styles = StyleSheet.create({
   aiRow: { alignItems: 'flex-start' },
   bubble: { maxWidth: '85%', borderRadius: 18, paddingHorizontal: 16, paddingVertical: 12 },
   userBubble: {
-    backgroundColor: C.userBubble, borderBottomRightRadius: 4,
-    borderWidth: 1, borderColor: C.userBubbleBorder,
+    borderBottomRightRadius: 4,
+    borderWidth: 1,
   },
   aiBubble: {
-    backgroundColor: C.aiBubble, borderBottomLeftRadius: 4,
-    borderWidth: 1, borderColor: C.aiBubbleBorder,
+    borderBottomLeftRadius: 4,
+    borderWidth: 1,
   },
   aiLabel: { flexDirection: 'row', alignItems: 'center', marginBottom: 6 },
-  aiDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: C.accent, marginRight: 6 },
-  aiLabelText: { fontSize: FONT.micro, fontWeight: '600', color: C.accent, letterSpacing: 0.3 },
+  aiDot: { width: 6, height: 6, borderRadius: 3, marginRight: 6 },
+  aiLabelText: { fontSize: FONT.micro, fontWeight: '600', letterSpacing: 0.3 },
   msgText: { fontSize: FONT.body, lineHeight: 22 },
-  userText: { color: C.white },
-  aiText: { color: C.textPrimary },
   msgTime: { fontSize: FONT.micro, marginTop: 6 },
-  userTime: { color: 'rgba(255,255,255,0.5)', textAlign: 'right' },
-  aiTime: { color: C.textMuted },
   // Typing
   typing: { flexDirection: 'row', alignItems: 'center', paddingVertical: 4 },
-  dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: C.accent, marginRight: 5, opacity: 0.4 },
+  dot: { width: 7, height: 7, borderRadius: 4, marginRight: 5 },
   // Input
   inputArea: {
     paddingHorizontal: 12, paddingVertical: 10,
-    // backgroundColor: C.bg850, 
-    // borderTopWidth: 1, borderTopColor: C.headerBorder,
   },
   inputWrap: {
     marginBottom: Platform.OS === 'android' ? 10 : 4,
     flexDirection: 'row', alignItems: 'flex-end',
-    backgroundColor: C.inputBg,
     borderRadius: 22,
-    borderWidth: 1, borderColor: C.inputBorder,
+    borderWidth: 1,
     paddingHorizontal: 6, paddingVertical: 4, maxHeight: 120,
   },
   attachBtn: { width: 36, height: 36, justifyContent: 'center', alignItems: 'center', borderRadius: 18 },
-  attachIcon: { fontSize: 18 },
-  input: { flex: 1, fontSize: FONT.body, color: C.textPrimary, maxHeight: 100, paddingVertical: 8, paddingHorizontal: 6 },
+  input: { flex: 1, fontSize: FONT.body, maxHeight: 100, paddingVertical: 8, paddingHorizontal: 6 },
   sendBtn: {
-    width: 34, height: 34, borderRadius: 17, backgroundColor: C.accent,
+    width: 34, height: 34, borderRadius: 17,
     justifyContent: 'center', alignItems: 'center', marginLeft: 4,
   },
-  sendBtnOff: { backgroundColor: 'rgba(37, 99, 235, 0.25)' },
-  sendIcon: { color: C.white, fontSize: 18, fontWeight: '700' },
   // Sidebar (slides from left)
   backdrop: {
     ...StyleSheet.absoluteFillObject,
@@ -661,45 +627,40 @@ const styles = StyleSheet.create({
   sidebar: {
     position: 'absolute', left: 0, top: 0, bottom: 0,
     width: width * 0.78,
-    backgroundColor: C.sidebarBg,
-    borderRightWidth: 1, borderRightColor: C.sidebarBorder,
+    borderRightWidth: 1,
     paddingTop: Platform.OS === 'ios' ? 50 : 20,
   },
   sbHeader: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     paddingHorizontal: 20, paddingBottom: 16,
-    borderBottomWidth: 1, borderBottomColor: C.sidebarBorder, paddingTop: Platform.OS === 'android' ? 30 : 0,
+    borderBottomWidth: 1, paddingTop: Platform.OS === 'android' ? 30 : 0,
   },
-  sbTitle: { fontSize: FONT.h2, fontWeight: '700', color: C.textPrimary, },
-  sbClose: { fontSize: 18, color: C.textSecondary, fontWeight: '600' },
+  sbTitle: { fontSize: FONT.h2, fontWeight: '700' },
   sbNew: {
     flexDirection: 'row', alignItems: 'center', margin: 16, padding: 12,
-    borderRadius: 12, borderWidth: 1, borderColor: C.accentBorder, backgroundColor: C.accentDim,
+    borderRadius: 12, borderWidth: 1,
   },
-  sbNewIcon: { fontSize: 18, color: C.accent, marginRight: 10, fontWeight: '600' },
-  sbNewText: { fontSize: FONT.body, color: C.accent, fontWeight: '600' },
+  sbNewText: { fontSize: FONT.body, fontWeight: '600' },
   sbList: { flex: 1, paddingHorizontal: 12 },
   sbGroup: { marginBottom: 16 },
   sbGroupTitle: {
-    fontSize: FONT.micro, fontWeight: '700', color: C.textMuted,
+    fontSize: FONT.micro, fontWeight: '700',
     textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 6, marginLeft: 8,
   },
   sbItem: { flexDirection: 'row', alignItems: 'center' },
   sbBtn: { flex: 1, padding: 12, borderRadius: 10 },
-  sbBtnActive: { backgroundColor: C.activeSession },
-  sbBtnTitle: { fontSize: FONT.caption, color: C.textPrimary, fontWeight: '500' },
-  sbDate: { fontSize: FONT.micro, color: C.textMuted, marginTop: 2 },
+  sbBtnTitle: { fontSize: FONT.caption, fontWeight: '500' },
+  sbDate: { fontSize: FONT.micro, marginTop: 2 },
   sbActions: { flexDirection: 'row' },
   sbActBtn: { width: 32, height: 32, justifyContent: 'center', alignItems: 'center', borderRadius: 8 },
-  sbActIcon: { fontSize: FONT.caption, color: C.textSecondary },
   sbEditInput: {
-    flex: 1, fontSize: FONT.caption, color: C.textPrimary,
-    backgroundColor: C.surface, borderRadius: 8,
+    flex: 1, fontSize: FONT.caption,
+    borderRadius: 8,
     paddingHorizontal: 12, paddingVertical: 8,
-    borderWidth: 1, borderColor: C.accentBorder,
+    borderWidth: 1,
   },
   sbEmpty: { padding: 32, alignItems: 'center' },
-  sbEmptyText: { fontSize: FONT.caption, color: C.textMuted, textAlign: 'center', lineHeight: 22 },
+  sbEmptyText: { fontSize: FONT.caption, textAlign: 'center', lineHeight: 22 },
 });
 
 export default ChatbotScreen;

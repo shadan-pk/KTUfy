@@ -67,25 +67,26 @@ function MainTabs() {
   );
 }
 
+// ─── App Content ──────────────────────────────────────────────────
 function AppContent() {
   const { user } = useAuth();
   const { isDark, theme } = useTheme();
 
   if (user === undefined) {
     return (
-      <View style={[styles.loadingContainer, { backgroundColor: DARK_BG }]}>
-        <ActivityIndicator size="large" color="#2563EB" />
+      <View style={[styles.loadingContainer, { backgroundColor: theme.background }]}>
+        <ActivityIndicator size="large" color={theme.primary} />
       </View>
     );
   }
 
   return (
     <NavigationContainer>
-      <StatusBar style="light" />
+      <StatusBar style={isDark ? "light" : "dark"} />
       <Stack.Navigator
         screenOptions={{
           headerShown: false,
-          cardStyle: { backgroundColor: DARK_BG },
+          cardStyle: { backgroundColor: theme.background },
           cardStyleInterpolator: CardStyleInterpolators.forFadeFromBottomAndroid,
           gestureEnabled: true,
         }}

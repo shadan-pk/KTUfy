@@ -9,6 +9,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  StatusBar,
 } from 'react-native';
 import { useAuth } from '../auth/AuthProvider';
 import { SignupScreenNavigationProp } from '../types/navigation';
@@ -30,7 +31,7 @@ interface ParsedRegistration {
 type SignupStep = 1 | 2 | 3 | 4 | 5;
 
 const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
-  const { theme } = useTheme();
+  const { theme, isDark } = useTheme();
   const [name, setName] = useState('');
   const [registrationNumber, setRegistrationNumber] = useState('');
   const [email, setEmail] = useState('');
@@ -153,15 +154,16 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
 
   return (
     <KeyboardAvoidingView
-      style={[styles.container, { backgroundColor: '#050816' }]}
+      style={[styles.container, { backgroundColor: theme.background }]}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      <ScrollView contentContainerStyle={styles.scrollContainer}>
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={theme.background} />
+      <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
         <View style={styles.logoContainer}>
           <Text
             style={[
               styles.logoText,
-              { color: '#3B82F6' },
+              { color: theme.primary },
             ]}
           >
             KTUfy
@@ -173,13 +175,13 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
             style={[
               styles.card,
               {
-                backgroundColor: '#050816',
+                backgroundColor: theme.background,
                 shadowColor: theme.shadow,
               },
             ]}
           >
             <View style={styles.headerRow}>
-              <Text style={[styles.appName, { color: '#E5E7EB' }]}>Create account</Text>
+              <Text style={[styles.appName, { color: theme.textSecondary }]}>Create account</Text>
               <View style={styles.stepperPills}>
                 {[1, 2, 3, 4, 5].map((s) => (
                   <View
@@ -195,16 +197,16 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
               </View>
             </View>
 
-            <Text style={[styles.title, { color: '#E5E7EB' }]}>
+            <Text style={[styles.title, { color: theme.text }]}>
               Tell us about you
             </Text>
 
             {step === 1 && (
               <View style={styles.form}>
-                <Text style={[styles.sectionTitle, { color: '#E5E7EB' }]}>
+                <Text style={[styles.sectionTitle, { color: theme.text }]}>
                   What should we call you?
                 </Text>
-                <Text style={[styles.sectionSubtitle, { color: '#9CA3AF' }]}>
+                <Text style={[styles.sectionSubtitle, { color: theme.textSecondary }]}>
                   This helps us greet you across the app.
                 </Text>
 
@@ -212,13 +214,13 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
                   style={[
                     styles.input,
                     {
-                      backgroundColor: theme.backgroundSecondary,
+                      backgroundColor: theme.backgroundTertiary,
                       borderColor: theme.border,
                       color: theme.text,
                     },
                   ]}
                   placeholder="Full name"
-                  placeholderTextColor={theme.textSecondary}
+                  placeholderTextColor={theme.textTertiary}
                   value={name}
                   onChangeText={setName}
                   autoCapitalize="words"
@@ -249,10 +251,10 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
                   <Text style={[styles.backLink, { color: theme.primary }]}>← Back</Text>
                 </TouchableOpacity>
 
-                <Text style={[styles.sectionTitle, { color: '#E5E7EB' }]}>
+                <Text style={[styles.sectionTitle, { color: theme.text }]}>
                   What’s your register number?
                 </Text>
-                <Text style={[styles.sectionSubtitle, { color: '#9CA3AF' }]}>
+                <Text style={[styles.sectionSubtitle, { color: theme.textSecondary }]}>
                   Format: COL (3 letters) + YY (year) + BR (branch) + roll.
                 </Text>
 
@@ -260,13 +262,13 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
                   style={[
                     styles.input,
                     {
-                      backgroundColor: theme.backgroundSecondary,
+                      backgroundColor: theme.backgroundTertiary,
                       borderColor: theme.border,
                       color: theme.text,
                     },
                   ]}
                   placeholder="Registration number (e.g., MEA22CS051)"
-                  placeholderTextColor={theme.textSecondary}
+                  placeholderTextColor={theme.textTertiary}
                   value={registrationNumber}
                   onChangeText={handleRegistrationChange}
                   autoCapitalize="characters"
@@ -312,10 +314,10 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
                   <Text style={[styles.backLink, { color: theme.primary }]}>← Edit details</Text>
                 </TouchableOpacity>
 
-                <Text style={[styles.sectionTitle, { color: '#E5E7EB' }]}>
+                <Text style={[styles.sectionTitle, { color: theme.text }]}>
                   Does this look correct?
                 </Text>
-                <Text style={[styles.sectionSubtitle, { color: '#9CA3AF' }]}>
+                <Text style={[styles.sectionSubtitle, { color: theme.textSecondary }]}>
                   We’ll use this to tailor notes, schedules and resources just for you.
                 </Text>
 
@@ -323,7 +325,7 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
                   style={[
                     styles.reviewCard,
                     {
-                      backgroundColor: theme.backgroundSecondary,
+                      backgroundColor: theme.backgroundTertiary,
                       borderColor: theme.border,
                     },
                   ]}
@@ -381,20 +383,20 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
                   <Text style={[styles.backLink, { color: theme.primary }]}>← Back</Text>
                 </TouchableOpacity>
 
-                <Text style={[styles.sectionTitle, { color: '#E5E7EB' }]}>
+                <Text style={[styles.sectionTitle, { color: theme.text }]}>
                   How do you want to sign in?
                 </Text>
-                <Text style={[styles.sectionSubtitle, { color: '#9CA3AF' }]}>
+                <Text style={[styles.sectionSubtitle, { color: theme.textSecondary }]}>
                   Choose your preferred method.
                 </Text>
 
                 <View style={styles.signInChoiceColumn}>
                   <TouchableOpacity
-                    style={styles.googleButton}
+                    style={[styles.googleButton, { backgroundColor: theme.backgroundTertiary, borderColor: theme.border }]}
                     activeOpacity={0.85}
                   >
                     <View style={styles.googleContent}>
-                      <Text style={styles.googleLabel}>Sign in with Google</Text>
+                      <Text style={[styles.googleLabel, { color: theme.text }]}>Sign in with Google</Text>
                     </View>
                   </TouchableOpacity>
 
@@ -428,10 +430,10 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
                   <Text style={[styles.backLink, { color: theme.primary }]}>← Back</Text>
                 </TouchableOpacity>
 
-                <Text style={[styles.sectionTitle, { color: '#E5E7EB' }]}>
+                <Text style={[styles.sectionTitle, { color: theme.text }]}>
                   Sign in with email
                 </Text>
-                <Text style={[styles.sectionSubtitle, { color: '#9CA3AF' }]}>
+                <Text style={[styles.sectionSubtitle, { color: theme.textSecondary }]}>
                   Add an email and password for your account.
                 </Text>
 
@@ -445,13 +447,13 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
                   style={[
                     styles.input,
                     {
-                      backgroundColor: theme.backgroundSecondary,
-                      borderColor: signupError ? '#EF4444' : theme.border,
+                      backgroundColor: theme.backgroundTertiary,
+                      borderColor: signupError ? theme.error : theme.border,
                       color: theme.text,
                     },
                   ]}
                   placeholder="Email address"
-                  placeholderTextColor={theme.textSecondary}
+                  placeholderTextColor={theme.textTertiary}
                   value={email}
                   onChangeText={(text) => {
                     setEmail(text);
@@ -466,13 +468,13 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
                   style={[
                     styles.input,
                     {
-                      backgroundColor: theme.backgroundSecondary,
-                      borderColor: signupError ? '#EF4444' : theme.border,
+                      backgroundColor: theme.backgroundTertiary,
+                      borderColor: signupError ? theme.error : theme.border,
                       color: theme.text,
                     },
                   ]}
                   placeholder="Create a password"
-                  placeholderTextColor={theme.textSecondary}
+                  placeholderTextColor={theme.textTertiary}
                   value={password}
                   onChangeText={(text) => {
                     setPassword(text);
@@ -486,13 +488,13 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
                   style={[
                     styles.input,
                     {
-                      backgroundColor: theme.backgroundSecondary,
-                      borderColor: signupError ? '#EF4444' : theme.border,
+                      backgroundColor: theme.backgroundTertiary,
+                      borderColor: signupError ? theme.error : theme.border,
                       color: theme.text,
                     },
                   ]}
                   placeholder="Confirm password"
-                  placeholderTextColor={theme.textSecondary}
+                  placeholderTextColor={theme.textTertiary}
                   value={confirmPassword}
                   onChangeText={(text) => {
                     setConfirmPassword(text);
@@ -648,7 +650,6 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   errorMessage: {
-    color: '#EF4444',
     fontSize: 13,
     fontWeight: '500',
   },
@@ -746,10 +747,6 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     paddingVertical: 12,
     paddingHorizontal: 16,
-    backgroundColor: '#1F2937',
-    borderWidth: 1,
-    borderColor: '#374151',
-    shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
@@ -767,7 +764,6 @@ const styles = StyleSheet.create({
     height: 26,
     borderRadius: 13,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 10,
@@ -775,16 +771,13 @@ const styles = StyleSheet.create({
   googleLogoText: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#4285F4',
   },
   googleLabel: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#F3F4F6',
   },
   googleSublabel: {
     fontSize: 11,
-    color: '#6B7280',
   },
   emailChoiceButton: {
     borderRadius: 999,

@@ -55,7 +55,7 @@ interface HomeScreenProps {
 }
 
 const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
-  const { theme } = useTheme();
+  const { theme, isDark } = useTheme();
   const [promptText, setPromptText] = useState('');
 
   // Animations
@@ -90,7 +90,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     ]).start();
   }, []);
 
-  const glowOpacity = pulseAnim.interpolate({ inputRange: [0, 1], outputRange: [0.04, 0.18] });
+  const glowOpacity = pulseAnim.interpolate({ inputRange: [0, 1], outputRange: isDark ? [0.04, 0.18] : [0.02, 0.1] });
 
   const handlePromptSubmit = () => {
     if (!promptText.trim()) return;
@@ -102,36 +102,28 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   const { hasInternet, serverOnline } = useServerStatus();
 
   return (
-    <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor={C.bg900} />
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
+      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} backgroundColor={theme.background} />
 
       {/* Server status indicator */}
-      <View style={styles.statusBar}>
-        <View style={[styles.statusDot, { backgroundColor: serverOnline ? '#34D399' : '#F87171' }]} />
-        <Text style={[styles.statusLabel, { color: serverOnline ? '#34D399' : '#F87171' }]}>
+      <View style={[styles.statusBar, { backgroundColor: theme.backgroundTertiary, borderColor: theme.border }]}>
+        <View style={[styles.statusDot, { backgroundColor: serverOnline ? theme.success : theme.error }]} />
+        <Text style={[styles.statusLabel, { color: serverOnline ? theme.success : theme.error }]}>
           {serverOnline ? 'Online' : 'Offline'}
         </Text>
       </View>
 
       {/* No internet warning */}
       {!hasInternet && (
-        <View style={styles.offlineBanner}>
-          <WifiOff size={16} color="#FCD34D" strokeWidth={2} />
-          <Text style={styles.offlineText}>No internet connection. Some features require internet access.</Text>
+        <View style={[styles.offlineBanner, { backgroundColor: theme.warning + '26', borderColor: theme.warning + '4D' }]}>
+          <WifiOff size={16} color={theme.warning} strokeWidth={2} />
+          <Text style={[styles.offlineText, { color: theme.warning }]}>No internet connection. Some features require internet access.</Text>
         </View>
       )}
 
-      {/* Background gradient */}
-      {/* <LinearGradient
-        colors={[C.bg900, C.bg800, C.bg700, C.bg900]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={StyleSheet.absoluteFillObject}
-      /> */}
-
       {/* Animated glow orbs */}
-      <Animated.View style={[styles.orb, styles.orb1, { opacity: glowOpacity }]} />
-      <Animated.View style={[styles.orb, styles.orb2, { opacity: glowOpacity }]} />
+      <Animated.View style={[styles.orb, styles.orb1, { opacity: glowOpacity, backgroundColor: theme.primary + '12' }]} />
+      <Animated.View style={[styles.orb, styles.orb2, { opacity: glowOpacity, backgroundColor: theme.primary + '0D' }]} />
 
       <KeyboardAvoidingView
         style={styles.keyboardView}
@@ -141,9 +133,9 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         <View style={styles.mainContent}>
           {/* Logo — upper portion */}
           <Animated.View style={[styles.logoSection, { opacity: logoOpacity }]}>
-            <Animated.View style={[styles.logoGlow, { opacity: glowOpacity }]} />
-            <Text style={styles.logoText}>KTUfy</Text>
-            <Text style={styles.tagline}>YOUR AI STUDY COMPANION</Text>
+            <Animated.View style={[styles.logoGlow, { opacity: glowOpacity, backgroundColor: theme.primary + '1F' }]} />
+            <Text style={[styles.logoText, { color: theme.text, textShadowColor: theme.primary + '66' }]}>KTUfy</Text>
+            <Text style={[styles.tagline, { color: theme.textSecondary }]}>YOUR AI STUDY COMPANION</Text>
           </Animated.View>
 
           {/* Center — prompt input only */}
@@ -154,11 +146,11 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
             ]}
           >
             <View style={styles.promptContainer}>
-              <View style={styles.promptInputWrapper}>
+              <View style={[styles.promptInputWrapper, { backgroundColor: theme.backgroundSecondary, borderColor: theme.border }]}>
                 <TextInput
-                  style={styles.promptInput}
+                  style={[styles.promptInput, { color: theme.text }]}
                   placeholder="Ask anything about your studies..."
-                  placeholderTextColor={C.textMuted}
+                  placeholderTextColor={theme.textTertiary}
                   value={promptText}
                   onChangeText={setPromptText}
                   multiline
@@ -168,7 +160,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
                   blurOnSubmit
                 />
                 <TouchableOpacity
-                  style={[styles.sendBtn, !promptText.trim() && styles.sendBtnDisabled]}
+                  style={[styles.sendBtn, { backgroundColor: theme.primary }, !promptText.trim() && { backgroundColor: theme.primary + '4D' }]}
                   onPress={handlePromptSubmit}
                   disabled={!promptText.trim()}
                   activeOpacity={0.7}
@@ -183,11 +175,11 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
               {['Exam tips', 'Study plan', 'KTU syllabus'].map((chip) => (
                 <TouchableOpacity
                   key={chip}
-                  style={styles.chip}
+                  style={[styles.chip, { borderColor: theme.border, backgroundColor: theme.primary + '14' }]}
                   onPress={() => navigation.navigate('Chatbot', { initialPrompt: chip })}
                   activeOpacity={0.7}
                 >
-                  <Text style={styles.chipText}>{chip}</Text>
+                  <Text style={[styles.chipText, { color: theme.primaryLight }]}>{chip}</Text>
                 </TouchableOpacity>
               ))}
             </View>
@@ -198,18 +190,18 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
       {/* Explore KTUfy — floating card above nav */}
       <View style={styles.exploreFloating}>
         <TouchableOpacity
-          style={styles.exploreButton}
+          style={[styles.exploreButton, { borderColor: theme.border }]}
           onPress={() => navigation.navigate('Explore')}
           activeOpacity={0.8}
         >
           <LinearGradient
-            colors={['rgba(37, 99, 235, 0.18)', 'rgba(37, 99, 235, 0.06)']}
+            colors={[theme.primary + '2E', theme.primary + '0F']}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={styles.exploreGradient}
           >
-            <Text style={styles.exploreText}>Explore KTUfy</Text>
-            <Text style={styles.exploreArrow}>›</Text>
+            <Text style={[styles.exploreText, { color: theme.text }]}>Explore KTUfy</Text>
+            <Text style={[styles.exploreArrow, { color: theme.primaryLight }]}>›</Text>
           </LinearGradient>
         </TouchableOpacity>
       </View>
@@ -218,35 +210,33 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: C.bg900 },
+  container: { flex: 1 },
   keyboardView: { flex: 1 },
   // Status & Offline
   statusBar: {
     position: 'absolute', top: Platform.OS === 'ios' ? 60 : 40, alignSelf: 'center',
     flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: 'rgba(15, 26, 62, 0.7)', paddingHorizontal: 12, paddingVertical: 6,
-    borderRadius: 20, borderWidth: 1, borderColor: 'rgba(71, 85, 105, 0.3)', zIndex: 10,
+    paddingHorizontal: 12, paddingVertical: 6,
+    borderRadius: 20, borderWidth: 1, zIndex: 10,
   },
   statusDot: { width: 8, height: 8, borderRadius: 4 },
   statusLabel: { fontSize: FONT.caption, fontWeight: '600', letterSpacing: 0.5 },
   offlineBanner: {
     position: 'absolute', top: Platform.OS === 'ios' ? 100 : 80, left: 24, right: 24,
     flexDirection: 'row', alignItems: 'center', gap: 10,
-    backgroundColor: 'rgba(245, 158, 11, 0.15)', padding: 12,
-    borderRadius: 12, borderWidth: 1, borderColor: 'rgba(245, 158, 11, 0.3)', zIndex: 10,
+    padding: 12,
+    borderRadius: 12, borderWidth: 1, zIndex: 10,
   },
-  offlineText: { color: '#FCD34D', fontSize: FONT.caption, flex: 1, lineHeight: 18 },
+  offlineText: { fontSize: FONT.caption, flex: 1, lineHeight: 18 },
   // Glow orbs
   orb: { position: 'absolute', borderRadius: 999 },
   orb1: {
     width: width * 1.2, height: width * 1.2,
     top: -height * 0.15, left: -width * 0.3,
-    backgroundColor: 'rgba(37, 99, 235, 0.07)',
   },
   orb2: {
     width: width * 0.8, height: width * 0.8,
     bottom: height * 0.2, right: -width * 0.2,
-    backgroundColor: 'rgba(37, 99, 235, 0.05)',
   },
   // Main
   mainContent: {
@@ -259,21 +249,18 @@ const styles = StyleSheet.create({
   logoSection: { alignItems: 'center', marginBottom: 48 },
   logoGlow: {
     position: 'absolute', width: 200, height: 200,
-    borderRadius: 100, backgroundColor: C.accentGlow, top: -60,
+    borderRadius: 100, top: -60,
   },
   logoText: {
     fontSize: FONT.display,
     fontWeight: '800',
     letterSpacing: 12,
-    color: C.textPrimary,
     textTransform: 'uppercase',
-    textShadowColor: 'rgba(37, 99, 235, 0.4)',
     textShadowOffset: { width: 0, height: 0 },
     textShadowRadius: 20,
   },
   tagline: {
     fontSize: FONT.caption,
-    color: C.textSecondary,
     marginTop: 8,
     letterSpacing: 3,
     fontWeight: '500',
@@ -283,22 +270,18 @@ const styles = StyleSheet.create({
   promptContainer: { width: '100%', marginBottom: 14 },
   promptInputWrapper: {
     flexDirection: 'row', alignItems: 'flex-end',
-    backgroundColor: C.inputBg,
-    borderRadius: 20, borderWidth: 1, borderColor: C.inputBorder,
+    borderRadius: 20, borderWidth: 1,
     paddingHorizontal: 16, paddingVertical: 8,
     minHeight: 52, maxHeight: 120,
   },
   promptInput: {
-    flex: 1, fontSize: FONT.body, color: C.textPrimary,
+    flex: 1, fontSize: FONT.body,
     paddingVertical: 8, maxHeight: 100, lineHeight: 20,
   },
   sendBtn: {
     width: 36, height: 36, borderRadius: 18,
-    backgroundColor: C.accent,
     justifyContent: 'center', alignItems: 'center', marginLeft: 8,
   },
-  sendBtnDisabled: { backgroundColor: 'rgba(37, 99, 235, 0.3)' },
-  sendIcon: { color: C.white, fontSize: 18, fontWeight: '700' },
   // Chips
   chips: {
     flexDirection: 'row', justifyContent: 'center',
@@ -307,10 +290,8 @@ const styles = StyleSheet.create({
   chip: {
     paddingHorizontal: 14, paddingVertical: 8,
     borderRadius: 16, borderWidth: 1,
-    borderColor: C.accentBorder,
-    backgroundColor: 'rgba(37, 99, 235, 0.08)',
   },
-  chipText: { fontSize: FONT.caption, color: C.accentLight, fontWeight: '500' },
+  chipText: { fontSize: FONT.caption, fontWeight: '500' },
   // Explore floating card
   exploreFloating: {
     position: 'absolute',
@@ -319,7 +300,7 @@ const styles = StyleSheet.create({
   },
   exploreButton: {
     borderRadius: 14, borderWidth: 1,
-    borderColor: C.accentBorder, overflow: 'hidden',
+    overflow: 'hidden',
   },
   exploreGradient: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
@@ -327,33 +308,10 @@ const styles = StyleSheet.create({
   },
   exploreText: {
     fontSize: FONT.body, fontWeight: '600',
-    color: C.textPrimary, letterSpacing: 0.5,
+    letterSpacing: 0.5,
   },
   exploreArrow: {
-    fontSize: 22, color: C.accentLight, marginLeft: 10, fontWeight: '300',
-  },
-  // Nav
-  navContainer: {
-    backgroundColor: C.navBg,
-    borderTopWidth: 1, borderTopColor: C.navBorder,
-    paddingBottom: Platform.OS === 'ios' ? 24 : 8,
-    paddingTop: 10,
-  },
-  nav: {
-    flexDirection: 'row', justifyContent: 'space-around',
-    alignItems: 'center', paddingHorizontal: 16,
-  },
-  navBtn: {
-    alignItems: 'center', justifyContent: 'center',
-    paddingVertical: 4, minWidth: 64,
-  },
-  navLabel: {
-    fontSize: FONT.caption, color: C.textMuted,
-    fontWeight: '500',
-  },
-  navActiveLabel: {
-    fontSize: FONT.caption, color: C.accent,
-    fontWeight: '700',
+    fontSize: 22, marginLeft: 10, fontWeight: '300',
   },
 });
 

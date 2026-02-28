@@ -47,14 +47,55 @@ interface Theme {
 
 const lightTheme: Theme = {
   // Background colors
-  background: '#050816',
-  backgroundSecondary: '#0A1128',
-  backgroundTertiary: '#0F1A3E',
+  background: '#FFFFFF',
+  backgroundSecondary: '#F8FAFC',
+  backgroundTertiary: '#F1F5F9',
 
   // Card colors
-  card: '#0F1535',
+  card: '#FFFFFF',
+  cardSecondary: '#F1F5F9',
+  cardBorder: 'rgba(226, 232, 240, 0.8)',
+
+  // Text colors
+  text: '#0F172A',
+  textSecondary: '#475569',
+  textTertiary: '#94A3B8',
+
+  // Primary colors
+  primary: '#2563EB',
+  primaryLight: '#3B82F6',
+  primaryDark: '#1E40AF',
+
+  // Status colors
+  success: '#10B981',
+  warning: '#F59E0B',
+  error: '#EF4444',
+  info: '#3B82F6',
+
+  // UI element colors
+  border: 'rgba(226, 232, 240, 1)',
+  divider: 'rgba(226, 232, 240, 0.6)',
+  shadow: 'rgba(0, 0, 0, 0.05)',
+  overlay: 'rgba(15, 23, 42, 0.5)',
+
+  // Feature colors
+  aiAssistant: '#2563EB',
+  learningZone: '#DB2777',
+  codingHub: '#059669',
+  groupStudy: '#D97706',
+  gpaCalculator: '#7C3AED',
+};
+
+const darkTheme: Theme = {
+  // Background colors
+  background: '#01040f',
+  backgroundSecondary: '#070B1E',
+  backgroundTertiary: '#0A1128',
+
+  // Card colors
+  card: '#0F1A3E',
   cardSecondary: '#152154',
-  cardBorder: 'rgba(71, 85, 105, 0.25)',
+  cardBorder: 'rgba(37, 99, 235, 0.3)',
 
   // Text colors
   text: '#E6EDF3',
@@ -76,7 +117,7 @@ const lightTheme: Theme = {
   border: 'rgba(71, 85, 105, 0.4)',
   divider: 'rgba(71, 85, 105, 0.15)',
   shadow: 'rgba(0, 0, 0, 0.3)',
-  overlay: 'rgba(0, 0, 0, 0.6)',
+  overlay: 'rgba(0, 0, 0, 0.7)',
 
   // Feature colors
   aiAssistant: '#2563EB',
@@ -84,47 +125,6 @@ const lightTheme: Theme = {
   codingHub: '#34D399',
   groupStudy: '#FBBF24',
   gpaCalculator: '#8B5CF6',
-};
-
-const darkTheme: Theme = {
-  // Background colors
-  background: '#050816',
-  backgroundSecondary: '#0A1128',
-  backgroundTertiary: '#0F1A3E',
-
-  // Card colors
-  card: '#0F1535',
-  cardSecondary: '#152154',
-  cardBorder: 'rgba(71, 85, 105, 0.25)',
-
-  // Text colors
-  text: '#E6EDF3',
-  textSecondary: '#8B949E',
-  textTertiary: '#484F58',
-
-  // Primary colors
-  primary: '#3B82F6',
-  primaryLight: '#1E3A8A',
-  primaryDark: '#2563EB',
-
-  // Status colors
-  success: '#34D399',
-  warning: '#FBBF24',
-  error: '#F87171',
-  info: '#60A5FA',
-
-  // UI element colors
-  border: 'rgba(71, 85, 105, 0.4)',
-  divider: 'rgba(71, 85, 105, 0.15)',
-  shadow: 'rgba(0, 0, 0, 0.3)',
-  overlay: 'rgba(0, 0, 0, 0.7)',
-
-  // Feature colors (slightly adjusted for dark mode)
-  aiAssistant: '#3B82F6',
-  learningZone: '#F472B6',
-  codingHub: '#34D399',
-  groupStudy: '#FBBF24',
-  gpaCalculator: '#A78BFA',
 };
 
 interface ThemeContextType {

@@ -8,6 +8,7 @@ import {
   Switch,
   Alert,
   Platform,
+  StatusBar,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { SettingsScreenNavigationProp } from '../types/navigation';
@@ -59,6 +60,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) => {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.backgroundSecondary }]} edges={['bottom']}>
+      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} backgroundColor={theme.backgroundSecondary} />
       <ScrollView style={styles.scrollView}>
 
         {/* Server Status Section */}
@@ -261,7 +263,6 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
     paddingTop: Platform.OS === 'android' ? 50 : 0,
   },
   scrollView: {
@@ -274,22 +275,14 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#333',
     marginBottom: 15,
     marginLeft: 5,
   },
   settingCard: {
-    backgroundColor: '#fff',
     borderRadius: 15,
     padding: 5,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 5,
+    elevation: 3,
+    borderWidth: 1,
   },
   settingRow: {
     flexDirection: 'row',
@@ -304,26 +297,21 @@ const styles = StyleSheet.create({
   },
   settingLabel: {
     fontSize: 16,
-    color: '#333',
     fontWeight: '500',
     marginBottom: 2,
   },
   settingDescription: {
     fontSize: 13,
-    color: '#666',
   },
   settingValue: {
     fontSize: 14,
-    color: '#666',
   },
   settingArrow: {
     fontSize: 24,
-    color: '#ccc',
     fontWeight: '300',
   },
   divider: {
     height: 1,
-    backgroundColor: '#eee',
     marginLeft: 15,
   },
   dangerButton: {

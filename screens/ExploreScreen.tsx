@@ -17,25 +17,6 @@ import { useTheme } from '../contexts/ThemeContext';
 
 const { width } = Dimensions.get('window');
 
-// ─── Theme Variables ──────────────────────────────────────────────
-const COLORS = {
-    bgPrimary: '#050816',
-    bgSecondary: '#0A1128',
-    surface: '#0F1535',
-    surfaceLight: '#152154',
-    accent: '#2563EB',
-    accentDim: 'rgba(37, 99, 235, 0.12)',
-    accentBorder: 'rgba(37, 99, 235, 0.25)',
-    textPrimary: '#E6EDF3',
-    textSecondary: '#8B949E',
-    textMuted: '#484F58',
-    cardBorder: 'rgba(71, 85, 105, 0.25)',
-    success: '#34D399',
-    warning: '#FBBF24',
-    error: '#F87171',
-    white: '#FFFFFF',
-};
-
 interface ExploreScreenProps {
     navigation: ExploreScreenNavigationProp;
 }
@@ -64,7 +45,7 @@ interface Subject {
 }
 
 const ExploreScreen: React.FC<ExploreScreenProps> = ({ navigation }) => {
-    const { theme } = useTheme();
+    const { theme, isDark } = useTheme();
     const { user: authUser } = useAuth();
     const [supabaseUser, setSupabaseUser] = useState<any | null>(null);
     const [userData, setUserData] = useState<UserData | null>(null);
@@ -178,79 +159,79 @@ const ExploreScreen: React.FC<ExploreScreenProps> = ({ navigation }) => {
     ];
 
     return (
-        <View style={styles.container}>
-            <StatusBar barStyle="light-content" backgroundColor={COLORS.bgPrimary} />
+        <View style={[styles.container, { backgroundColor: theme.background }]}>
+            <StatusBar barStyle={isDark ? "light-content" : "dark-content"} backgroundColor={theme.background} />
 
             {/* Header */}
-            <SafeAreaView edges={['top']} style={styles.headerSafe}>
-                <View style={styles.header}>
+            <SafeAreaView edges={['top']} style={[styles.headerSafe, { backgroundColor: theme.background }]}>
+                <View style={[styles.header, { borderBottomColor: theme.divider }]}>
                     <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-                        <Text style={styles.backIcon}>←</Text>
+                        <Text style={[styles.backIcon, { color: theme.text }]}>←</Text>
                     </TouchableOpacity>
                     <View style={styles.headerInfo}>
-                        <Text style={styles.greetingText}>{getGreeting()}</Text>
-                        <Text style={styles.userName}>
+                        <Text style={[styles.greetingText, { color: theme.textSecondary }]}>{getGreeting()}</Text>
+                        <Text style={[styles.userName, { color: theme.text }]}>
                             {userData?.name || authUser?.email || 'Student'}
                         </Text>
                     </View>
                     <TouchableOpacity
-                        style={styles.profileButton}
+                        style={[styles.profileButton, { borderColor: theme.border }]}
                         onPress={() => navigation.navigate('Profile')}
                     >
-                        <Text style={styles.profileIcon}>○</Text>
+                        <Text style={[styles.profileIcon, { color: theme.primary }]}>○</Text>
                     </TouchableOpacity>
                 </View>
             </SafeAreaView>
 
             <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
                 {/* Study Dashboard Card */}
-                <View style={styles.dashboardCard}>
+                <View style={[styles.dashboardCard, { backgroundColor: theme.backgroundSecondary, borderColor: theme.border }]}>
                     <View style={styles.dashboardHeader}>
-                        <Text style={styles.dashboardTitle}>Study Dashboard</Text>
-                        <View style={styles.streakBadge}>
-                            <Text style={styles.streakText}>🔥 {studyStreak}d streak</Text>
+                        <Text style={[styles.dashboardTitle, { color: theme.text }]}>Study Dashboard</Text>
+                        <View style={[styles.streakBadge, { backgroundColor: theme.warning + '1F' }]}>
+                            <Text style={[styles.streakText, { color: theme.warning }]}>🔥 {studyStreak}d streak</Text>
                         </View>
                     </View>
                     <View style={styles.progressContainer}>
                         <View style={styles.progressInfo}>
-                            <Text style={styles.progressLabel}>Syllabus Completion</Text>
-                            <Text style={styles.progressPercent}>{totalProgress.percentage}%</Text>
+                            <Text style={[styles.progressLabel, { color: theme.textSecondary }]}>Syllabus Completion</Text>
+                            <Text style={[styles.progressPercent, { color: theme.primary }]}>{totalProgress.percentage}%</Text>
                         </View>
-                        <View style={styles.progressBar}>
-                            <View style={[styles.progressFill, { width: `${totalProgress.percentage}%` }]} />
+                        <View style={[styles.progressBar, { backgroundColor: theme.divider }]}>
+                            <View style={[styles.progressFill, { width: `${totalProgress.percentage}%`, backgroundColor: theme.primary }]} />
                         </View>
                     </View>
                     <View style={styles.statsGrid}>
                         <View style={styles.statItem}>
-                            <Text style={styles.statValue}>{subjects.length}</Text>
-                            <Text style={styles.statLabel}>Subjects</Text>
+                            <Text style={[styles.statValue, { color: theme.text }]}>{subjects.length}</Text>
+                            <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Subjects</Text>
                         </View>
                         <View style={styles.statItem}>
-                            <Text style={styles.statValue}>--</Text>
-                            <Text style={styles.statLabel}>Days to Exam</Text>
+                            <Text style={[styles.statValue, { color: theme.text }]}>--</Text>
+                            <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Days to Exam</Text>
                         </View>
                         <View style={styles.statItem}>
-                            <Text style={styles.statValue}>{totalProgress.completed}/{totalProgress.total}</Text>
-                            <Text style={styles.statLabel}>Completed</Text>
+                            <Text style={[styles.statValue, { color: theme.text }]}>{totalProgress.completed}/{totalProgress.total}</Text>
+                            <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Completed</Text>
                         </View>
                     </View>
                 </View>
 
                 {/* Tools Grid */}
-                <Text style={styles.sectionTitle}>Tools & Features</Text>
+                <Text style={[styles.sectionTitle, { color: theme.text }]}>Tools & Features</Text>
                 <View style={styles.toolsGrid}>
                     {toolCards.map((tool) => (
                         <TouchableOpacity
                             key={tool.key}
-                            style={styles.toolCard}
+                            style={[styles.toolCard, { backgroundColor: theme.backgroundSecondary, borderColor: theme.border }]}
                             onPress={() => navigation.navigate(tool.key as any)}
                             activeOpacity={0.7}
                         >
                             <View style={[styles.toolIconContainer, { backgroundColor: tool.color + '18' }]}>
                                 <Text style={[styles.toolIcon, { color: tool.color }]}>{tool.icon}</Text>
                             </View>
-                            <Text style={styles.toolLabel}>{tool.label}</Text>
-                            <Text style={styles.toolDesc} numberOfLines={1}>{tool.desc}</Text>
+                            <Text style={[styles.toolLabel, { color: theme.text }]}>{tool.label}</Text>
+                            <Text style={[styles.toolDesc, { color: theme.textSecondary }]} numberOfLines={1}>{tool.desc}</Text>
                         </TouchableOpacity>
                     ))}
                 </View>
@@ -259,20 +240,20 @@ const ExploreScreen: React.FC<ExploreScreenProps> = ({ navigation }) => {
                 {subjects.length > 0 && (
                     <View style={styles.sectionContainer}>
                         <View style={styles.sectionHeader}>
-                            <Text style={styles.sectionTitle}>Subject Progress</Text>
+                            <Text style={[styles.sectionTitle, { color: theme.text, marginBottom: 0 }]}>Subject Progress</Text>
                             <TouchableOpacity onPress={() => navigation.navigate('Ticklist')}>
-                                <Text style={styles.viewAllText}>View All →</Text>
+                                <Text style={[styles.viewAllText, { color: theme.primary }]}>View All →</Text>
                             </TouchableOpacity>
                         </View>
                         {subjects.slice(0, 3).map(subject => {
                             const progress = getSubjectProgress(subject);
                             return (
-                                <View key={subject.id} style={styles.subjectCard}>
+                                <View key={subject.id} style={[styles.subjectCard, { backgroundColor: theme.backgroundSecondary, borderColor: theme.border }]}>
                                     <View style={styles.subjectHeader}>
-                                        <Text style={styles.subjectName}>{subject.name}</Text>
-                                        <Text style={styles.subjectPercent}>{progress.percentage}%</Text>
+                                        <Text style={[styles.subjectName, { color: theme.text }]}>{subject.name}</Text>
+                                        <Text style={[styles.subjectPercent, { color: theme.primary }]}>{progress.percentage}%</Text>
                                     </View>
-                                    <View style={styles.subjectProgressBar}>
+                                    <View style={[styles.subjectProgressBar, { backgroundColor: theme.divider }]}>
                                         <View
                                             style={[
                                                 styles.subjectProgressFill,
@@ -280,7 +261,7 @@ const ExploreScreen: React.FC<ExploreScreenProps> = ({ navigation }) => {
                                             ]}
                                         />
                                     </View>
-                                    <Text style={styles.subjectMeta}>
+                                    <Text style={[styles.subjectMeta, { color: theme.textTertiary }]}>
                                         {progress.completed} of {progress.total} topics completed
                                     </Text>
                                 </View>
@@ -298,11 +279,9 @@ const ExploreScreen: React.FC<ExploreScreenProps> = ({ navigation }) => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: COLORS.bgPrimary,
     },
     // Header
     headerSafe: {
-        backgroundColor: COLORS.bgPrimary,
     },
     header: {
         flexDirection: 'row',
@@ -310,7 +289,6 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
         paddingVertical: 12,
         borderBottomWidth: 1,
-        borderBottomColor: COLORS.cardBorder,
     },
     backButton: {
         width: 40,
@@ -321,7 +299,6 @@ const styles = StyleSheet.create({
     },
     backIcon: {
         fontSize: 22,
-        color: COLORS.textPrimary,
         fontWeight: '500',
     },
     headerInfo: {
@@ -330,14 +307,12 @@ const styles = StyleSheet.create({
     },
     greetingText: {
         fontSize: 12,
-        color: COLORS.textSecondary,
         fontWeight: '500',
         letterSpacing: 0.5,
     },
     userName: {
         fontSize: 18,
         fontWeight: '700',
-        color: COLORS.textPrimary,
         marginTop: 1,
     },
     profileButton: {
@@ -345,13 +320,11 @@ const styles = StyleSheet.create({
         height: 40,
         borderRadius: 20,
         borderWidth: 1,
-        borderColor: COLORS.accentBorder,
         justifyContent: 'center',
         alignItems: 'center',
     },
     profileIcon: {
         fontSize: 20,
-        color: COLORS.accent,
     },
     // ScrollView
     scrollView: {
@@ -361,12 +334,10 @@ const styles = StyleSheet.create({
     },
     // Dashboard Card
     dashboardCard: {
-        backgroundColor: COLORS.surface,
         borderRadius: 16,
         padding: 18,
         marginBottom: 20,
         borderWidth: 1,
-        borderColor: COLORS.cardBorder,
     },
     dashboardHeader: {
         flexDirection: 'row',
@@ -377,17 +348,14 @@ const styles = StyleSheet.create({
     dashboardTitle: {
         fontSize: 17,
         fontWeight: '700',
-        color: COLORS.textPrimary,
     },
     streakBadge: {
-        backgroundColor: 'rgba(251, 191, 36, 0.12)',
         paddingHorizontal: 10,
         paddingVertical: 4,
         borderRadius: 10,
     },
     streakText: {
         fontSize: 12,
-        color: COLORS.warning,
         fontWeight: '600',
     },
     progressContainer: {
@@ -400,22 +368,18 @@ const styles = StyleSheet.create({
     },
     progressLabel: {
         fontSize: 13,
-        color: COLORS.textSecondary,
     },
     progressPercent: {
         fontSize: 14,
         fontWeight: '700',
-        color: COLORS.accent,
     },
     progressBar: {
         height: 6,
-        backgroundColor: 'rgba(71, 85, 105, 0.3)',
         borderRadius: 3,
         overflow: 'hidden',
     },
     progressFill: {
         height: '100%',
-        backgroundColor: COLORS.accent,
         borderRadius: 3,
     },
     statsGrid: {
@@ -428,12 +392,10 @@ const styles = StyleSheet.create({
     statValue: {
         fontSize: 22,
         fontWeight: '700',
-        color: COLORS.textPrimary,
         marginBottom: 2,
     },
     statLabel: {
         fontSize: 11,
-        color: COLORS.textSecondary,
     },
     // Section
     sectionContainer: {
@@ -448,12 +410,10 @@ const styles = StyleSheet.create({
     sectionTitle: {
         fontSize: 17,
         fontWeight: '700',
-        color: COLORS.textPrimary,
         marginBottom: 12,
     },
     viewAllText: {
         fontSize: 13,
-        color: COLORS.accent,
         fontWeight: '600',
     },
     // Tools Grid
@@ -466,11 +426,9 @@ const styles = StyleSheet.create({
     },
     toolCard: {
         width: (width - 42) / 2,
-        backgroundColor: COLORS.surface,
         borderRadius: 14,
         padding: 16,
         borderWidth: 1,
-        borderColor: COLORS.cardBorder,
     },
     toolIconContainer: {
         width: 40,
@@ -487,22 +445,18 @@ const styles = StyleSheet.create({
     toolLabel: {
         fontSize: 14,
         fontWeight: '600',
-        color: COLORS.textPrimary,
         marginBottom: 3,
     },
     toolDesc: {
         fontSize: 11,
-        color: COLORS.textSecondary,
         lineHeight: 15,
     },
     // Subject Cards
     subjectCard: {
-        backgroundColor: COLORS.surface,
         borderRadius: 12,
         padding: 14,
         marginBottom: 10,
         borderWidth: 1,
-        borderColor: COLORS.cardBorder,
     },
     subjectHeader: {
         flexDirection: 'row',
@@ -513,18 +467,15 @@ const styles = StyleSheet.create({
     subjectName: {
         fontSize: 14,
         fontWeight: '600',
-        color: COLORS.textPrimary,
         flex: 1,
     },
     subjectPercent: {
         fontSize: 14,
         fontWeight: '700',
-        color: COLORS.accent,
         marginLeft: 8,
     },
     subjectProgressBar: {
         height: 4,
-        backgroundColor: 'rgba(71, 85, 105, 0.3)',
         borderRadius: 2,
         overflow: 'hidden',
         marginBottom: 6,
@@ -535,7 +486,6 @@ const styles = StyleSheet.create({
     },
     subjectMeta: {
         fontSize: 11,
-        color: COLORS.textMuted,
     },
 });
 
