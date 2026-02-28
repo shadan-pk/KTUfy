@@ -4,7 +4,10 @@
  */
 
 import { apiRequest } from '../utils/api';
-import { getCachedSchedule, setCachedSchedule } from './cacheService';
+import {
+    getCachedSchedule, setCachedSchedule,
+    getCachedScheduleBySemester, setCachedScheduleBySemester,
+} from './cacheService';
 
 // Types
 export interface ExamEvent {
@@ -19,19 +22,41 @@ export interface ExamEvent {
 }
 
 /**
- * Get the exam schedule from the backend
- * Backend: GET /api/v1/schedule/exams
+ * Get the exam schedule from the backend, optionally filtered by semester & branch.
+ * Uses a semester-keyed cache when user details are available (24h TTL).
  *
- * @returns List of exam events
+ * Backend: GET /api/v1/schedule/exams?semester=S6&branch=CS
  */
-export async function getExamSchedule(): Promise<ExamEvent[]> {
-    // Cache-first strategy
-    const cached = await getCachedSchedule();
-    if (cached) return cached as ExamEvent[];
+export async function getExamSchedule(
+    filters?: { semester?: string; branch?: string }
+): Promise<ExamEvent[]> {
+    const sem = filters?.semester ?? '';
+    const branch = filters?.branch ?? '';
 
-    const url = `${process.env.API_BASE_URL}/api/v1/schedule/exams`;
+    // Use tailored cache when we have semester info
+    if (sem) {
+        const cached = await getCachedScheduleBySemester(sem, branch);
+        if (cached) return cached as ExamEvent[];
+    } else {
+        const cached = await getCachedSchedule();
+        if (cached) return cached as ExamEvent[];
+    }
+
+    // Build URL with query params
+    const params = new URLSearchParams();
+    if (sem) params.append('semester', sem);
+    if (branch) params.append('branch', branch);
+    const query = params.toString() ? `?${params.toString()}` : '';
+    const url = `${process.env.API_BASE_URL}/api/v1/schedule/exams${query}`;
+
     const data = await apiRequest<ExamEvent[]>(url, { method: 'GET' });
-    await setCachedSchedule(data);
+
+    // Cache by semester if available, otherwise generic cache
+    if (sem) {
+        await setCachedScheduleBySemester(sem, branch, data);
+    } else {
+        await setCachedSchedule(data);
+    }
     return data;
 }
 

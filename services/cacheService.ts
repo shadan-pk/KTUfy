@@ -19,6 +19,8 @@ const KEYS = {
     CHAT_HISTORY: (sessionId: string) => `@KTUfy:cache:chat_history:${sessionId}`,
     TICKLISTS: '@KTUfy:cache:ticklists',
     SCHEDULE_EVENTS: '@KTUfy:cache:schedule_events',
+    SCHEDULE_BY_SEMESTER: (sem: string, branch: string) =>
+        `@KTUfy:cache:schedule:${sem}:${branch}`,
     SYLLABUS: (branch: string, semester: string) => `@KTUfy:cache:syllabus:${branch}:${semester}`,
     STUDY_DASHBOARD: '@KTUfy:cache:study_dashboard',
 };
@@ -141,6 +143,18 @@ export async function getCachedSchedule(): Promise<any[] | null> {
 
 export async function setCachedSchedule(events: any[]): Promise<void> {
     return setCache(KEYS.SCHEDULE_EVENTS, events);
+}
+
+export async function getCachedScheduleBySemester(
+    semester: string, branch: string
+): Promise<any[] | null> {
+    return getCache(KEYS.SCHEDULE_BY_SEMESTER(semester, branch), TTL.SCHEDULE);
+}
+
+export async function setCachedScheduleBySemester(
+    semester: string, branch: string, events: any[]
+): Promise<void> {
+    return setCache(KEYS.SCHEDULE_BY_SEMESTER(semester, branch), events);
 }
 
 /**

@@ -28,8 +28,8 @@ CREATE INDEX IF NOT EXISTS idx_exam_schedule_branch ON exam_schedule(branch);
 --   DELETE /api/schedule/:id    → delete an event (admin only)
 
 -- Example seed data:
--- INSERT INTO exam_schedule (title, date, type, description, semester, subject_code)
--- VALUES   
---   ('Data Structures End Sem', '2025-05-10', 'exam', 'CS301 Final Examination', 'S4', 'CST401'),
---   ('Easter Holiday', '2025-04-18', 'holiday', NULL, NULL),
---   ('Project Submission Deadline', '2025-05-01', 'deadline', 'Mini-project report due', 'S6');
+INSERT INTO exam_schedule (title, date, type, description, semester, subject_code)
+VALUES   
+  ('Data Structures End Sem', '2025-05-10', 'exam', 'CS301 Final Examination', 'S4', 'CST401'),
+  ('Easter Holiday', '2025-04-18', 'holiday', NULL, NULL),
+  ('Project Submission Deadline', '2025-05-01', 'deadline', 'Mini-project report due', 'S6');

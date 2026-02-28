@@ -31,6 +31,7 @@ interface UserData {
     registrationNumber?: string;
     college?: string;
     branch?: string;
+    semester?: string;
 }
 
 interface TicklistItem {
@@ -106,14 +107,23 @@ const ExploreScreen: React.FC<ExploreScreenProps> = ({ navigation }) => {
         })();
     }, [supabaseUser]);
 
-    // Load upcoming exams from schedule service
+    // Load upcoming exams — filtered by user's semester + branch when available
     useEffect(() => {
         (async () => {
             try {
-                const data = await getExamSchedule();
+                const sem = userData?.semester ?? '';
+                const branch = userData?.branch ?? '';
+                const data = await getExamSchedule(
+                    sem ? { semester: sem, branch } : undefined
+                );
                 const today = new Date();
+                today.setHours(0, 0, 0, 0);
                 const upcoming = data
-                    .filter(e => new Date(e.date) >= today)
+                    .filter(e => {
+                        const d = new Date(e.date);
+                        d.setHours(0, 0, 0, 0);
+                        return d >= today;
+                    })
                     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
                     .slice(0, 4);
                 setUpcomingExams(upcoming);
@@ -123,7 +133,7 @@ const ExploreScreen: React.FC<ExploreScreenProps> = ({ navigation }) => {
                 setExamsLoading(false);
             }
         })();
-    }, []);
+    }, [userData]);
 
     const getSubjectProgress = (subject: Subject) => {
         const completed = subject.items.filter(item => item.completed).length;
@@ -233,11 +243,29 @@ const ExploreScreen: React.FC<ExploreScreenProps> = ({ navigation }) => {
                             ))}
                         </View>
                     ) : upcomingExams.length === 0 ? (
-                        <View style={styles.emptyExams}>
-                            <Text style={[styles.emptyExamsIcon]}>📅</Text>
-                            <Text style={[styles.emptyExamsText, { color: theme.textSecondary }]}>
-                                No upcoming exams found. Check back later.
-                            </Text>
+                        // Always show a card even when empty — with today's date
+                        <View style={[styles.calCard, { backgroundColor: theme.background, borderColor: theme.border }]}>
+                            <View style={[styles.calDateBox, { backgroundColor: theme.primary + '18', borderColor: theme.primary + '30' }]}>
+                                <Text style={[styles.calWeekday, { color: theme.primary + 'CC' }]}>
+                                    {new Date().toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase()}
+                                </Text>
+                                <Text style={[styles.calDay, { color: theme.primary }]}>
+                                    {new Date().getDate()}
+                                </Text>
+                                <Text style={[styles.calMon, { color: theme.primary + 'CC' }]}>
+                                    {new Date().toLocaleDateString('en-US', { month: 'short' }).toUpperCase()}
+                                </Text>
+                            </View>
+                            <View style={styles.calInfo}>
+                                <Text style={[styles.calTitle, { color: theme.textSecondary }]}>
+                                    No upcoming exams
+                                </Text>
+                                <Text style={[styles.calDesc, { color: theme.textTertiary }]}>
+                                    {userData?.semester
+                                        ? `Nothing scheduled for ${userData.semester} yet`
+                                        : 'Set your semester in Profile for tailored results'}
+                                </Text>
+                            </View>
                         </View>
                     ) : (
                         upcomingExams.map((exam, i) => {

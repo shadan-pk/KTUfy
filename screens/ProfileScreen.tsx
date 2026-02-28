@@ -39,6 +39,7 @@ interface UserData {
   year_joined?: number;
   year_ending?: number;
   roll_number?: string;
+  semester?: string;
   created_at?: string;
 }
 
@@ -54,7 +55,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
   const [showEdit, setShowEdit] = React.useState(false);
   const [editForm, setEditForm] = React.useState({
     name: '', registration_number: '', college: '', branch: '',
-    year_joined: '', year_ending: '', roll_number: '',
+    year_joined: '', year_ending: '', roll_number: '', semester: '',
   });
   const [saving, setSaving] = React.useState(false);
   const [alertConfig, setAlertConfig] = React.useState<{
@@ -136,6 +137,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
       year_joined: userData?.year_joined?.toString() || '',
       year_ending: userData?.year_ending?.toString() || '',
       roll_number: userData?.roll_number || '',
+      semester: userData?.semester || '',
     });
     setShowEdit(true);
   };
@@ -159,6 +161,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
       if (editForm.roll_number.trim()) updateData.roll_number = editForm.roll_number.trim();
       if (editForm.year_joined.trim()) updateData.year_joined = parseInt(editForm.year_joined);
       if (editForm.year_ending.trim()) updateData.year_ending = parseInt(editForm.year_ending);
+      if (editForm.semester.trim()) updateData.semester = editForm.semester.trim();
 
       // Upsert directly in Supabase (creates row if missing, updates if exists)
       const { error: updateErr } = await supabase
@@ -377,6 +380,30 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
                   </View>
                 ))}
               </View>
+
+              {/* Semester Selector — full width row below Year Joined/Ending */}
+              <View style={styles.inputGroup}>
+                <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>Semester</Text>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 }}>
+                  {['S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8'].map(sem => (
+                    <TouchableOpacity
+                      key={sem}
+                      style={{
+                        width: 52, paddingVertical: 10, borderRadius: 12, borderWidth: 1.5,
+                        alignItems: 'center', justifyContent: 'center',
+                        backgroundColor: editForm.semester === sem ? theme.primary : theme.backgroundTertiary,
+                        borderColor: editForm.semester === sem ? theme.primary : theme.border,
+                      }}
+                      onPress={() => setEditForm({ ...editForm, semester: sem })}
+                    >
+                      <Text style={{ color: editForm.semester === sem ? '#FFF' : theme.text, fontWeight: '700', fontSize: 13 }}>
+                        {sem}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+
 
               <View style={styles.modalActions}>
                 <TouchableOpacity style={[styles.cancelBtn, { borderColor: theme.border }]} onPress={() => setShowEdit(false)}>

@@ -28,7 +28,9 @@ interface ParsedRegistration {
   isValid: boolean;
 }
 
-type SignupStep = 1 | 2 | 3 | 4 | 5;
+type SignupStep = 1 | 2 | 3 | 4 | 5 | 6;
+
+const KTU_SEMESTERS = ['S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8'];
 
 const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
   const { theme, isDark } = useTheme();
@@ -38,6 +40,7 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [semester, setSemester] = useState('');
   const [parsedInfo, setParsedInfo] = useState<ParsedRegistration | null>(null);
   const [registrationError, setRegistrationError] = useState<string | null>(null);
   const [signupError, setSignupError] = useState<string | null>(null);
@@ -135,6 +138,7 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
         year_joined: parsed.yearJoined,
         year_ending: parsed.yearEnding,
         roll_number: parsed.rollNumber,
+        semester,
       };
 
       // Pass metadata to signUp so auth.users.user_metadata is populated server-side.
@@ -183,7 +187,7 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
             <View style={styles.headerRow}>
               <Text style={[styles.appName, { color: theme.textSecondary }]}>Create account</Text>
               <View style={styles.stepperPills}>
-                {[1, 2, 3, 4, 5].map((s) => (
+                {[1, 2, 3, 4, 5, 6].map((s) => (
                   <View
                     key={s}
                     style={[
@@ -374,10 +378,68 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
               </View>
             )}
 
+            {/* ── Step 4: Semester Picker ── */}
             {step === 4 && (
               <View style={styles.form}>
                 <TouchableOpacity
                   onPress={() => setStep(3)}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                >
+                  <Text style={[styles.backLink, { color: theme.primary }]}>← Back</Text>
+                </TouchableOpacity>
+
+                <Text style={[styles.sectionTitle, { color: theme.text }]}>
+                  Which semester are you in?
+                </Text>
+                <Text style={[styles.sectionSubtitle, { color: theme.textSecondary }]}>
+                  We'll use this to show you the right exam schedule and resources.
+                </Text>
+
+                <View style={styles.semesterGrid}>
+                  {KTU_SEMESTERS.map(sem => (
+                    <TouchableOpacity
+                      key={sem}
+                      style={[
+                        styles.semesterChip,
+                        {
+                          backgroundColor: semester === sem ? theme.primary : theme.backgroundTertiary,
+                          borderColor: semester === sem ? theme.primary : theme.border,
+                        },
+                      ]}
+                      onPress={() => setSemester(sem)}
+                      activeOpacity={0.8}
+                    >
+                      <Text
+                        style={[
+                          styles.semesterChipText,
+                          { color: semester === sem ? '#FFF' : theme.text },
+                        ]}
+                      >
+                        {sem}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                <TouchableOpacity
+                  style={[
+                    styles.primaryButton,
+                    { backgroundColor: theme.primary },
+                    !semester && styles.primaryButtonDisabled,
+                  ]}
+                  disabled={!semester}
+                  onPress={() => setStep(5)}
+                  activeOpacity={0.9}
+                >
+                  <Text style={styles.primaryButtonText}>Continue</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {step === 5 && (
+              <View style={styles.form}>
+                <TouchableOpacity
+                  onPress={() => setStep(4)}
                   hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 >
                   <Text style={[styles.backLink, { color: theme.primary }]}>← Back</Text>
@@ -406,7 +468,7 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
                       { borderColor: theme.primary, backgroundColor: 'transparent' },
                     ]}
                     activeOpacity={0.9}
-                    onPress={() => setStep(5)}
+                    onPress={() => setStep(6)}
                   >
                     <Text
                       style={[
@@ -421,10 +483,10 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
               </View>
             )}
 
-            {step === 5 && (
+            {step === 6 && (
               <View style={styles.form}>
                 <TouchableOpacity
-                  onPress={() => setStep(4)}
+                  onPress={() => setStep(5)}
                   hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 >
                   <Text style={[styles.backLink, { color: theme.primary }]}>← Back</Text>
@@ -803,6 +865,24 @@ const styles = StyleSheet.create({
   linkText: {
     fontSize: 14,
     fontWeight: '600',
+  },
+  semesterGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    marginBottom: 8,
+  },
+  semesterChip: {
+    width: '22%',
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  semesterChipText: {
+    fontSize: 15,
+    fontWeight: '700',
   },
 });
 
