@@ -13,6 +13,9 @@ export interface ExamEvent {
     title: string;
     type: 'holiday' | 'exam' | 'deadline' | 'event';
     description?: string;
+    subject_code?: string;   // e.g. 'CST401'
+    semester?: string;       // e.g. 'S6'
+    branch?: string;
 }
 
 /**

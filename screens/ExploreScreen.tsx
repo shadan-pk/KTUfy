@@ -242,29 +242,74 @@ const ExploreScreen: React.FC<ExploreScreenProps> = ({ navigation }) => {
                     ) : (
                         upcomingExams.map((exam, i) => {
                             const d = new Date(exam.date);
+                            const today = new Date();
+                            today.setHours(0, 0, 0, 0);
+                            d.setHours(0, 0, 0, 0);
+                            const daysLeft = Math.round((d.getTime() - today.getTime()) / 86400000);
                             const day = d.getDate();
-                            const mon = d.toLocaleDateString('en-US', { month: 'short' });
+                            const mon = d.toLocaleDateString('en-US', { month: 'short' }).toUpperCase();
+                            const weekday = d.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase();
                             const typeColors: Record<string, string> = {
                                 exam: '#EF4444', holiday: '#10B981',
                                 deadline: '#F59E0B', event: '#3B82F6',
                             };
                             const color = typeColors[exam.type] ?? '#8B5CF6';
+                            const isUrgent = daysLeft <= 3 && exam.type === 'exam';
+                            const isLast = i === upcomingExams.length - 1;
                             return (
-                                <View key={i} style={[styles.examRow, { borderBottomColor: theme.divider }]}>
-                                    <View style={[styles.examDate, { backgroundColor: color + '18' }]}>
-                                        <Text style={[styles.examDay, { color }]}>{day}</Text>
-                                        <Text style={[styles.examMon, { color }]}>{mon}</Text>
+                                <TouchableOpacity
+                                    key={i}
+                                    style={[
+                                        styles.calCard,
+                                        { backgroundColor: theme.background, borderColor: isUrgent ? color + '60' : theme.border },
+                                        !isLast && { marginBottom: 8 },
+                                    ]}
+                                    onPress={() => navigation.navigate('Schedule')}
+                                    activeOpacity={0.7}
+                                >
+                                    {/* Left — Date Box */}
+                                    <View style={[styles.calDateBox, { backgroundColor: color + '18', borderColor: color + '30' }]}>
+                                        <Text style={[styles.calWeekday, { color: color + 'CC' }]}>{weekday}</Text>
+                                        <Text style={[styles.calDay, { color }]}>{day}</Text>
+                                        <Text style={[styles.calMon, { color: color + 'CC' }]}>{mon}</Text>
                                     </View>
-                                    <View style={styles.examInfo}>
-                                        <Text style={[styles.examTitle, { color: theme.text }]} numberOfLines={1}>{exam.title}</Text>
-                                        {exam.description ? (
-                                            <Text style={[styles.examDesc, { color: theme.textSecondary }]} numberOfLines={1}>{exam.description}</Text>
-                                        ) : null}
+
+                                    {/* Right — Info */}
+                                    <View style={styles.calInfo}>
+                                        <Text style={[styles.calTitle, { color: theme.text }]} numberOfLines={2}>
+                                            {exam.title}
+                                        </Text>
+                                        <View style={styles.calMeta}>
+                                            {exam.subject_code ? (
+                                                <View style={[styles.calSubjectChip, { backgroundColor: color + '14', borderColor: color + '30' }]}>
+                                                    <Text style={[styles.calSubjectText, { color }]}>{exam.subject_code}</Text>
+                                                </View>
+                                            ) : null}
+                                            {exam.description ? (
+                                                <Text style={[styles.calDesc, { color: theme.textSecondary }]} numberOfLines={1}>
+                                                    {exam.description}
+                                                </Text>
+                                            ) : null}
+                                        </View>
                                     </View>
-                                    <View style={[styles.typeBadge, { backgroundColor: color + '18' }]}>
-                                        <Text style={[styles.typeBadgeText, { color }]}>{exam.type}</Text>
+
+                                    {/* Right edge — days left */}
+                                    <View style={styles.calRight}>
+                                        {daysLeft === 0 ? (
+                                            <Text style={[styles.calDaysNum, { color }]}>Today</Text>
+                                        ) : daysLeft === 1 ? (
+                                            <Text style={[styles.calDaysNum, { color }]}>Tomorrow</Text>
+                                        ) : (
+                                            <>
+                                                <Text style={[styles.calDaysNum, { color: isUrgent ? color : theme.textSecondary }]}>
+                                                    {daysLeft}
+                                                </Text>
+                                                <Text style={[styles.calDaysLabel, { color: theme.textTertiary }]}>days</Text>
+                                            </>
+                                        )}
+                                        <View style={[styles.calTypeDot, { backgroundColor: color }]} />
                                     </View>
-                                </View>
+                                </TouchableOpacity>
                             );
                         })
                     )}
@@ -543,22 +588,41 @@ const styles = StyleSheet.create({
         height: '100%',
         borderRadius: 2,
     },
-    subjectMeta: {
-        fontSize: 11,
-    },
-    // Upcoming Exams
-    examSkeletonRow: { height: 52, borderRadius: 10, marginBottom: 8 },
+    subjectMeta: { fontSize: 11 },
+    // Upcoming Exams skeleton / empty
+    examSkeletonRow: { height: 64, borderRadius: 12, marginBottom: 8 },
     emptyExams: { alignItems: 'center', paddingVertical: 20 },
     emptyExamsIcon: { fontSize: 36, marginBottom: 8 },
     emptyExamsText: { fontSize: 13, textAlign: 'center' },
-    examRow: {
-        flexDirection: 'row', alignItems: 'center', paddingVertical: 10,
-        borderBottomWidth: 1, gap: 12,
+    // Calendar-style exam card
+    calCard: {
+        flexDirection: 'row', alignItems: 'center',
+        borderRadius: 14, borderWidth: 1,
+        padding: 12, overflow: 'hidden',
     },
-    examDate: {
-        width: 44, height: 44, borderRadius: 10,
-        justifyContent: 'center', alignItems: 'center',
+    calDateBox: {
+        width: 56, alignItems: 'center', justifyContent: 'center',
+        paddingVertical: 8, borderRadius: 10, borderWidth: 1, marginRight: 12,
     },
+    calWeekday: { fontSize: 9, fontWeight: '700', letterSpacing: 0.5, marginBottom: 1 },
+    calDay: { fontSize: 24, fontWeight: '800', lineHeight: 28 },
+    calMon: { fontSize: 10, fontWeight: '600', marginTop: 1 },
+    calInfo: { flex: 1, marginRight: 8 },
+    calTitle: { fontSize: 14, fontWeight: '600', marginBottom: 5, lineHeight: 19 },
+    calMeta: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
+    calSubjectChip: {
+        paddingHorizontal: 8, paddingVertical: 3,
+        borderRadius: 6, borderWidth: 1,
+    },
+    calSubjectText: { fontSize: 11, fontWeight: '700' },
+    calDesc: { fontSize: 11, flex: 1 },
+    calRight: { alignItems: 'center', minWidth: 44 },
+    calDaysNum: { fontSize: 13, fontWeight: '800', textAlign: 'center' },
+    calDaysLabel: { fontSize: 9, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
+    calTypeDot: { width: 6, height: 6, borderRadius: 3, marginTop: 6 },
+    // Keep old refs in case used elsewhere
+    examRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, gap: 12 },
+    examDate: { width: 44, height: 44, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
     examDay: { fontSize: 16, fontWeight: '800' },
     examMon: { fontSize: 10, fontWeight: '600', textTransform: 'uppercase' },
     examInfo: { flex: 1 },
