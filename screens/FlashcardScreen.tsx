@@ -13,6 +13,7 @@ import {
     Platform,
     StatusBar,
 } from 'react-native';
+import { ArrowLeft } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../types/navigation';
@@ -131,7 +132,7 @@ const FlashcardScreen: React.FC<FlashcardScreenProps> = ({ navigation }) => {
             <SafeAreaView edges={['top']} style={{ backgroundColor: theme.background }}>
                 <View style={[styles.header, { borderBottomColor: theme.divider }]}>
                     <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-                        <Text style={[styles.backIcon, { color: theme.text }]}>←</Text>
+                        <ArrowLeft size={20} color={theme.text} strokeWidth={2} />
                     </TouchableOpacity>
                     <Text style={[styles.headerTitle, { color: theme.text }]}>🎴 AI Flashcards</Text>
                     <View style={{ width: 40 }} />
@@ -312,10 +313,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         borderRadius: 10,
     },
-    backIcon: {
-        fontSize: 22,
-        fontWeight: '500',
-    },
+
     headerTitle: {
         fontSize: 18,
         fontWeight: '700',

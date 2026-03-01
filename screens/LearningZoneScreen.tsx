@@ -11,6 +11,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../types/navigation';
 import { useTheme } from '../contexts/ThemeContext';
+import { ArrowLeft } from 'lucide-react-native';
 import { useAuth } from '../auth/AuthProvider';
 import supabase from '../supabaseClient';
 
@@ -94,8 +95,8 @@ const LearningZoneScreen: React.FC<LearningZoneScreenProps> = ({ navigation }) =
       <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={theme.background} />
       <SafeAreaView edges={['top']} style={{ backgroundColor: theme.background }}>
         <View style={[styles.header, { borderBottomColor: theme.divider }]}>
-          <TouchableOpacity onPress={() => navigation.goBack()}>
-            <Text style={[styles.backIcon, { color: theme.text }]}>←</Text>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+            <ArrowLeft size={20} color={theme.text} strokeWidth={2} />
           </TouchableOpacity>
           <Text style={[styles.headerTitle, { color: theme.text }]}>Learning Zone</Text>
           <View style={{ width: 40 }} />
@@ -192,7 +193,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1,
   },
-  backIcon: { fontSize: 22, fontWeight: '500' },
+  backButton: { width: 40, height: 40, justifyContent: 'center', alignItems: 'center' },
   headerTitle: { fontSize: 20, fontWeight: '700' },
   scroll: { flex: 1 },
   scrollContent: { padding: 16 },

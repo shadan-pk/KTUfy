@@ -380,7 +380,7 @@ const ExploreScreen: React.FC<ExploreScreenProps> = ({ navigation }) => {
     const toolCards = [
         { key: 'MediaTools', label: 'Media Tools', icon: '⬡', desc: 'Video, Audio, Image & PDF', color: '#F43F5E' },
         { key: 'Ticklist', label: 'Study Checklist', icon: '☐', desc: 'Track your study progress', color: '#FB923C' },
-        { key: 'Flashcards', label: 'AI Flashcards', icon: '�', desc: 'Generate flashcards by topic', color: '#8B5CF6' },
+        { key: 'Flashcards', label: 'AI Flashcards', icon: '⋈', desc: 'Generate flashcards by topic', color: '#8B5CF6' },
         { key: 'CodingHub', label: 'Coding Hub', icon: '⟨/⟩', desc: 'Practice coding problems', color: '#34D399' },
         { key: 'WhatsApp', label: 'WhatsApp Group', icon: '💬', desc: 'Join our student community', color: '#25D366' },
         { key: 'GPACalculator', label: 'GPA Calculator', icon: '∑', desc: 'Calculate SGPA & CGPA', color: '#A78BFA' },

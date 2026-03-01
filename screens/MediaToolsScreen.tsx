@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../contexts/ThemeContext';
+import { ArrowLeft } from 'lucide-react-native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../types/navigation';
 
@@ -65,7 +66,7 @@ const MediaToolsScreen: React.FC<Props> = ({ navigation }) => {
             <SafeAreaView edges={['top']} style={{ backgroundColor: theme.background }}>
                 <View style={[styles.header, { borderBottomColor: theme.divider }]}>
                     <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-                        <Text style={[styles.backIcon, { color: theme.text }]}>←</Text>
+                        <ArrowLeft size={20} color={theme.text} strokeWidth={2} />
                     </TouchableOpacity>
                     <View>
                         <Text style={[styles.headerTitle, { color: theme.text }]}>Media Tools</Text>
@@ -143,7 +144,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1,
     },
     backButton: { width: 40, height: 40, justifyContent: 'center', alignItems: 'center', borderRadius: 10 },
-    backIcon: { fontSize: 22, fontWeight: '500' },
+
     headerTitle: { fontSize: 20, fontWeight: '700' },
     headerSubtitle: { fontSize: 12, marginTop: 1 },
     scroll: { flex: 1, paddingHorizontal: 16 },
