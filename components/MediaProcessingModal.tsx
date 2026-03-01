@@ -5,6 +5,8 @@
  *
  * Phase 1  — PROCESSING:  Skeleton shimmer, spinner, "Processing…"
  * Phase 2  — COMPLETED :  File preview, rename, download, WhatsApp, share
+ *
+ * Design: Minimal / shadcn-inspired — clean cards, muted accents, Lucide icons.
  */
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
@@ -20,7 +22,23 @@ import {
     Platform,
     Linking,
     ActivityIndicator,
+    Alert,
 } from 'react-native';
+import {
+    CheckCircle2,
+    XCircle,
+    Download,
+    Share2,
+    MessageCircle,
+    Pencil,
+    Check,
+    Music,
+    Video,
+    FileText,
+} from 'lucide-react-native';
+import { Paths, File as ExpoFile } from 'expo-file-system';
+import * as MediaLibrary from 'expo-media-library';
+import * as IntentLauncher from 'expo-intent-launcher';
 import { useTheme } from '../contexts/ThemeContext';
 import { ProcessingResult, shareFile } from '../services/mediaService';
 
@@ -30,21 +48,13 @@ const { width: SCREEN_W } = Dimensions.get('window');
 export type MediaType = 'image' | 'audio' | 'video' | 'pdf';
 
 export interface MediaProcessingModalProps {
-    /** Controls visibility */
     visible: boolean;
-    /** 'processing' → skeleton screen  |  'complete' → result UI  |  'error' → error display */
     phase: 'processing' | 'complete' | 'error';
-    /** Accent colour of the parent tool screen */
     accent: string;
-    /** Type of media being processed — drives the preview */
     mediaType: MediaType;
-    /** Available once processing succeeds */
     result?: ProcessingResult | null;
-    /** Error message string for the error phase */
     errorMessage?: string;
-    /** Called when user taps "Done" / overlay */
     onClose: () => void;
-    /** Called with new filename when user renames */
     onRename?: (newName: string) => void;
 }
 
@@ -57,8 +67,8 @@ const SkeletonShimmer: React.FC<{ accent: string }> = ({ accent }) => {
     useEffect(() => {
         const loop = Animated.loop(
             Animated.sequence([
-                Animated.timing(anim, { toValue: 1, duration: 900, useNativeDriver: true }),
-                Animated.timing(anim, { toValue: 0.35, duration: 900, useNativeDriver: true }),
+                Animated.timing(anim, { toValue: 0.8, duration: 1000, useNativeDriver: true }),
+                Animated.timing(anim, { toValue: 0.35, duration: 1000, useNativeDriver: true }),
             ]),
         );
         loop.start();
@@ -70,8 +80,8 @@ const SkeletonShimmer: React.FC<{ accent: string }> = ({ accent }) => {
             style={{
                 width: w as any,
                 height: h,
-                borderRadius: 8,
-                backgroundColor: accent + '25',
+                borderRadius: 6,
+                backgroundColor: accent + '15',
                 opacity: anim,
                 marginBottom: mb,
             }}
@@ -79,29 +89,26 @@ const SkeletonShimmer: React.FC<{ accent: string }> = ({ accent }) => {
     );
 
     return (
-        <View style={{ alignItems: 'center', width: '100%', paddingHorizontal: 24 }}>
-            {/* Fake preview area */}
-            {bar('100%', 180, 16)}
-            {/* Fake filename */}
-            {bar('70%', 18, 12)}
-            {/* Fake buttons row */}
-            <View style={{ flexDirection: 'row', gap: 10, width: '100%', justifyContent: 'center' }}>
-                {bar(90, 42, 0)}
-                {bar(90, 42, 0)}
-                {bar(90, 42, 0)}
+        <View style={{ alignItems: 'center', width: '100%', paddingHorizontal: 16 }}>
+            {bar('100%', 140, 14)}
+            {bar('60%', 14, 10)}
+            <View style={{ flexDirection: 'row', gap: 8, width: '100%', justifyContent: 'center' }}>
+                {bar(80, 36, 0)}
+                {bar(80, 36, 0)}
+                {bar(80, 36, 0)}
             </View>
         </View>
     );
 };
 
 /** Preview component based on media type */
-const FilePreview: React.FC<{ mediaType: MediaType; uri: string; accent: string; isDark: boolean }> = ({
-    mediaType,
-    uri,
-    accent,
-    isDark,
-}) => {
-    const bg = isDark ? '#0F1A3E' : '#F1F5F9';
+const FilePreview: React.FC<{
+    mediaType: MediaType;
+    uri: string;
+    accent: string;
+    isDark: boolean;
+}> = ({ mediaType, uri, accent, isDark }) => {
+    const bg = isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.02)';
 
     if (mediaType === 'image') {
         return (
@@ -111,36 +118,38 @@ const FilePreview: React.FC<{ mediaType: MediaType; uri: string; accent: string;
         );
     }
 
-    // For audio, video, pdf — show a styled icon card
-    const iconMap: Record<string, { icon: string; label: string }> = {
-        audio: { icon: '🎵', label: 'Audio File Ready' },
-        video: { icon: '🎬', label: 'Video File Ready' },
-        pdf: { icon: '📄', label: 'PDF File Ready' },
+    const iconMap: Record<string, { Icon: typeof Music; label: string }> = {
+        audio: { Icon: Music, label: 'Audio File Ready' },
+        video: { Icon: Video, label: 'Video File Ready' },
+        pdf: { Icon: FileText, label: 'PDF File Ready' },
     };
 
-    const { icon, label } = iconMap[mediaType] ?? iconMap.pdf;
+    const { Icon, label } = iconMap[mediaType] ?? iconMap.pdf;
+
+    // Generate deterministic waveform heights using the URI as seed
+    const waveHeights = React.useMemo(() => {
+        let seed = 0;
+        for (let i = 0; i < uri.length; i++) seed = (seed * 31 + uri.charCodeAt(i)) & 0x7fffffff;
+        return Array.from({ length: 30 }, (_, i) => {
+            seed = (seed * 16807 + i) % 2147483647;
+            return 6 + (seed % 1000) / 1000 * 28;
+        });
+    }, [uri]);
 
     return (
         <View style={[previewStyles.wrapper, { backgroundColor: bg }]}>
-            <View style={[previewStyles.iconCircle, { backgroundColor: accent + '18' }]}>
-                <Text style={previewStyles.iconEmoji}>{icon}</Text>
+            <View style={[previewStyles.iconCircle, { backgroundColor: accent + '12' }]}>
+                <Icon size={32} color={accent} strokeWidth={1.8} />
             </View>
             <Text style={[previewStyles.iconLabel, { color: accent }]}>{label}</Text>
-            {/* Simple playback hint for audio/video */}
             {(mediaType === 'audio' || mediaType === 'video') && (
                 <View style={previewStyles.waveRow}>
-                    {Array.from({ length: 30 }).map((_, i) => {
-                        const h = Math.random() * 28 + 6;
-                        return (
-                            <View
-                                key={i}
-                                style={[
-                                    previewStyles.waveBar,
-                                    { height: h, backgroundColor: accent + '60' },
-                                ]}
-                            />
-                        );
-                    })}
+                    {waveHeights.map((h, i) => (
+                        <View
+                            key={i}
+                            style={[previewStyles.waveBar, { height: h, backgroundColor: accent + '40' }]}
+                        />
+                    ))}
                 </View>
             )}
         </View>
@@ -168,13 +177,41 @@ const MediaProcessingModal: React.FC<MediaProcessingModalProps> = ({
         if (result?.filename) setFileName(result.filename);
     }, [result?.filename]);
 
+    // ── Rename: actually rename the cached file ──
+
+    const handleRename = useCallback(async () => {
+        setEditingName(false);
+        if (!result || !fileName || fileName === result.filename) return;
+
+        try {
+            if (Platform.OS !== 'web') {
+                // Copy file to new name in cache
+                const newFile = new ExpoFile(Paths.cache, fileName);
+                const oldFile = new ExpoFile(result.localUri);
+                await oldFile.copy(newFile);
+
+                // Update result reference so subsequent actions use the new file
+                result.localUri = newFile.uri;
+                result.filename = fileName;
+            } else {
+                // On web, just update the name (used for download attribute)
+                result.filename = fileName;
+            }
+
+            onRename?.(fileName);
+        } catch (err) {
+            console.error('Rename failed:', err);
+            Alert.alert('Rename failed', 'Could not rename the file. The original name will be used.');
+            setFileName(result.filename);
+        }
+    }, [result, fileName, onRename]);
+
     // ── Actions ──
 
     const handleDownload = useCallback(async () => {
         if (!result) return;
 
         if (Platform.OS === 'web') {
-            // Trigger browser download
             const a = document.createElement('a');
             a.href = result.localUri;
             a.download = fileName || result.filename;
@@ -182,8 +219,20 @@ const MediaProcessingModal: React.FC<MediaProcessingModalProps> = ({
             a.click();
             document.body.removeChild(a);
         } else {
-            // On native, use expo-sharing which lets the user "Save to Files"
-            await shareFile(result.localUri);
+            // Save directly to device gallery / media library
+            try {
+                const { status } = await MediaLibrary.requestPermissionsAsync();
+                if (status !== 'granted') {
+                    Alert.alert('Permission needed', 'Storage permission is required to save files.');
+                    return;
+                }
+                const asset = await MediaLibrary.createAssetAsync(result.localUri);
+                Alert.alert('Saved', `"${fileName || result.filename}" saved to your device gallery.`);
+            } catch (err: any) {
+                console.error('Save to gallery failed:', err);
+                // Fallback: if not a media type gallery supports, use share sheet to "Save to Files"
+                await shareFile(result.localUri);
+            }
         }
     }, [result, fileName]);
 
@@ -191,26 +240,77 @@ const MediaProcessingModal: React.FC<MediaProcessingModalProps> = ({
         if (!result) return;
 
         if (Platform.OS === 'web') {
-            // Open WhatsApp web share (text only — file must be downloaded first)
             const url = `https://wa.me/?text=${encodeURIComponent('Check out this file: ' + (fileName || result.filename))}`;
             window.open(url, '_blank');
+        } else if (Platform.OS === 'android') {
+            // On Android, use IntentLauncher to target WhatsApp directly
+            try {
+                const canOpen = await Linking.canOpenURL('whatsapp://send');
+                if (!canOpen) {
+                    Alert.alert('WhatsApp not found', 'WhatsApp does not seem to be installed on this device.');
+                    return;
+                }
+                // Get content URI for the file
+                const fileObj = new ExpoFile(result.localUri);
+                const ext = result.filename.split('.').pop()?.toLowerCase() || '';
+                const mimeMap: Record<string, string> = {
+                    jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png',
+                    webp: 'image/webp', gif: 'image/gif', bmp: 'image/bmp',
+                    mp3: 'audio/mpeg', wav: 'audio/wav', aac: 'audio/aac',
+                    ogg: 'audio/ogg', flac: 'audio/flac', m4a: 'audio/mp4',
+                    mp4: 'video/mp4', avi: 'video/x-msvideo', mkv: 'video/x-matroska',
+                    mov: 'video/quicktime', webm: 'video/webm',
+                    pdf: 'application/pdf',
+                };
+                const mimeType = mimeMap[ext] || 'application/octet-stream';
+
+                await IntentLauncher.startActivityAsync('android.intent.action.SEND', {
+                    type: mimeType,
+                    packageName: 'com.whatsapp',
+                    extra: { 'android.intent.extra.STREAM': result.localUri },
+                    flags: 1, // FLAG_GRANT_READ_URI_PERMISSION
+                });
+            } catch (err) {
+                console.warn('WhatsApp intent failed, falling back to share sheet:', err);
+                await shareFile(result.localUri);
+            }
         } else {
-            // On native, share the file via system share sheet (user picks WhatsApp)
+            // iOS: no direct WhatsApp targeting, use share sheet
             await shareFile(result.localUri);
         }
     }, [result, fileName]);
 
     const handleShare = useCallback(async () => {
         if (!result) return;
-        await shareFile(result.localUri);
-    }, [result]);
 
-    const handleRename = useCallback(() => {
-        setEditingName(false);
-        onRename?.(fileName);
-    }, [fileName, onRename]);
+        if (Platform.OS === 'web') {
+            // Use Web Share API if available
+            if (typeof navigator !== 'undefined' && navigator.share) {
+                try {
+                    const res = await fetch(result.localUri);
+                    const blob = await res.blob();
+                    const file = new File([blob], fileName || result.filename, { type: blob.type });
+                    await navigator.share({ files: [file], title: fileName || result.filename });
+                    return;
+                } catch { /* fall through to download */ }
+            }
+            // Fallback: trigger download
+            const a = document.createElement('a');
+            a.href = result.localUri;
+            a.download = fileName || result.filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        } else {
+            // Generic share sheet
+            await shareFile(result.localUri);
+        }
+    }, [result, fileName]);
 
     if (!visible) return null;
+
+    const borderCol = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)';
+    const mutedAccent = accent + '14';
 
     return (
         <Modal
@@ -220,17 +320,17 @@ const MediaProcessingModal: React.FC<MediaProcessingModalProps> = ({
             statusBarTranslucent
             onRequestClose={onClose}
         >
-            <View style={[styles.overlay, { backgroundColor: theme.overlay }]}>
-                <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
+            <View style={[styles.overlay, { backgroundColor: isDark ? 'rgba(0,0,0,0.7)' : 'rgba(0,0,0,0.45)' }]}>
+                <View style={[styles.card, { backgroundColor: theme.card, borderColor: borderCol }]}>
                     {/* ── PROCESSING PHASE ── */}
                     {phase === 'processing' && (
                         <View style={styles.phaseWrap}>
-                            <ActivityIndicator size="large" color={accent} style={{ marginBottom: 18 }} />
-                            <Text style={[styles.phaseTitle, { color: theme.text }]}>Processing…</Text>
+                            <ActivityIndicator size="large" color={accent} style={{ marginBottom: 16 }} />
+                            <Text style={[styles.phaseTitle, { color: theme.text }]}>Processing</Text>
                             <Text style={[styles.phaseSub, { color: theme.textSecondary }]}>
                                 This may take a moment depending on file size.
                             </Text>
-                            <View style={{ marginTop: 24, width: '100%' }}>
+                            <View style={{ marginTop: 20, width: '100%' }}>
                                 <SkeletonShimmer accent={accent} />
                             </View>
                         </View>
@@ -239,21 +339,21 @@ const MediaProcessingModal: React.FC<MediaProcessingModalProps> = ({
                     {/* ── ERROR PHASE ── */}
                     {phase === 'error' && (
                         <View style={styles.phaseWrap}>
-                            <View style={[styles.errorCircle, { backgroundColor: theme.error + '18' }]}>
-                                <Text style={{ fontSize: 36 }}>✕</Text>
+                            <View style={[styles.iconBadge, { backgroundColor: (theme.error || '#EF4444') + '10' }]}>
+                                <XCircle size={36} color={theme.error || '#EF4444'} strokeWidth={1.6} />
                             </View>
-                            <Text style={[styles.phaseTitle, { color: theme.error, marginTop: 16 }]}>
+                            <Text style={[styles.phaseTitle, { color: theme.error || '#EF4444', marginTop: 14 }]}>
                                 Processing Failed
                             </Text>
-                            <Text style={[styles.phaseSub, { color: theme.textSecondary, marginTop: 8 }]}>
+                            <Text style={[styles.phaseSub, { color: theme.textSecondary, marginTop: 6 }]}>
                                 {errorMessage || 'Something went wrong. Please try again.'}
                             </Text>
                             <TouchableOpacity
-                                style={[styles.doneBtn, { backgroundColor: theme.error, marginTop: 28 }]}
+                                style={[styles.primaryBtn, { backgroundColor: theme.error || '#EF4444', marginTop: 24 }]}
                                 onPress={onClose}
                                 activeOpacity={0.8}
                             >
-                                <Text style={styles.doneBtnText}>Close</Text>
+                                <Text style={styles.primaryBtnText}>Close</Text>
                             </TouchableOpacity>
                         </View>
                     )}
@@ -262,8 +362,8 @@ const MediaProcessingModal: React.FC<MediaProcessingModalProps> = ({
                     {phase === 'complete' && result && (
                         <View style={styles.phaseWrap}>
                             {/* Success badge */}
-                            <View style={[styles.successBadge, { backgroundColor: accent + '18' }]}>
-                                <Text style={{ fontSize: 18 }}>✓</Text>
+                            <View style={[styles.successRow, { backgroundColor: accent + '0A' }]}>
+                                <CheckCircle2 size={18} color={accent} strokeWidth={2} />
                                 <Text style={[styles.successText, { color: accent }]}>Completed</Text>
                             </View>
 
@@ -276,7 +376,7 @@ const MediaProcessingModal: React.FC<MediaProcessingModalProps> = ({
                             />
 
                             {/* Filename row */}
-                            <View style={[styles.nameRow, { borderColor: theme.border }]}>
+                            <View style={[styles.nameRow, { borderColor: borderCol, backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)' }]}>
                                 {editingName ? (
                                     <TextInput
                                         style={[styles.nameInput, { color: theme.text, borderColor: accent }]}
@@ -297,12 +397,20 @@ const MediaProcessingModal: React.FC<MediaProcessingModalProps> = ({
                                     </Text>
                                 )}
                                 <TouchableOpacity
-                                    style={[styles.renameBtn, { backgroundColor: accent + '14' }]}
-                                    onPress={() => setEditingName(!editingName)}
+                                    style={[styles.renameBtn, { backgroundColor: mutedAccent }]}
+                                    onPress={() => {
+                                        if (editingName) {
+                                            handleRename();
+                                        } else {
+                                            setEditingName(true);
+                                        }
+                                    }}
                                 >
-                                    <Text style={[styles.renameBtnText, { color: accent }]}>
-                                        {editingName ? '✓' : '✎'}
-                                    </Text>
+                                    {editingName ? (
+                                        <Check size={16} color={accent} strokeWidth={2.5} />
+                                    ) : (
+                                        <Pencil size={14} color={accent} strokeWidth={2} />
+                                    )}
                                 </TouchableOpacity>
                             </View>
 
@@ -310,42 +418,42 @@ const MediaProcessingModal: React.FC<MediaProcessingModalProps> = ({
                             <View style={styles.actionRow}>
                                 {/* Download */}
                                 <TouchableOpacity
-                                    style={[styles.actionBtn, { backgroundColor: '#2563EB' }]}
+                                    style={[styles.actionBtn, { backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)', borderColor: borderCol }]}
                                     onPress={handleDownload}
-                                    activeOpacity={0.8}
+                                    activeOpacity={0.7}
                                 >
-                                    <Text style={styles.actionIcon}>⬇</Text>
-                                    <Text style={styles.actionLabel}>Download</Text>
+                                    <Download size={18} color={accent} strokeWidth={2} />
+                                    <Text style={[styles.actionLabel, { color: theme.text }]}>Save</Text>
                                 </TouchableOpacity>
 
                                 {/* WhatsApp */}
                                 <TouchableOpacity
-                                    style={[styles.actionBtn, { backgroundColor: '#25D366' }]}
+                                    style={[styles.actionBtn, { backgroundColor: '#25D366' + '12', borderColor: '#25D366' + '30' }]}
                                     onPress={handleShareWhatsApp}
-                                    activeOpacity={0.8}
+                                    activeOpacity={0.7}
                                 >
-                                    <Text style={styles.actionIcon}>💬</Text>
-                                    <Text style={styles.actionLabel}>WhatsApp</Text>
+                                    <MessageCircle size={18} color="#25D366" strokeWidth={2} />
+                                    <Text style={[styles.actionLabel, { color: isDark ? '#4ADE80' : '#16A34A' }]}>WhatsApp</Text>
                                 </TouchableOpacity>
 
                                 {/* Share */}
                                 <TouchableOpacity
-                                    style={[styles.actionBtn, { backgroundColor: accent }]}
+                                    style={[styles.actionBtn, { backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)', borderColor: borderCol }]}
                                     onPress={handleShare}
-                                    activeOpacity={0.8}
+                                    activeOpacity={0.7}
                                 >
-                                    <Text style={styles.actionIcon}>↗</Text>
-                                    <Text style={styles.actionLabel}>Share</Text>
+                                    <Share2 size={18} color={accent} strokeWidth={2} />
+                                    <Text style={[styles.actionLabel, { color: theme.text }]}>Share</Text>
                                 </TouchableOpacity>
                             </View>
 
                             {/* Done button */}
                             <TouchableOpacity
-                                style={[styles.doneBtn, { backgroundColor: theme.backgroundSecondary, borderColor: theme.border }]}
+                                style={[styles.primaryBtn, { backgroundColor: accent, marginTop: 16 }]}
                                 onPress={onClose}
                                 activeOpacity={0.8}
                             >
-                                <Text style={[styles.doneBtnText, { color: theme.text }]}>Done</Text>
+                                <Text style={styles.primaryBtnText}>Done</Text>
                             </TouchableOpacity>
                         </View>
                     )}
@@ -362,52 +470,53 @@ const styles = StyleSheet.create({
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        paddingHorizontal: 20,
+        paddingHorizontal: 24,
     },
     card: {
         width: '100%',
-        maxWidth: 420,
-        borderRadius: 22,
+        maxWidth: 400,
+        borderRadius: 16,
         borderWidth: 1,
         overflow: 'hidden',
     },
     phaseWrap: {
         alignItems: 'center',
         paddingHorizontal: 20,
-        paddingVertical: 28,
+        paddingVertical: 24,
     },
     phaseTitle: {
-        fontSize: 20,
-        fontWeight: '700',
+        fontSize: 18,
+        fontWeight: '600',
         textAlign: 'center',
+        letterSpacing: -0.3,
     },
     phaseSub: {
-        fontSize: 14,
+        fontSize: 13,
         textAlign: 'center',
-        marginTop: 6,
-        lineHeight: 20,
+        marginTop: 4,
+        lineHeight: 18,
     },
 
-    /* Success badge */
-    successBadge: {
+    /* Success row */
+    successRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 8,
-        paddingHorizontal: 16,
-        paddingVertical: 8,
-        borderRadius: 20,
-        marginBottom: 16,
+        gap: 6,
+        paddingHorizontal: 14,
+        paddingVertical: 6,
+        borderRadius: 8,
+        marginBottom: 14,
     },
     successText: {
-        fontSize: 14,
-        fontWeight: '700',
+        fontSize: 13,
+        fontWeight: '600',
     },
 
-    /* Error circle */
-    errorCircle: {
-        width: 72,
-        height: 72,
-        borderRadius: 36,
+    /* Icon badge (error) */
+    iconBadge: {
+        width: 64,
+        height: 64,
+        borderRadius: 32,
         alignItems: 'center',
         justifyContent: 'center',
     },
@@ -417,117 +526,105 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         width: '100%',
-        marginTop: 14,
+        marginTop: 12,
         borderWidth: 1,
-        borderRadius: 12,
-        paddingHorizontal: 14,
-        paddingVertical: 10,
-        gap: 10,
+        borderRadius: 10,
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        gap: 8,
     },
     nameText: {
         flex: 1,
-        fontSize: 14,
-        fontWeight: '600',
+        fontSize: 13,
+        fontWeight: '500',
     },
     nameInput: {
         flex: 1,
-        fontSize: 14,
-        fontWeight: '600',
+        fontSize: 13,
+        fontWeight: '500',
         borderBottomWidth: 1.5,
         paddingVertical: 2,
     },
     renameBtn: {
-        width: 34,
-        height: 34,
-        borderRadius: 17,
+        width: 32,
+        height: 32,
+        borderRadius: 8,
         alignItems: 'center',
         justifyContent: 'center',
-    },
-    renameBtnText: {
-        fontSize: 18,
-        fontWeight: '700',
     },
 
     /* Action buttons */
     actionRow: {
         flexDirection: 'row',
-        gap: 10,
-        marginTop: 18,
+        gap: 8,
+        marginTop: 14,
         width: '100%',
     },
     actionBtn: {
         flex: 1,
-        borderRadius: 14,
-        paddingVertical: 14,
+        borderRadius: 10,
+        paddingVertical: 12,
         alignItems: 'center',
         gap: 4,
-    },
-    actionIcon: {
-        fontSize: 18,
-        color: '#FFF',
+        borderWidth: 1,
     },
     actionLabel: {
         fontSize: 11,
-        fontWeight: '700',
-        color: '#FFF',
+        fontWeight: '600',
     },
 
-    /* Done button */
-    doneBtn: {
+    /* Primary button */
+    primaryBtn: {
         width: '100%',
-        marginTop: 14,
-        borderRadius: 12,
-        paddingVertical: 13,
+        borderRadius: 10,
+        paddingVertical: 12,
         alignItems: 'center',
-        borderWidth: 1,
     },
-    doneBtnText: {
-        fontSize: 15,
-        fontWeight: '700',
+    primaryBtnText: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: '#FFF',
     },
 });
 
 const previewStyles = StyleSheet.create({
     wrapper: {
         width: '100%',
-        borderRadius: 14,
+        borderRadius: 12,
         overflow: 'hidden',
         alignItems: 'center',
         justifyContent: 'center',
-        minHeight: 160,
-        paddingVertical: 20,
+        minHeight: 140,
+        paddingVertical: 16,
     },
     image: {
         width: '100%',
-        height: 200,
-        borderRadius: 10,
+        height: 180,
+        borderRadius: 8,
     },
     iconCircle: {
-        width: 72,
-        height: 72,
-        borderRadius: 36,
+        width: 64,
+        height: 64,
+        borderRadius: 32,
         alignItems: 'center',
         justifyContent: 'center',
-        marginBottom: 10,
-    },
-    iconEmoji: {
-        fontSize: 34,
+        marginBottom: 8,
     },
     iconLabel: {
-        fontSize: 15,
-        fontWeight: '700',
-        marginBottom: 14,
+        fontSize: 13,
+        fontWeight: '600',
+        marginBottom: 12,
     },
     waveRow: {
         flexDirection: 'row',
         alignItems: 'flex-end',
         gap: 3,
-        height: 40,
+        height: 36,
         paddingHorizontal: 12,
     },
     waveBar: {
-        width: 4,
-        borderRadius: 2,
+        width: 3,
+        borderRadius: 1.5,
     },
 });
 

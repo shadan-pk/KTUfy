@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
     View,
     Text,
@@ -8,9 +8,12 @@ import {
     TextInput,
     Alert,
     StatusBar,
+    Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Lock, Unlock } from 'lucide-react-native';
 import { useTheme } from '../contexts/ThemeContext';
+import { useServerStatus } from '../hooks/useServerStatus';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../types/navigation';
 import {
@@ -38,12 +41,16 @@ const TABS: { key: TabKey; label: string; icon: string }[] = [
 
 const ImageToolsScreen: React.FC<Props> = ({ navigation }) => {
     const { theme, isDark } = useTheme();
+    const { serverOnline } = useServerStatus();
     const [activeTab, setActiveTab] = useState<TabKey>('convert');
     const [selectedFile, setSelectedFile] = useState<PickedFile | null>(null);
     const [selectedFormat, setSelectedFormat] = useState(IMAGE_FORMATS[0]);
     const [selectedQuality, setSelectedQuality] = useState(QUALITY_OPTIONS[2]);
     const [resizeWidth, setResizeWidth] = useState('1920');
     const [resizeHeight, setResizeHeight] = useState('1080');
+    const [keepAspectRatio, setKeepAspectRatio] = useState(true);
+    const [originalWidth, setOriginalWidth] = useState<number | null>(null);
+    const [originalHeight, setOriginalHeight] = useState<number | null>(null);
 
     // Modal state
     const [modalVisible, setModalVisible] = useState(false);
@@ -53,8 +60,49 @@ const ImageToolsScreen: React.FC<Props> = ({ navigation }) => {
 
     const pickFile = async () => {
         const file = await pickSingleFile(['image/*']);
-        if (file) setSelectedFile(file);
+        if (file) {
+            setSelectedFile(file);
+            // Fetch original dimensions of the image
+            Image.getSize(
+                file.uri,
+                (w, h) => {
+                    setOriginalWidth(w);
+                    setOriginalHeight(h);
+                    setResizeWidth(String(w));
+                    setResizeHeight(String(h));
+                },
+                () => {
+                    // If getSize fails, keep defaults
+                    setOriginalWidth(null);
+                    setOriginalHeight(null);
+                },
+            );
+        }
     };
+
+    // Handle width change with aspect ratio lock
+    const handleWidthChange = useCallback((val: string) => {
+        setResizeWidth(val);
+        if (keepAspectRatio && originalWidth && originalHeight) {
+            const w = parseInt(val, 10);
+            if (!isNaN(w) && w > 0) {
+                const h = Math.round((w / originalWidth) * originalHeight);
+                setResizeHeight(String(h));
+            }
+        }
+    }, [keepAspectRatio, originalWidth, originalHeight]);
+
+    // Handle height change with aspect ratio lock
+    const handleHeightChange = useCallback((val: string) => {
+        setResizeHeight(val);
+        if (keepAspectRatio && originalWidth && originalHeight) {
+            const h = parseInt(val, 10);
+            if (!isNaN(h) && h > 0) {
+                const w = Math.round((h / originalHeight) * originalWidth);
+                setResizeWidth(String(w));
+            }
+        }
+    }, [keepAspectRatio, originalWidth, originalHeight]);
 
     const process = useCallback(async () => {
         if (!selectedFile) {
@@ -149,14 +197,16 @@ const ImageToolsScreen: React.FC<Props> = ({ navigation }) => {
         </View>
     );
 
+    const isDisabled = !selectedFile || !serverOnline;
+
     const renderProcessBtn = () => (
         <TouchableOpacity
-            style={[styles.processBtn, { backgroundColor: ACCENT, opacity: !selectedFile ? 0.5 : 1 }]}
+            style={[styles.processBtn, { backgroundColor: ACCENT, opacity: isDisabled ? 0.5 : 1 }]}
             onPress={process}
             activeOpacity={0.8}
-            disabled={!selectedFile}
+            disabled={isDisabled}
         >
-            <Text style={styles.processBtnText}>Process Image</Text>
+            <Text style={styles.processBtnText}>{serverOnline ? 'Process Image' : 'Server Offline'}</Text>
         </TouchableOpacity>
     );
 
@@ -182,7 +232,7 @@ const ImageToolsScreen: React.FC<Props> = ({ navigation }) => {
                     <TouchableOpacity
                         key={tab.key}
                         style={[styles.tab, activeTab === tab.key && { backgroundColor: ACCENT + '1A', borderBottomColor: ACCENT }]}
-                        onPress={() => { setActiveTab(tab.key); setSelectedFile(null); setResizeWidth('1920'); setResizeHeight('1080'); }}
+                        onPress={() => { setActiveTab(tab.key); setSelectedFile(null); setResizeWidth('1920'); setResizeHeight('1080'); setOriginalWidth(null); setOriginalHeight(null); setKeepAspectRatio(true); }}
                     >
                         <Text style={[styles.tabIcon, { color: activeTab === tab.key ? ACCENT : theme.textSecondary }]}>{tab.icon}</Text>
                         <Text style={[styles.tabLabel, { color: activeTab === tab.key ? ACCENT : theme.textSecondary }]}>{tab.label}</Text>
@@ -216,6 +266,14 @@ const ImageToolsScreen: React.FC<Props> = ({ navigation }) => {
                 {activeTab === 'resize' && (
                     <>
                         {renderFilePicker('Select Image File')}
+                        {/* Original dimensions info */}
+                        {originalWidth && originalHeight && selectedFile && (
+                            <View style={[styles.infoCard, { backgroundColor: theme.backgroundSecondary, borderColor: theme.border, marginBottom: 12 }]}>
+                                <Text style={[styles.infoText, { color: theme.textSecondary }]}>
+                                    Original: {originalWidth} × {originalHeight} px
+                                </Text>
+                            </View>
+                        )}
                         <View style={styles.optionBlock}>
                             <Text style={[styles.optionLabel, { color: theme.textSecondary }]}>Target Resolution</Text>
                             <View style={styles.resizeRow}>
@@ -224,19 +282,30 @@ const ImageToolsScreen: React.FC<Props> = ({ navigation }) => {
                                     <TextInput
                                         style={[styles.dimensionField, { color: theme.text }]}
                                         value={resizeWidth}
-                                        onChangeText={setResizeWidth}
+                                        onChangeText={handleWidthChange}
                                         keyboardType="number-pad"
                                         placeholder="1920"
                                         placeholderTextColor={theme.textTertiary}
                                     />
                                 </View>
-                                <Text style={[styles.crossIcon, { color: theme.textSecondary }]}>×</Text>
+                                {/* Aspect ratio lock button */}
+                                <TouchableOpacity
+                                    style={[styles.lockBtn, { backgroundColor: keepAspectRatio ? ACCENT + '18' : theme.backgroundSecondary, borderColor: keepAspectRatio ? ACCENT + '50' : theme.border }]}
+                                    onPress={() => setKeepAspectRatio(!keepAspectRatio)}
+                                    activeOpacity={0.7}
+                                >
+                                    {keepAspectRatio ? (
+                                        <Lock size={16} color={ACCENT} strokeWidth={2.2} />
+                                    ) : (
+                                        <Unlock size={16} color={theme.textSecondary} strokeWidth={2} />
+                                    )}
+                                </TouchableOpacity>
                                 <View style={[styles.dimensionInput, { backgroundColor: theme.backgroundSecondary, borderColor: theme.border }]}>
                                     <Text style={[styles.dimensionLabel, { color: theme.textSecondary }]}>Height (px)</Text>
                                     <TextInput
                                         style={[styles.dimensionField, { color: theme.text }]}
                                         value={resizeHeight}
-                                        onChangeText={setResizeHeight}
+                                        onChangeText={handleHeightChange}
                                         keyboardType="number-pad"
                                         placeholder="1080"
                                         placeholderTextColor={theme.textTertiary}
@@ -312,11 +381,11 @@ const styles = StyleSheet.create({
     processBtnText: { color: '#FFF', fontSize: 15, fontWeight: '700' },
     infoCard: { borderRadius: 12, padding: 14, borderWidth: 1, marginBottom: 20 },
     infoText: { fontSize: 13, lineHeight: 19 },
-    resizeRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+    resizeRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
     dimensionInput: { flex: 1, borderRadius: 12, borderWidth: 1, padding: 12 },
     dimensionLabel: { fontSize: 11, fontWeight: '600', marginBottom: 6 },
     dimensionField: { fontSize: 20, fontWeight: '700', textAlign: 'center' },
-    crossIcon: { fontSize: 22, fontWeight: '300' },
+    lockBtn: { width: 36, height: 36, borderRadius: 10, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
     presetChip: { borderRadius: 10, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 8, alignItems: 'center' },
     presetText: { fontSize: 12, fontWeight: '700', marginBottom: 2 },
     presetDim: { fontSize: 10 },

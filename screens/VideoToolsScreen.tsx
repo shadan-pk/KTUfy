@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../contexts/ThemeContext';
+import { useServerStatus } from '../hooks/useServerStatus';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../types/navigation';
 import {
@@ -41,6 +42,7 @@ const TABS: { key: TabKey; label: string; icon: string }[] = [
 
 const VideoToolsScreen: React.FC<Props> = ({ navigation }) => {
     const { theme, isDark } = useTheme();
+    const { serverOnline } = useServerStatus();
     const [activeTab, setActiveTab] = useState<TabKey>('convert');
     const [selectedFile, setSelectedFile] = useState<PickedFile | null>(null);
     const [selectedFormat, setSelectedFormat] = useState(VIDEO_FORMATS[0]);
@@ -169,14 +171,16 @@ const VideoToolsScreen: React.FC<Props> = ({ navigation }) => {
         </View>
     );
 
+    const isProcessDisabled = !selectedFile || !serverOnline;
+
     const renderProcessBtn = () => (
         <TouchableOpacity
-            style={[styles.processBtn, { backgroundColor: ACCENT, opacity: !selectedFile ? 0.5 : 1 }]}
+            style={[styles.processBtn, { backgroundColor: ACCENT, opacity: isProcessDisabled ? 0.5 : 1 }]}
             onPress={process}
             activeOpacity={0.8}
-            disabled={!selectedFile}
+            disabled={isProcessDisabled}
         >
-            <Text style={styles.processBtnText}>Process Video</Text>
+            <Text style={styles.processBtnText}>{serverOnline ? 'Process Video' : 'Server Offline'}</Text>
         </TouchableOpacity>
     );
 

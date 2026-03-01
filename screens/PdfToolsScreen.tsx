@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../contexts/ThemeContext';
+import { useServerStatus } from '../hooks/useServerStatus';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../types/navigation';
 import {
@@ -47,6 +48,7 @@ const QUALITY_MAP: Record<string, string> = {
 
 const PdfToolsScreen: React.FC<Props> = ({ navigation }) => {
     const { theme, isDark } = useTheme();
+    const { serverOnline } = useServerStatus();
     const [activeTab, setActiveTab] = useState<TabKey>('merge');
     const [pdfFiles, setPdfFiles] = useState<PickedFile[]>([]);
     const [imageFiles, setImageFiles] = useState<PickedFile[]>([]);
@@ -203,11 +205,12 @@ const PdfToolsScreen: React.FC<Props> = ({ navigation }) => {
 
     const renderProcessBtn = (label = 'Process PDF') => (
         <TouchableOpacity
-            style={[styles.processBtn, { backgroundColor: ACCENT }]}
+            style={[styles.processBtn, { backgroundColor: ACCENT, opacity: !serverOnline ? 0.5 : 1 }]}
             onPress={process}
             activeOpacity={0.8}
+            disabled={!serverOnline}
         >
-            <Text style={styles.processBtnText}>{label}</Text>
+            <Text style={styles.processBtnText}>{serverOnline ? label : 'Server Offline'}</Text>
         </TouchableOpacity>
     );
 

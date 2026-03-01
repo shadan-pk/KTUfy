@@ -2,9 +2,12 @@
  * AudioTrimmer.tsx
  *
  * Interactive audio trimmer with:
- *   • A fake waveform visualisation
+ *   • A pseudo waveform visualisation (deterministic from file URI)
  *   • Left / Right draggable trim handles (PanGestureHandler + Reanimated)
- *   • Play‑preview of the selected region (expo-av)
+ *   • Auto-play on handle drag end:
+ *       – Left handle → plays from start handle position
+ *       – Right handle → plays from 2 seconds before end position
+ *   • Real-time playback position display
  *   • Start / End time display that auto-updates from the handles
  */
 import React, { useEffect, useRef, useMemo, useCallback } from 'react';
@@ -20,11 +23,11 @@ import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
     useSharedValue,
     useAnimatedStyle,
-    withTiming,
     runOnJS,
     clamp,
 } from 'react-native-reanimated';
 import { Audio, AVPlaybackStatus } from 'expo-av';
+import { Play, Pause } from 'lucide-react-native';
 import { useTheme } from '../contexts/ThemeContext';
 
 // ─── Props ───────────────────────────────────────────────────
@@ -47,9 +50,16 @@ function formatTime(seconds: number): string {
     return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
 }
 
+function formatTimeMs(ms: number): string {
+    const totalSec = ms / 1000;
+    const m = Math.floor(totalSec / 60);
+    const s = Math.floor(totalSec % 60);
+    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+}
+
 const HANDLE_W = 22;
 const BAR_COUNT = 60;
-const MIN_REGION_PX = 30; // minimum region width in pixels
+const MIN_REGION_PX = 30;
 
 // ─── Component ───────────────────────────────────────────────
 
@@ -62,7 +72,7 @@ const AudioTrimmer: React.FC<AudioTrimmerProps> = ({
     const { theme, isDark } = useTheme();
 
     // Track rail width measured via onLayout
-    const railWidth = useSharedValue(300); // default; recalculated on layout
+    const railWidth = useSharedValue(300);
     const [measuredWidth, setMeasuredWidth] = React.useState(300);
     const duration = useSharedValue(initialDuration ?? 60);
 
@@ -77,6 +87,7 @@ const AudioTrimmer: React.FC<AudioTrimmerProps> = ({
     const [isPlaying, setIsPlaying] = React.useState(false);
     const [startLabel, setStartLabel] = React.useState('00:00');
     const [endLabel, setEndLabel] = React.useState(initialDuration ? formatTime(initialDuration) : '01:00');
+    const [currentTime, setCurrentTime] = React.useState<string | null>(null);
 
     // Sync duration when it changes
     useEffect(() => {
@@ -94,7 +105,7 @@ const AudioTrimmer: React.FC<AudioTrimmerProps> = ({
         for (let i = 0; i < fileUri.length; i++) seed = (seed * 31 + fileUri.charCodeAt(i)) & 0x7fffffff;
         return Array.from({ length: BAR_COUNT }, (_, i) => {
             seed = (seed * 16807 + i) % 2147483647;
-            return 0.15 + (seed % 1000) / 1000 * 0.85; // 0.15–1.0
+            return 0.15 + (seed % 1000) / 1000 * 0.85;
         });
     }, [fileUri]);
 
@@ -103,7 +114,6 @@ const AudioTrimmer: React.FC<AudioTrimmerProps> = ({
         const w = e.nativeEvent.layout.width;
         railWidth.value = w;
         setMeasuredWidth(w);
-        // Reset right handle to full width
         rightX.value = w;
         rightStart.value = w;
     }, []);
@@ -124,6 +134,70 @@ const AudioTrimmer: React.FC<AudioTrimmerProps> = ({
         onTrimChange(formatTime(lx * ratio * duration.value), formatTime(rx * ratio * duration.value));
     }, [duration, onTrimChange]);
 
+    // ── Playback helpers ──
+
+    const playFromPosition = useCallback(async (startMs: number, endMs: number) => {
+        try {
+            // Stop any existing playback
+            if (soundRef.current) {
+                await soundRef.current.unloadAsync();
+                soundRef.current = null;
+            }
+
+            await Audio.setAudioModeAsync({
+                allowsRecordingIOS: false,
+                playsInSilentModeIOS: true,
+                staysActiveInBackground: false,
+            });
+
+            const { sound } = await Audio.Sound.createAsync(
+                { uri: fileUri },
+                { shouldPlay: false },
+            );
+
+            soundRef.current = sound;
+
+            await sound.setPositionAsync(Math.round(Math.max(0, startMs)));
+            await sound.playAsync();
+            setIsPlaying(true);
+            setCurrentTime(formatTimeMs(startMs));
+
+            sound.setOnPlaybackStatusUpdate((s: AVPlaybackStatus) => {
+                if (!s.isLoaded) return;
+                // Update current time
+                setCurrentTime(formatTimeMs(s.positionMillis));
+                if (s.positionMillis >= endMs || s.didJustFinish) {
+                    sound.stopAsync();
+                    setIsPlaying(false);
+                    setCurrentTime(null);
+                }
+            });
+        } catch (err) {
+            console.error('AudioTrimmer playback error:', err);
+            setIsPlaying(false);
+            setCurrentTime(null);
+        }
+    }, [fileUri]);
+
+    // Auto-play from left handle position
+    const autoPlayFromLeft = useCallback((lx: number, rx: number, rw: number) => {
+        emitTrimChange(lx, rx, rw);
+        const lRatio = rw > 0 ? lx / rw : 0;
+        const rRatio = rw > 0 ? rx / rw : 1;
+        const startMs = lRatio * duration.value * 1000;
+        const endMs = rRatio * duration.value * 1000;
+        playFromPosition(startMs, endMs);
+    }, [duration, emitTrimChange, playFromPosition]);
+
+    // Auto-play from 2 seconds before end handle position
+    const autoPlayFromRight = useCallback((lx: number, rx: number, rw: number) => {
+        emitTrimChange(lx, rx, rw);
+        const rRatio = rw > 0 ? rx / rw : 1;
+        const endMs = rRatio * duration.value * 1000;
+        const startMs = Math.max(0, endMs - 2000); // 2 seconds before end
+        playFromPosition(startMs, endMs);
+    }, [duration, emitTrimChange, playFromPosition]);
+
     // ── Gestures ──
 
     const leftGesture = Gesture.Pan()
@@ -136,7 +210,7 @@ const AudioTrimmer: React.FC<AudioTrimmerProps> = ({
             runOnJS(updateStartLabel)(newX, railWidth.value);
         })
         .onEnd(() => {
-            runOnJS(emitTrimChange)(leftX.value, rightX.value, railWidth.value);
+            runOnJS(autoPlayFromLeft)(leftX.value, rightX.value, railWidth.value);
         });
 
     const rightGesture = Gesture.Pan()
@@ -149,7 +223,7 @@ const AudioTrimmer: React.FC<AudioTrimmerProps> = ({
             runOnJS(updateEndLabel)(newX, railWidth.value);
         })
         .onEnd(() => {
-            runOnJS(emitTrimChange)(leftX.value, rightX.value, railWidth.value);
+            runOnJS(autoPlayFromRight)(leftX.value, rightX.value, railWidth.value);
         });
 
     // ── Animated styles ──
@@ -176,58 +250,22 @@ const AudioTrimmer: React.FC<AudioTrimmerProps> = ({
         right: 0,
     }));
 
-    // ── Playback ──
+    // ── Full region playback ──
 
     const loadAndPlay = useCallback(async () => {
-        try {
-            // Unload previous
-            if (soundRef.current) {
-                await soundRef.current.unloadAsync();
-                soundRef.current = null;
-            }
-
-            await Audio.setAudioModeAsync({
-                allowsRecordingIOS: false,
-                playsInSilentModeIOS: true,
-                staysActiveInBackground: false,
-            });
-
-            const { sound, status } = await Audio.Sound.createAsync(
-                { uri: fileUri },
-                { shouldPlay: false },
-            );
-
-            soundRef.current = sound;
-
-            // Determine playback range from handle positions
-            const rw = railWidth.value;
-            const lRatio = rw > 0 ? leftX.value / rw : 0;
-            const rRatio = rw > 0 ? rightX.value / rw : 1;
-            const startMs = lRatio * duration.value * 1000;
-            const endMs = rRatio * duration.value * 1000;
-
-            await sound.setPositionAsync(Math.round(startMs));
-            await sound.playAsync();
-            setIsPlaying(true);
-
-            // Stop at end position
-            sound.setOnPlaybackStatusUpdate((s: AVPlaybackStatus) => {
-                if (!s.isLoaded) return;
-                if (s.positionMillis >= endMs || s.didJustFinish) {
-                    sound.stopAsync();
-                    setIsPlaying(false);
-                }
-            });
-        } catch (err) {
-            console.error('AudioTrimmer playback error:', err);
-            setIsPlaying(false);
-        }
-    }, [fileUri, duration]);
+        const rw = railWidth.value;
+        const lRatio = rw > 0 ? leftX.value / rw : 0;
+        const rRatio = rw > 0 ? rightX.value / rw : 1;
+        const startMs = lRatio * duration.value * 1000;
+        const endMs = rRatio * duration.value * 1000;
+        await playFromPosition(startMs, endMs);
+    }, [duration, playFromPosition]);
 
     const stopPlayback = useCallback(async () => {
         if (soundRef.current) {
             await soundRef.current.stopAsync();
             setIsPlaying(false);
+            setCurrentTime(null);
         }
     }, []);
 
@@ -253,6 +291,14 @@ const AudioTrimmer: React.FC<AudioTrimmerProps> = ({
                 </View>
             </View>
 
+            {/* Current playback time */}
+            {currentTime && (
+                <View style={styles.currentTimeRow}>
+                    <Text style={[styles.currentTimeLabel, { color: theme.textSecondary }]}>Playing</Text>
+                    <Text style={[styles.currentTimeValue, { color: accent }]}>{currentTime}</Text>
+                </View>
+            )}
+
             {/* Waveform track */}
             <View style={styles.trackWrap} onLayout={onLayout}>
                 {/* Waveform bars */}
@@ -262,10 +308,7 @@ const AudioTrimmer: React.FC<AudioTrimmerProps> = ({
                             key={i}
                             style={[
                                 styles.bar,
-                                {
-                                    height: h * 48,
-                                    backgroundColor: accent + '50',
-                                },
+                                { height: h * 48, backgroundColor: accent + '50' },
                             ]}
                         />
                     ))}
@@ -302,7 +345,11 @@ const AudioTrimmer: React.FC<AudioTrimmerProps> = ({
                 onPress={isPlaying ? stopPlayback : loadAndPlay}
                 activeOpacity={0.8}
             >
-                <Text style={styles.playIcon}>{isPlaying ? '⏸' : '▶'}</Text>
+                {isPlaying ? (
+                    <Pause size={16} color="#FFF" strokeWidth={2.5} fill="#FFF" />
+                ) : (
+                    <Play size={16} color="#FFF" strokeWidth={2.5} fill="#FFF" />
+                )}
                 <Text style={styles.playText}>{isPlaying ? 'Stop Preview' : 'Play Preview'}</Text>
             </TouchableOpacity>
         </View>
@@ -330,7 +377,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
         gap: 14,
-        marginBottom: 16,
+        marginBottom: 8,
     },
     timeBadge: {
         paddingHorizontal: 16,
@@ -345,6 +392,24 @@ const styles = StyleSheet.create({
     timeDash: {
         fontSize: 20,
         fontWeight: '300',
+    },
+    currentTimeRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+        marginBottom: 12,
+    },
+    currentTimeLabel: {
+        fontSize: 11,
+        fontWeight: '500',
+        textTransform: 'uppercase',
+        letterSpacing: 0.3,
+    },
+    currentTimeValue: {
+        fontSize: 14,
+        fontWeight: '700',
+        fontVariant: ['tabular-nums'],
     },
     trackWrap: {
         height: 68,
@@ -398,7 +463,6 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
         gap: 3,
-        // Shadow
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.25,
@@ -418,10 +482,6 @@ const styles = StyleSheet.create({
         gap: 8,
         borderRadius: 12,
         paddingVertical: 12,
-    },
-    playIcon: {
-        fontSize: 16,
-        color: '#FFF',
     },
     playText: {
         fontSize: 14,

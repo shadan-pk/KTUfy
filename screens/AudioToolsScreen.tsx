@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../contexts/ThemeContext';
+import { useServerStatus } from '../hooks/useServerStatus';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../types/navigation';
 import {
@@ -46,6 +47,7 @@ const TABS: { key: TabKey; label: string; icon: string }[] = [
 
 const AudioToolsScreen: React.FC<Props> = ({ navigation }) => {
     const { theme, isDark } = useTheme();
+    const { serverOnline } = useServerStatus();
     const [activeTab, setActiveTab] = useState<TabKey>('convert');
     const [selectedFile, setSelectedFile] = useState<PickedFile | null>(null);
     const [mergeFiles, setMergeFiles] = useState<PickedFile[]>([]);
@@ -176,14 +178,16 @@ const AudioToolsScreen: React.FC<Props> = ({ navigation }) => {
         </View>
     );
 
+    const isProcessDisabled = !serverOnline || (activeTab !== 'merge' && !selectedFile);
+
     const renderProcessBtn = () => (
         <TouchableOpacity
-            style={[styles.processBtn, { backgroundColor: ACCENT, opacity: (activeTab !== 'merge' && !selectedFile) ? 0.5 : 1 }]}
+            style={[styles.processBtn, { backgroundColor: ACCENT, opacity: isProcessDisabled ? 0.5 : 1 }]}
             onPress={process}
             activeOpacity={0.8}
-            disabled={activeTab !== 'merge' && !selectedFile}
+            disabled={isProcessDisabled}
         >
-            <Text style={styles.processBtnText}>Process Audio</Text>
+            <Text style={styles.processBtnText}>{serverOnline ? 'Process Audio' : 'Server Offline'}</Text>
         </TouchableOpacity>
     );
 
