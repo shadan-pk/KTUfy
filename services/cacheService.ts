@@ -22,6 +22,7 @@ const KEYS = {
     SCHEDULE_BY_SEMESTER: (sem: string, branch: string) =>
         `@KTUfy:cache:schedule:${sem}:${branch}`,
     SYLLABUS: (branch: string, semester: string) => `@KTUfy:cache:syllabus:${branch}:${semester}`,
+    SYLLABUS_SUBJECT: (code: string) => `@KTUfy:cache:syllabus_subject:${code}`,
     STUDY_DASHBOARD: '@KTUfy:cache:study_dashboard',
 };
 
@@ -166,6 +167,17 @@ export async function getCachedSyllabus(branch: string, semester: string): Promi
 
 export async function setCachedSyllabus(branch: string, semester: string, subjects: any[]): Promise<void> {
     return setCache(KEYS.SYLLABUS(branch, semester), subjects);
+}
+
+/**
+ * Syllabus Subject Detail (per subject code, cached 24h)
+ */
+export async function getCachedSubjectSyllabus(code: string): Promise<any | null> {
+    return getCache(KEYS.SYLLABUS_SUBJECT(code), TTL.SYLLABUS);
+}
+
+export async function setCachedSubjectSyllabus(code: string, data: any): Promise<void> {
+    return setCache(KEYS.SYLLABUS_SUBJECT(code), data);
 }
 
 /**

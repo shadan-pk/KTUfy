@@ -4,7 +4,7 @@
  */
 
 import { apiRequest } from '../utils/api';
-import { getCachedSyllabus, setCachedSyllabus } from './cacheService';
+import { getCachedSyllabus, setCachedSyllabus, getCachedSubjectSyllabus, setCachedSubjectSyllabus } from './cacheService';
 
 // Types
 export interface SyllabusSubject {
@@ -64,7 +64,7 @@ export async function getSubjects(
 }
 
 /**
- * Get detailed syllabus for a specific subject
+ * Get detailed syllabus for a specific subject (cached 24h)
  * Backend: GET /api/v1/syllabus/subject/{subjectCode}
  *
  * @param subjectCode - Subject code (e.g., 'CSE201')
@@ -73,10 +73,78 @@ export async function getSubjects(
 export async function getSubjectSyllabus(
     subjectCode: string
 ): Promise<SubjectSyllabus> {
+    // Cache-first
+    const cached = await getCachedSubjectSyllabus(subjectCode);
+    if (cached) {
+        console.log('📖 Syllabus cache hit for', subjectCode);
+        return cached as SubjectSyllabus;
+    }
+
     const url = `${process.env.API_BASE_URL}/api/v1/syllabus/subject/${subjectCode}`;
     console.log('📖 Fetching syllabus for', subjectCode);
 
-    return apiRequest<SubjectSyllabus>(url, {
+    const data = await apiRequest<SubjectSyllabus>(url, {
         method: 'GET',
     });
+
+    // Cache the result
+    await setCachedSubjectSyllabus(subjectCode, data);
+    return data;
+}
+
+/**
+ * Convert a SubjectSyllabus object to a plain-text string for download
+ */
+export function syllabusToText(syllabus: SubjectSyllabus): string {
+    const lines: string[] = [];
+
+    lines.push(`${'='.repeat(60)}`);
+    lines.push(`  ${syllabus.subject_name}  (${syllabus.subject_code})`);
+    lines.push(`  Credits: ${syllabus.credits}`);
+    lines.push(`${'='.repeat(60)}`);
+    lines.push('');
+
+    // Modules
+    if (syllabus.modules?.length) {
+        for (const mod of syllabus.modules) {
+            lines.push(`MODULE ${mod.module_number}: ${mod.title}  (${mod.hours} hrs)`);
+            lines.push('-'.repeat(50));
+            for (const topic of mod.topics) {
+                lines.push(`  • ${topic}`);
+            }
+            lines.push('');
+        }
+    }
+
+    // Course Outcomes
+    if (syllabus.course_outcomes?.length) {
+        lines.push('COURSE OUTCOMES');
+        lines.push('-'.repeat(50));
+        syllabus.course_outcomes.forEach((co, i) => {
+            lines.push(`  CO${i + 1}: ${co}`);
+        });
+        lines.push('');
+    }
+
+    // Textbooks
+    if (syllabus.textbooks?.length) {
+        lines.push('TEXTBOOKS');
+        lines.push('-'.repeat(50));
+        syllabus.textbooks.forEach((tb, i) => {
+            lines.push(`  ${i + 1}. ${tb}`);
+        });
+        lines.push('');
+    }
+
+    // References
+    if (syllabus.references?.length) {
+        lines.push('REFERENCES');
+        lines.push('-'.repeat(50));
+        syllabus.references.forEach((ref, i) => {
+            lines.push(`  ${i + 1}. ${ref}`);
+        });
+        lines.push('');
+    }
+
+    return lines.join('\n');
 }

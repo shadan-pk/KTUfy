@@ -6,13 +6,17 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
-  Linking,
+  ActivityIndicator,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { SyllabusViewerScreenNavigationProp } from '../types/navigation';
 import { useTheme } from '../contexts/ThemeContext';
-import { ArrowLeft, Eye, Download } from 'lucide-react-native';
+import { ArrowLeft, Download, ChevronDown, ChevronRight, BookOpen } from 'lucide-react-native';
+import { getSubjectSyllabus, syllabusToText, SubjectSyllabus } from '../services/syllabusService';
+import * as FileSystem from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
 
 // KTU Branches
 const BRANCHES = [
@@ -121,6 +125,13 @@ export default function SyllabusViewerScreen() {
   const [selectedSemester, setSelectedSemester] = useState<string | null>(null);
   const [subjects, setSubjects] = useState<Subject[]>([]);
 
+  // Detail view state
+  const [selectedSubject, setSelectedSubject] = useState<Subject | null>(null);
+  const [syllabusDetail, setSyllabusDetail] = useState<SubjectSyllabus | null>(null);
+  const [loadingDetail, setLoadingDetail] = useState(false);
+  const [detailError, setDetailError] = useState<string | null>(null);
+  const [expandedModules, setExpandedModules] = useState<Set<number>>(new Set());
+
   const handleBranchSelect = (branchCode: string) => {
     setSelectedBranch(branchCode);
   };
@@ -131,33 +142,85 @@ export default function SyllabusViewerScreen() {
     setSubjects(branchSubjects);
   };
 
-  const handleViewSyllabus = (subject: Subject) => {
-    Alert.alert(
-      subject.name,
-      `Subject Code: ${subject.code}\nCredits: ${subject.credits}\n\nSyllabus PDF will be displayed here.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'View PDF',
-          onPress: () => {
-            const mockPdfUrl = `https://ktu.edu.in/syllabus/${subject.code}.pdf`;
-            Linking.openURL(mockPdfUrl).catch(() => {
-              Alert.alert('Info', 'Syllabus PDF viewer will open here.\n\nIn production, this will load the actual syllabus document.');
-            });
-          },
-        },
-        {
-          text: 'Download',
-          onPress: () => {
-            Alert.alert('Success', `Downloading syllabus for ${subject.name}...`);
-          },
-        },
-      ]
-    );
+  const handleSubjectPress = async (subject: Subject) => {
+    setSelectedSubject(subject);
+    setSyllabusDetail(null);
+    setDetailError(null);
+    setLoadingDetail(true);
+    setExpandedModules(new Set());
+
+    try {
+      const data = await getSubjectSyllabus(subject.code);
+      setSyllabusDetail(data);
+    } catch (err: any) {
+      console.error('Failed to load syllabus:', err);
+      setDetailError(err?.message || 'Failed to load syllabus');
+    } finally {
+      setLoadingDetail(false);
+    }
+  };
+
+  const toggleModule = (moduleNumber: number) => {
+    setExpandedModules((prev) => {
+      const next = new Set(prev);
+      if (next.has(moduleNumber)) {
+        next.delete(moduleNumber);
+      } else {
+        next.add(moduleNumber);
+      }
+      return next;
+    });
+  };
+
+  const handleDownloadText = async () => {
+    if (!syllabusDetail) return;
+
+    const text = syllabusToText(syllabusDetail);
+    const fileName = `${syllabusDetail.subject_code}_syllabus.txt`;
+
+    if (Platform.OS === 'web') {
+      // Web: Blob download
+      try {
+        const blob = new Blob([text], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      } catch {
+        Alert.alert('Error', 'Failed to download file');
+      }
+    } else {
+      // Native: write to file and share
+      try {
+        const fileUri = `${FileSystem.cacheDirectory}${fileName}`;
+        await FileSystem.writeAsStringAsync(fileUri, text, {
+          encoding: FileSystem.EncodingType.UTF8,
+        });
+
+        if (await Sharing.isAvailableAsync()) {
+          await Sharing.shareAsync(fileUri, {
+            mimeType: 'text/plain',
+            dialogTitle: `${syllabusDetail.subject_name} Syllabus`,
+          });
+        } else {
+          Alert.alert('Saved', `File saved to ${fileUri}`);
+        }
+      } catch {
+        Alert.alert('Error', 'Failed to save file');
+      }
+    }
   };
 
   const handleBack = () => {
-    if (selectedSemester) {
+    if (selectedSubject) {
+      setSelectedSubject(null);
+      setSyllabusDetail(null);
+      setDetailError(null);
+    } else if (selectedSemester) {
       setSelectedSemester(null);
       setSubjects([]);
     } else if (selectedBranch) {
@@ -174,6 +237,7 @@ export default function SyllabusViewerScreen() {
       parts.push(branch?.code || selectedBranch);
     }
     if (selectedSemester) parts.push(selectedSemester);
+    if (selectedSubject) parts.push(selectedSubject.code);
     return parts.join(' → ');
   };
 
@@ -188,11 +252,13 @@ export default function SyllabusViewerScreen() {
         </TouchableOpacity>
         <View style={styles.headerCenter}>
           <Text style={[styles.headerTitle, { color: theme.text }]}>
-            {selectedSemester
-              ? `${selectedBranch} · ${selectedSemester}`
-              : selectedBranch
-                ? selectedBranch
-                : 'Syllabus'}
+            {selectedSubject
+              ? selectedSubject.code
+              : selectedSemester
+                ? `${selectedBranch} · ${selectedSemester}`
+                : selectedBranch
+                  ? selectedBranch
+                  : 'Syllabus'}
           </Text>
         </View>
         <View style={{ width: 40 }} />
@@ -274,8 +340,8 @@ export default function SyllabusViewerScreen() {
               ))}
             </View>
           </View>
-        ) : (
-          /* Step 3: Display Subjects */
+        ) : !selectedSubject ? (
+          /* Step 3: Subject List — simple tappable cards */
           <View>
             <Text style={[styles.sectionTitle, { color: theme.text }]}>Subjects</Text>
             {subjects.length === 0 ? (
@@ -291,7 +357,7 @@ export default function SyllabusViewerScreen() {
                 <TouchableOpacity
                   key={index}
                   style={[styles.subjectCard, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}
-                  onPress={() => handleViewSyllabus(subject)}
+                  onPress={() => handleSubjectPress(subject)}
                   activeOpacity={0.7}
                 >
                   <View style={[styles.subjectIndexBadge, { backgroundColor: theme.primary + '20' }]}>
@@ -303,23 +369,157 @@ export default function SyllabusViewerScreen() {
                       {subject.code} • {subject.credits} Credits
                     </Text>
                   </View>
-                  <View style={styles.subjectActions}>
-                    <TouchableOpacity
-                      style={[styles.actionIconBtn, { backgroundColor: theme.backgroundSecondary }]}
-                      onPress={() => handleViewSyllabus(subject)}
-                    >
-                      <Eye size={15} color={theme.textSecondary} strokeWidth={2} />
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[styles.actionIconBtn, { backgroundColor: theme.backgroundSecondary }]}
-                      onPress={() => Alert.alert('Download', `Downloading ${subject.name} syllabus...`)}
-                    >
-                      <Download size={15} color={theme.textSecondary} strokeWidth={2} />
-                    </TouchableOpacity>
+                  <View style={[styles.arrowCircle, { backgroundColor: theme.backgroundSecondary }]}>
+                    <ChevronRight size={16} color={theme.textTertiary} strokeWidth={2} />
                   </View>
                 </TouchableOpacity>
               ))
             )}
+          </View>
+        ) : (
+          /* Step 4: Subject Detail — modules, topics, outcomes */
+          <View>
+            {loadingDetail ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color={theme.primary} />
+                <Text style={[styles.loadingText, { color: theme.textSecondary }]}>
+                  Loading syllabus…
+                </Text>
+              </View>
+            ) : detailError ? (
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyStateIcon}>⚠️</Text>
+                <Text style={[styles.emptyStateText, { color: theme.textSecondary }]}>
+                  Couldn't load syllabus
+                </Text>
+                <Text style={[styles.emptyStateSubtext, { color: theme.textTertiary }]}>
+                  {detailError}
+                </Text>
+                <TouchableOpacity
+                  style={[styles.retryBtn, { backgroundColor: theme.primary }]}
+                  onPress={() => handleSubjectPress(selectedSubject!)}
+                >
+                  <Text style={styles.retryBtnText}>Retry</Text>
+                </TouchableOpacity>
+              </View>
+            ) : syllabusDetail ? (
+              <View>
+                {/* Subject header card */}
+                <View style={[styles.detailHeaderCard, {
+                  backgroundColor: isDark ? 'rgba(37, 99, 235, 0.12)' : '#EEF2FF',
+                  borderLeftColor: theme.primary,
+                }]}>
+                  <Text style={[styles.detailSubjectName, { color: theme.text }]}>
+                    {syllabusDetail.subject_name}
+                  </Text>
+                  <Text style={[styles.detailSubjectMeta, { color: theme.textSecondary }]}>
+                    {syllabusDetail.subject_code} • {syllabusDetail.credits} Credits
+                    {syllabusDetail.modules?.length ? ` • ${syllabusDetail.modules.length} Modules` : ''}
+                  </Text>
+                </View>
+
+                {/* Modules */}
+                {syllabusDetail.modules?.length > 0 && (
+                  <View style={{ marginTop: 8 }}>
+                    <Text style={[styles.sectionTitle, { color: theme.text }]}>Modules</Text>
+                    {syllabusDetail.modules.map((mod) => (
+                      <View key={mod.module_number} style={{ marginBottom: 10 }}>
+                        <TouchableOpacity
+                          style={[styles.moduleHeader, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}
+                          onPress={() => toggleModule(mod.module_number)}
+                          activeOpacity={0.7}
+                        >
+                          <View style={[styles.moduleBadge, { backgroundColor: theme.primary + '20' }]}>
+                            <Text style={[styles.moduleBadgeText, { color: theme.primary }]}>
+                              M{mod.module_number}
+                            </Text>
+                          </View>
+                          <View style={styles.moduleInfo}>
+                            <Text style={[styles.moduleTitle, { color: theme.text }]}>{mod.title}</Text>
+                            <Text style={[styles.moduleHours, { color: theme.textTertiary }]}>
+                              {mod.hours} hrs • {mod.topics.length} topics
+                            </Text>
+                          </View>
+                          {expandedModules.has(mod.module_number) ? (
+                            <ChevronDown size={18} color={theme.textTertiary} strokeWidth={2} />
+                          ) : (
+                            <ChevronRight size={18} color={theme.textTertiary} strokeWidth={2} />
+                          )}
+                        </TouchableOpacity>
+
+                        {expandedModules.has(mod.module_number) && (
+                          <View style={[styles.topicList, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
+                            {mod.topics.map((topic, ti) => (
+                              <View key={ti} style={styles.topicRow}>
+                                <View style={[styles.topicDot, { backgroundColor: theme.primary }]} />
+                                <Text style={[styles.topicText, { color: theme.text }]}>{topic}</Text>
+                              </View>
+                            ))}
+                          </View>
+                        )}
+                      </View>
+                    ))}
+                  </View>
+                )}
+
+                {/* Course Outcomes */}
+                {syllabusDetail.course_outcomes && syllabusDetail.course_outcomes.length > 0 && (
+                  <View style={{ marginTop: 8 }}>
+                    <Text style={[styles.sectionTitle, { color: theme.text }]}>Course Outcomes</Text>
+                    <View style={[styles.listCard, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
+                      {syllabusDetail.course_outcomes.map((co, i) => (
+                        <View key={i} style={styles.listItem}>
+                          <View style={[styles.coBadge, { backgroundColor: theme.primary + '20' }]}>
+                            <Text style={[styles.coBadgeText, { color: theme.primary }]}>CO{i + 1}</Text>
+                          </View>
+                          <Text style={[styles.listItemText, { color: theme.text }]}>{co}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  </View>
+                )}
+
+                {/* Textbooks */}
+                {syllabusDetail.textbooks && syllabusDetail.textbooks.length > 0 && (
+                  <View style={{ marginTop: 8 }}>
+                    <Text style={[styles.sectionTitle, { color: theme.text }]}>Textbooks</Text>
+                    <View style={[styles.listCard, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
+                      {syllabusDetail.textbooks.map((tb, i) => (
+                        <View key={i} style={styles.listItem}>
+                          <BookOpen size={14} color={theme.textTertiary} strokeWidth={2} style={{ marginRight: 10, marginTop: 2 }} />
+                          <Text style={[styles.listItemText, { color: theme.text }]}>{tb}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  </View>
+                )}
+
+                {/* References */}
+                {syllabusDetail.references && syllabusDetail.references.length > 0 && (
+                  <View style={{ marginTop: 8 }}>
+                    <Text style={[styles.sectionTitle, { color: theme.text }]}>References</Text>
+                    <View style={[styles.listCard, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
+                      {syllabusDetail.references.map((ref, i) => (
+                        <View key={i} style={styles.listItem}>
+                          <Text style={[styles.refNumber, { color: theme.textTertiary }]}>{i + 1}.</Text>
+                          <Text style={[styles.listItemText, { color: theme.text }]}>{ref}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  </View>
+                )}
+
+                {/* Download as Text button */}
+                <TouchableOpacity
+                  style={[styles.downloadBtn, { backgroundColor: theme.primary }]}
+                  onPress={handleDownloadText}
+                  activeOpacity={0.8}
+                >
+                  <Download size={18} color="#fff" strokeWidth={2} />
+                  <Text style={styles.downloadBtnText}>Download as Text</Text>
+                </TouchableOpacity>
+              </View>
+            ) : null}
           </View>
         )}
       </ScrollView>
@@ -499,19 +699,144 @@ const styles = StyleSheet.create({
   subjectCode: {
     fontSize: 12,
   },
-  subjectActions: {
-    flexDirection: 'row',
-    gap: 8,
+  // Detail view styles
+  loadingContainer: {
+    alignItems: 'center',
+    paddingVertical: 80,
   },
-  actionIconBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 8,
+  loadingText: {
+    marginTop: 14,
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  detailHeaderCard: {
+    borderRadius: 14,
+    padding: 16,
+    marginBottom: 12,
+    borderLeftWidth: 4,
+  },
+  detailSubjectName: {
+    fontSize: 17,
+    fontWeight: '700',
+    marginBottom: 6,
+  },
+  detailSubjectMeta: {
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  moduleHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+  },
+  moduleBadge: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
+    marginRight: 12,
   },
-  actionIconText: {
+  moduleBadgeText: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  moduleInfo: {
+    flex: 1,
+  },
+  moduleTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 3,
+  },
+  moduleHours: {
+    fontSize: 12,
+  },
+  topicList: {
+    borderRadius: 12,
+    padding: 14,
+    marginTop: 4,
+    marginLeft: 20,
+    borderWidth: 1,
+    borderTopWidth: 0,
+    borderTopLeftRadius: 0,
+    borderTopRightRadius: 0,
+  },
+  topicRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 8,
+  },
+  topicDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    marginTop: 6,
+    marginRight: 10,
+  },
+  topicText: {
+    fontSize: 13,
+    lineHeight: 20,
+    flex: 1,
+  },
+  listCard: {
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+  },
+  listItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 10,
+  },
+  listItemText: {
+    fontSize: 13,
+    lineHeight: 20,
+    flex: 1,
+  },
+  coBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+    marginRight: 10,
+    marginTop: 1,
+  },
+  coBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  refNumber: {
+    fontSize: 13,
+    fontWeight: '600',
+    marginRight: 8,
+    marginTop: 1,
+  },
+  downloadBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 14,
+    paddingVertical: 14,
+    marginTop: 20,
+    gap: 8,
+  },
+  downloadBtnText: {
+    color: '#fff',
     fontSize: 15,
+    fontWeight: '700',
+  },
+  retryBtn: {
+    paddingHorizontal: 24,
+    paddingVertical: 10,
+    borderRadius: 10,
+    marginTop: 16,
+  },
+  retryBtnText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
   },
   headerIconBtn: {
     width: 40,
