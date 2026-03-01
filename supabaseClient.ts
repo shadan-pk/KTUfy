@@ -24,7 +24,8 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     storage: Platform.OS !== 'web' ? AsyncStorage : undefined,
     autoRefreshToken: true,
     persistSession: true,
-    detectSessionInUrl: false,
+    // On web, detect tokens in URL hash after email confirmation redirect
+    detectSessionInUrl: Platform.OS === 'web',
   },
 });
 

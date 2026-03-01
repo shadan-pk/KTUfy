@@ -25,6 +25,7 @@ module.exports = {
       },
       edgeToEdgeEnabled: true
     },
+    scheme: "ktufy",
     web: {
       favicon: "./assets/favicon.png"
     },

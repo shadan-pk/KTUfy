@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
+import { Platform } from 'react-native';
 import supabase from '../supabaseClient';
 import { deleteTokens } from './secureStore';
 
@@ -83,6 +84,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // If metadata provided, include it under 'options' so Supabase stores it as user_metadata
       const payload: any = { email, password };
       if (data) payload.options = { data };
+
+      // Set redirect URL so email confirmation goes to a branded confirmation page
+      if (!payload.options) payload.options = {};
+      if (Platform.OS === 'web' && typeof window !== 'undefined') {
+        payload.options.emailRedirectTo = window.location.origin + '/confirm.html';
+      }
       
       const { data: d, error } = await supabase.auth.signUp(payload);
       
