@@ -12,18 +12,18 @@
 | 4 | **Chatbot** | `ChatbotScreen.tsx` | ✅ Updated | Dark ChatGPT-like UI with bubble messages |
 | 5 | **Explore** | `ExploreScreen.tsx` | ✅ New | Tools grid + study dashboard (was in Home) |
 | 6 | Settings | `SettingsScreen.tsx` | ✅ Updated | Added TestBackendButton developer section |
-| 7 | Profile | `ProfileScreen.tsx` | ❌ Not Updated | Old UI |
-| 8 | Library | `LibraryScreen.tsx` | ❌ Not Updated | Old UI |
-| 9 | Ticklist | `TicklistScreen.tsx` | ❌ Not Updated | Old UI |
-| 10 | Schedule | `ScheduleScreen.tsx` | ❌ Not Updated | Old UI |
-| 11 | Coding Hub | `CodingHubScreen.tsx` | ❌ Not Updated | Old UI |
-| 12 | Group Study | `GroupStudyScreen.tsx` | ❌ Not Updated | Old UI |
-| 13 | GPA Calculator | `GPACalculatorScreen.tsx` | ❌ Not Updated | Old UI |
-| 14 | Learning Zone | `LearningZoneScreen.tsx` | ❌ Not Updated | Old UI |
-| 15 | Quiz Session | `QuizSessionScreen.tsx` | ❌ Not Updated | Old UI |
-| 16 | Syllabus Viewer | `SyllabusViewerScreen.tsx` | ❌ Not Updated | Old UI |
-| 17 | PYP | `PYPScreen.tsx` | ❌ Not Updated | Old UI |
-| 18 | Help | `HelpScreen.tsx` | ❌ Not Updated | Old UI |
+| 7 | Profile | `ProfileScreen.tsx` | ✅ Updated |
+| 8 | Library | `LibraryScreen.tsx` | ✅ Updated |
+| 9 | Ticklist | `TicklistScreen.tsx` | ✅ Updated |
+| 10 | Schedule | `ScheduleScreen.tsx` | ✅ Updated |
+| 11 | Coding Hub | `CodingHubScreen.tsx` | ✅ Updated |
+| 12 | Group Study | `GroupStudyScreen.tsx` | ✅ Updated |
+| 13 | GPA Calculator | `GPACalculatorScreen.tsx` | ✅ Updated |
+| 14 | Learning Zone | `LearningZoneScreen.tsx` | ✅ Updated |
+| 15 | Quiz Session | `QuizSessionScreen.tsx` | ✅ Updated |
+| 16 | Syllabus Viewer | `SyllabusViewerScreen.tsx` | ✅ Updated |
+| 17 | PYP | `PYPScreen.tsx` | ✅ Updated |
+| 18 | Help | `HelpScreen.tsx` | ✅ Updated |
 
 ## Other Updated Files
 

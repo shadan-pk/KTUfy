@@ -7,538 +7,419 @@ import {
   TouchableOpacity,
   TextInput,
   Alert,
-  SafeAreaView,
   Modal,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { GPACalculatorScreenNavigationProp } from '../types/navigation';
+import { useTheme } from '../contexts/ThemeContext';
+import { ArrowLeft, X, RotateCcw, BookmarkCheck, ChevronDown, Check } from 'lucide-react-native';
 
 // Grade point mapping
 const GRADE_POINTS: { [key: string]: number } = {
-  'O': 10,
-  'A+': 9,
-  'A': 8.5,
-  'B+': 8,
-  'B': 7,
-  'C': 6,
-  'P': 5,
-  'F': 0,
+  'O': 10, 'A+': 9, 'A': 8.5, 'B+': 8, 'B': 7, 'C': 6, 'P': 5, 'F': 0,
 };
 
 const GRADES = ['O', 'A+', 'A', 'B+', 'B', 'C', 'P', 'F'];
 
-// Subject data for each semester (KTU standard subjects)
 const SEMESTER_SUBJECTS: { [key: string]: Array<{ name: string; credit: number }> } = {
   'S1': [
-    { name: 'Calculus', credit: 4 },
-    { name: 'Physics', credit: 3 },
-    { name: 'Chemistry', credit: 3 },
-    { name: 'Engineering Graphics', credit: 4 },
-    { name: 'Basic Electrical Engineering', credit: 3 },
-    { name: 'Programming in C', credit: 3 },
+    { name: 'Calculus', credit: 4 }, { name: 'Physics', credit: 3 },
+    { name: 'Chemistry', credit: 3 }, { name: 'Engineering Graphics', credit: 4 },
+    { name: 'Basic Electrical Engineering', credit: 3 }, { name: 'Programming in C', credit: 3 },
   ],
   'S2': [
-    { name: 'Linear Algebra', credit: 4 },
-    { name: 'Physics Lab', credit: 1 },
-    { name: 'Chemistry Lab', credit: 1 },
-    { name: 'Engineering Mechanics', credit: 4 },
-    { name: 'Basic Electronics', credit: 3 },
-    { name: 'C Programming Lab', credit: 2 },
+    { name: 'Linear Algebra', credit: 4 }, { name: 'Physics Lab', credit: 1 },
+    { name: 'Chemistry Lab', credit: 1 }, { name: 'Engineering Mechanics', credit: 4 },
+    { name: 'Basic Electronics', credit: 3 }, { name: 'C Programming Lab', credit: 2 },
   ],
   'S3': [
-    { name: 'Data Structures', credit: 4 },
-    { name: 'Discrete Mathematics', credit: 4 },
-    { name: 'Digital Electronics', credit: 3 },
-    { name: 'Computer Organization', credit: 3 },
-    { name: 'Object Oriented Programming', credit: 3 },
-    { name: 'Data Structures Lab', credit: 2 },
+    { name: 'Data Structures', credit: 4 }, { name: 'Discrete Mathematics', credit: 4 },
+    { name: 'Digital Electronics', credit: 3 }, { name: 'Computer Organization', credit: 3 },
+    { name: 'Object Oriented Programming', credit: 3 }, { name: 'Data Structures Lab', credit: 2 },
   ],
   'S4': [
-    { name: 'Database Management Systems', credit: 4 },
-    { name: 'Operating Systems', credit: 4 },
-    { name: 'Microprocessors', credit: 3 },
-    { name: 'Computer Networks', credit: 3 },
-    { name: 'Design and Analysis of Algorithms', credit: 4 },
-    { name: 'DBMS Lab', credit: 2 },
+    { name: 'Database Management Systems', credit: 4 }, { name: 'Operating Systems', credit: 4 },
+    { name: 'Microprocessors', credit: 3 }, { name: 'Computer Networks', credit: 3 },
+    { name: 'Design and Analysis of Algorithms', credit: 4 }, { name: 'DBMS Lab', credit: 2 },
   ],
   'S5': [
-    { name: 'Software Engineering', credit: 3 },
-    { name: 'Theory of Computation', credit: 4 },
-    { name: 'Compiler Design', credit: 4 },
-    { name: 'Web Programming', credit: 3 },
-    { name: 'Elective I', credit: 3 },
-    { name: 'Mini Project', credit: 2 },
+    { name: 'Software Engineering', credit: 3 }, { name: 'Theory of Computation', credit: 4 },
+    { name: 'Compiler Design', credit: 4 }, { name: 'Web Programming', credit: 3 },
+    { name: 'Elective I', credit: 3 }, { name: 'Mini Project', credit: 2 },
   ],
   'S6': [
-    { name: 'Machine Learning', credit: 3 },
-    { name: 'Computer Graphics', credit: 3 },
-    { name: 'Artificial Intelligence', credit: 4 },
-    { name: 'Mobile App Development', credit: 3 },
-    { name: 'Elective II', credit: 3 },
-    { name: 'Project Phase I', credit: 3 },
+    { name: 'Machine Learning', credit: 3 }, { name: 'Computer Graphics', credit: 3 },
+    { name: 'Artificial Intelligence', credit: 4 }, { name: 'Mobile App Development', credit: 3 },
+    { name: 'Elective II', credit: 3 }, { name: 'Project Phase I', credit: 3 },
   ],
   'S7': [
-    { name: 'Big Data Analytics', credit: 3 },
-    { name: 'Cloud Computing', credit: 3 },
-    { name: 'Cyber Security', credit: 3 },
-    { name: 'Elective III', credit: 3 },
-    { name: 'Elective IV', credit: 3 },
-    { name: 'Project Phase II', credit: 4 },
+    { name: 'Big Data Analytics', credit: 3 }, { name: 'Cloud Computing', credit: 3 },
+    { name: 'Cyber Security', credit: 3 }, { name: 'Elective III', credit: 3 },
+    { name: 'Elective IV', credit: 3 }, { name: 'Project Phase II', credit: 4 },
   ],
   'S8': [
-    { name: 'Industrial Training', credit: 2 },
-    { name: 'Seminar', credit: 2 },
-    { name: 'Project', credit: 10 },
-    { name: 'Comprehensive Exam', credit: 2 },
+    { name: 'Industrial Training', credit: 2 }, { name: 'Seminar', credit: 2 },
+    { name: 'Project', credit: 10 }, { name: 'Comprehensive Exam', credit: 2 },
   ],
 };
 
-// Semester credits (total credits per semester)
 const SEMESTER_CREDITS: { [key: string]: number } = {
-  'S1': 20,
-  'S2': 15,
-  'S3': 19,
-  'S4': 20,
-  'S5': 19,
-  'S6': 19,
-  'S7': 19,
-  'S8': 16,
+  'S1': 20, 'S2': 15, 'S3': 19, 'S4': 20,
+  'S5': 19, 'S6': 19, 'S7': 19, 'S8': 16,
 };
 
-interface SubjectGrade {
-  name: string;
-  credit: number;
-  grade: string;
-}
-
-interface SemesterSGPA {
-  semester: string;
-  sgpa: string;
-}
-
+interface SubjectGrade { name: string; credit: number; grade: string; }
+interface SemesterSGPA { semester: string; sgpa: string; }
 type TabType = 'SGPA' | 'CGPA';
 
 export default function GPACalculatorScreen() {
   const navigation = useNavigation<GPACalculatorScreenNavigationProp>();
-  
-  // Tab state
+  const { theme, isDark } = useTheme();
+
   const [activeTab, setActiveTab] = useState<TabType>('SGPA');
-  
-  // SGPA Calculator state
   const [selectedSemester, setSelectedSemester] = useState<string>('S1');
   const [subjectGrades, setSubjectGrades] = useState<SubjectGrade[]>([]);
   const [calculatedSGPA, setCalculatedSGPA] = useState<number | null>(null);
   const [showSemesterPicker, setShowSemesterPicker] = useState(false);
   const [showGradePicker, setShowGradePicker] = useState(false);
   const [selectedSubjectIndex, setSelectedSubjectIndex] = useState<number>(0);
-  
-  // CGPA Calculator state
+
   const [selectedSemesters, setSelectedSemesters] = useState<number>(1);
-  const [semesterSGPAs, setSemesterSGPAs] = useState<SemesterSGPA[]>([
-    { semester: 'S1', sgpa: '' }
-  ]);
+  const [semesterSGPAs, setSemesterSGPAs] = useState<SemesterSGPA[]>([{ semester: 'S1', sgpa: '' }]);
   const [calculatedCGPA, setCalculatedCGPA] = useState<number | null>(null);
   const [showSemesterCountPicker, setShowSemesterCountPicker] = useState(false);
 
-  // Initialize subjects when semester changes
+  const [showResultModal, setShowResultModal] = useState(false);
+  const [resultValue, setResultValue] = useState<number | null>(null);
+  const [resultType, setResultType] = useState<'SGPA' | 'CGPA'>('SGPA');
+
   useEffect(() => {
-    const subjects = SEMESTER_SUBJECTS[selectedSemester].map(subject => ({
-      ...subject,
-      grade: '',
-    }));
+    const subjects = SEMESTER_SUBJECTS[selectedSemester].map(s => ({ ...s, grade: '' }));
     setSubjectGrades(subjects);
     setCalculatedSGPA(null);
   }, [selectedSemester]);
 
-  // Initialize semester SGPAs when count changes
   useEffect(() => {
     const semesters: SemesterSGPA[] = [];
-    for (let i = 1; i <= selectedSemesters; i++) {
-      semesters.push({ semester: `S${i}`, sgpa: '' });
-    }
+    for (let i = 1; i <= selectedSemesters; i++) semesters.push({ semester: `S${i}`, sgpa: '' });
     setSemesterSGPAs(semesters);
     setCalculatedCGPA(null);
   }, [selectedSemesters]);
 
-  // SGPA Calculation
   const calculateSGPA = () => {
-    const allGradesEntered = subjectGrades.every(subject => subject.grade !== '');
-    
-    if (!allGradesEntered) {
-      Alert.alert('Incomplete Data', 'Please select grades for all subjects.');
+    if (!subjectGrades.every(s => s.grade !== '')) {
+      Alert.alert('Incomplete', 'Please select grades for all subjects.');
       return;
     }
-
-    let totalGradePoints = 0;
-    let totalCredits = 0;
-
-    subjectGrades.forEach(subject => {
-      const gradePoint = GRADE_POINTS[subject.grade];
-      totalGradePoints += subject.credit * gradePoint;
-      totalCredits += subject.credit;
-    });
-
-    const sgpa = totalGradePoints / totalCredits;
-    setCalculatedSGPA(parseFloat(sgpa.toFixed(2)));
+    let totalGP = 0, totalCr = 0;
+    subjectGrades.forEach(s => { totalGP += s.credit * GRADE_POINTS[s.grade]; totalCr += s.credit; });
+    const sgpa = parseFloat((totalGP / totalCr).toFixed(2));
+    setCalculatedSGPA(sgpa); setResultValue(sgpa); setResultType('SGPA'); setShowResultModal(true);
   };
 
-  // CGPA Calculation
   const calculateCGPA = () => {
-    const allSGPAsEntered = semesterSGPAs.every(sem => sem.sgpa !== '');
-    
-    if (!allSGPAsEntered) {
-      Alert.alert('Incomplete Data', 'Please enter SGPA for all selected semesters.');
+    if (!semesterSGPAs.every(s => s.sgpa !== '')) {
+      Alert.alert('Incomplete', 'Please enter SGPA for all selected semesters.');
       return;
     }
-
-    let totalWeightedSGPA = 0;
-    let totalCredits = 0;
-
-    semesterSGPAs.forEach(sem => {
-      const sgpa = parseFloat(sem.sgpa);
-      const credits = SEMESTER_CREDITS[sem.semester];
-      totalWeightedSGPA += sgpa * credits;
-      totalCredits += credits;
+    let totalW = 0, totalCr = 0;
+    semesterSGPAs.forEach(s => {
+      totalW += parseFloat(s.sgpa) * SEMESTER_CREDITS[s.semester];
+      totalCr += SEMESTER_CREDITS[s.semester];
     });
-
-    const cgpa = totalWeightedSGPA / totalCredits;
-    setCalculatedCGPA(parseFloat(cgpa.toFixed(2)));
+    const cgpa = parseFloat((totalW / totalCr).toFixed(2));
+    setCalculatedCGPA(cgpa); setResultValue(cgpa); setResultType('CGPA'); setShowResultModal(true);
   };
 
-  // Get result color based on GPA
-  const getResultColor = (gpa: number): string => {
-    if (gpa >= 8.0) return '#10B981'; // Green
-    if (gpa >= 6.0) return '#F59E0B'; // Yellow
-    return '#EF4444'; // Red
+  const getResultColor = (gpa: number) => gpa >= 8.0 ? theme.success : gpa >= 6.0 ? theme.warning : theme.error;
+
+  const getResultLabel = (gpa: number): { label: string; desc: string } => {
+    if (gpa >= 9.0) return { label: 'Outstanding', desc: 'Top-tier academic performance' };
+    if (gpa >= 8.0) return { label: 'Excellent', desc: 'Strong academic performance' };
+    if (gpa >= 7.0) return { label: 'Good', desc: 'Above average performance' };
+    if (gpa >= 6.0) return { label: 'Average', desc: 'Room to improve' };
+    return { label: 'Needs Improvement', desc: 'Focus and keep going' };
   };
 
-  // Get result indicator
-  const getResultIndicator = (gpa: number): string => {
-    if (gpa >= 8.0) return '🟢 Excellent';
-    if (gpa >= 6.0) return '🟡 Average';
-    return '🔴 Needs Improvement';
-  };
-
-  // Reset SGPA Calculator
   const resetSGPA = () => {
-    const subjects = SEMESTER_SUBJECTS[selectedSemester].map(subject => ({
-      ...subject,
-      grade: '',
-    }));
-    setSubjectGrades(subjects);
-    setCalculatedSGPA(null);
+    setSubjectGrades(SEMESTER_SUBJECTS[selectedSemester].map(s => ({ ...s, grade: '' })));
+    setCalculatedSGPA(null); setShowResultModal(false);
   };
 
-  // Reset CGPA Calculator
   const resetCGPA = () => {
-    const semesters: SemesterSGPA[] = [];
-    for (let i = 1; i <= selectedSemesters; i++) {
-      semesters.push({ semester: `S${i}`, sgpa: '' });
-    }
-    setSemesterSGPAs(semesters);
-    setCalculatedCGPA(null);
+    setSemesterSGPAs(Array.from({ length: selectedSemesters }, (_, i) => ({ semester: `S${i + 1}`, sgpa: '' })));
+    setCalculatedCGPA(null); setShowResultModal(false);
   };
 
-  // Update subject grade
   const updateSubjectGrade = (index: number, grade: string) => {
     const updated = [...subjectGrades];
     updated[index].grade = grade;
     setSubjectGrades(updated);
-    setCalculatedSGPA(null); // Reset result when grade changes
+    setCalculatedSGPA(null);
   };
 
-  // Update semester SGPA
   const updateSemesterSGPA = (index: number, sgpa: string) => {
     const updated = [...semesterSGPAs];
     updated[index].sgpa = sgpa;
     setSemesterSGPAs(updated);
-    setCalculatedCGPA(null); // Reset result when SGPA changes
+    setCalculatedCGPA(null);
   };
 
-  // Save result
-  const saveResult = () => {
-    if (activeTab === 'SGPA' && calculatedSGPA !== null) {
-      Alert.alert(
-        'Result Saved',
-        `${selectedSemester} SGPA: ${calculatedSGPA} saved successfully!`
-      );
-    } else if (activeTab === 'CGPA' && calculatedCGPA !== null) {
-      Alert.alert(
-        'Result Saved',
-        `CGPA: ${calculatedCGPA} saved successfully!`
-      );
-    }
-  };
+  const iconColor = theme.text;
+  const iconSize = 20;
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
       {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Text style={styles.backButton}>←</Text>
+      <View style={[styles.header, { borderBottomColor: theme.border }]}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerIconBtn}>
+          <ArrowLeft size={iconSize} color={iconColor} strokeWidth={2} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>GPA Calculator</Text>
-        <View style={{ width: 30 }} />
+        <Text style={[styles.headerTitle, { color: theme.text }]}>GPA Calculator</Text>
+        <View style={{ width: 40 }} />
       </View>
 
-      {/* Tab Navigation */}
-      <View style={styles.tabContainer}>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'SGPA' && styles.activeTab]}
-          onPress={() => setActiveTab('SGPA')}
-        >
-          <Text style={[styles.tabText, activeTab === 'SGPA' && styles.activeTabText]}>
-            SGPA Calculator
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'CGPA' && styles.activeTab]}
-          onPress={() => setActiveTab('CGPA')}
-        >
-          <Text style={[styles.tabText, activeTab === 'CGPA' && styles.activeTabText]}>
-            CGPA Calculator
-          </Text>
-        </TouchableOpacity>
+      {/* Tab */}
+      <View style={[styles.tabContainer, { backgroundColor: theme.backgroundSecondary }]}>
+        {(['SGPA', 'CGPA'] as const).map((tab) => (
+          <TouchableOpacity
+            key={tab}
+            style={[styles.tab, activeTab === tab && { backgroundColor: theme.card }]}
+            onPress={() => setActiveTab(tab)}
+          >
+            <Text style={[styles.tabText, { color: activeTab === tab ? theme.primary : theme.textSecondary }]}>
+              {tab}
+            </Text>
+          </TouchableOpacity>
+        ))}
       </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
         {activeTab === 'SGPA' ? (
-          // SGPA Calculator
           <View>
-            {/* Semester Selector */}
-            <View style={styles.selectorCard}>
-              <Text style={styles.selectorLabel}>Select Semester</Text>
-              <TouchableOpacity
-                style={styles.dropdown}
-                onPress={() => setShowSemesterPicker(true)}
-              >
-                <Text style={styles.dropdownText}>{selectedSemester}</Text>
-                <Text style={styles.dropdownArrow}>▼</Text>
-              </TouchableOpacity>
-            </View>
+            {/* Semester selector */}
+            <TouchableOpacity
+              style={[styles.dropdownRow, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}
+              onPress={() => setShowSemesterPicker(true)}
+            >
+              <Text style={[styles.dropdownLabel, { color: theme.textSecondary }]}>Semester</Text>
+              <View style={styles.dropdownRight}>
+                <Text style={[styles.dropdownValue, { color: theme.text }]}>{selectedSemester}</Text>
+                <ChevronDown size={16} color={theme.textSecondary} strokeWidth={2} />
+              </View>
+            </TouchableOpacity>
 
-            {/* Subjects List */}
-            <View style={styles.subjectsCard}>
-              <Text style={styles.cardTitle}>Subjects & Grades</Text>
+            {/* Subjects */}
+            <View style={[styles.subjectsCard, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
+              <Text style={[styles.cardLabel, { color: theme.textSecondary }]}>SUBJECTS & GRADES</Text>
               {subjectGrades.map((subject, index) => (
-                <View key={index} style={styles.subjectRow}>
+                <View key={index} style={[styles.subjectRow, { borderBottomColor: theme.divider }]}>
                   <View style={styles.subjectInfo}>
-                    <Text style={styles.subjectName}>{subject.name}</Text>
-                    <Text style={styles.subjectCredit}>{subject.credit} Credits</Text>
+                    <Text style={[styles.subjectName, { color: theme.text }]}>{subject.name}</Text>
+                    <Text style={[styles.subjectCredit, { color: theme.textTertiary }]}>{subject.credit} cr</Text>
                   </View>
                   <TouchableOpacity
                     style={[
-                      styles.gradeButton,
-                      subject.grade && { backgroundColor: '#6366F1' }
+                      styles.gradeBtn,
+                      { borderColor: subject.grade ? theme.gpaCalculator : theme.border },
+                      subject.grade ? { backgroundColor: theme.gpaCalculator + '18' } : { backgroundColor: theme.backgroundSecondary },
                     ]}
-                    onPress={() => {
-                      setSelectedSubjectIndex(index);
-                      setShowGradePicker(true);
-                    }}
+                    onPress={() => { setSelectedSubjectIndex(index); setShowGradePicker(true); }}
                   >
-                    <Text style={[
-                      styles.gradeButtonText,
-                      subject.grade && { color: '#FFFFFF' }
-                    ]}>
-                      {subject.grade || 'Select Grade'}
+                    <Text style={[styles.gradeBtnText, { color: subject.grade ? theme.gpaCalculator : theme.textTertiary }]}>
+                      {subject.grade || '—'}
                     </Text>
                   </TouchableOpacity>
                 </View>
               ))}
             </View>
 
-            {/* Calculate Button */}
-            <TouchableOpacity style={styles.calculateButton} onPress={calculateSGPA}>
-              <Text style={styles.calculateButtonText}>Calculate SGPA</Text>
+            <TouchableOpacity style={[styles.calcBtn, { backgroundColor: theme.gpaCalculator }]} onPress={calculateSGPA}>
+              <Text style={styles.calcBtnText}>Calculate SGPA</Text>
             </TouchableOpacity>
-
-            {/* Result Card */}
-            {calculatedSGPA !== null && (
-              <View style={[styles.resultCard, { borderColor: getResultColor(calculatedSGPA) }]}>
-                <Text style={styles.resultLabel}>Your SGPA</Text>
-                <Text style={[styles.resultValue, { color: getResultColor(calculatedSGPA) }]}>
-                  {calculatedSGPA.toFixed(2)}
-                </Text>
-                <Text style={styles.resultIndicator}>
-                  {getResultIndicator(calculatedSGPA)}
-                </Text>
-                <View style={styles.resultActions}>
-                  <TouchableOpacity style={styles.actionButton} onPress={resetSGPA}>
-                    <Text style={styles.actionButtonText}>🔄 Reset</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.actionButton, styles.saveButton]}
-                    onPress={saveResult}
-                  >
-                    <Text style={[styles.actionButtonText, styles.saveButtonText]}>
-                      💾 Save
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            )}
           </View>
         ) : (
-          // CGPA Calculator
           <View>
-            {/* Semester Count Selector */}
-            <View style={styles.selectorCard}>
-              <Text style={styles.selectorLabel}>Select Completed Semesters</Text>
-              <TouchableOpacity
-                style={styles.dropdown}
-                onPress={() => setShowSemesterCountPicker(true)}
-              >
-                <Text style={styles.dropdownText}>{selectedSemesters} Semester{selectedSemesters > 1 ? 's' : ''}</Text>
-                <Text style={styles.dropdownArrow}>▼</Text>
-              </TouchableOpacity>
-            </View>
+            {/* Semester count selector */}
+            <TouchableOpacity
+              style={[styles.dropdownRow, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}
+              onPress={() => setShowSemesterCountPicker(true)}
+            >
+              <Text style={[styles.dropdownLabel, { color: theme.textSecondary }]}>Semesters Completed</Text>
+              <View style={styles.dropdownRight}>
+                <Text style={[styles.dropdownValue, { color: theme.text }]}>
+                  {selectedSemesters} Sem{selectedSemesters > 1 ? 's' : ''}
+                </Text>
+                <ChevronDown size={16} color={theme.textSecondary} strokeWidth={2} />
+              </View>
+            </TouchableOpacity>
 
-            {/* SGPA Inputs */}
-            <View style={styles.subjectsCard}>
-              <Text style={styles.cardTitle}>Enter SGPA for Each Semester</Text>
+            {/* SGPA inputs */}
+            <View style={[styles.subjectsCard, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
+              <Text style={[styles.cardLabel, { color: theme.textSecondary }]}>SGPA PER SEMESTER</Text>
               {semesterSGPAs.map((sem, index) => (
-                <View key={index} style={styles.sgpaRow}>
-                  <View style={styles.semesterInfo}>
-                    <Text style={styles.semesterName}>{sem.semester}</Text>
-                    <Text style={styles.semesterCredit}>
-                      {SEMESTER_CREDITS[sem.semester]} Credits
-                    </Text>
+                <View key={index} style={[styles.subjectRow, { borderBottomColor: theme.divider }]}>
+                  <View style={styles.subjectInfo}>
+                    <Text style={[styles.subjectName, { color: theme.text }]}>{sem.semester}</Text>
+                    <Text style={[styles.subjectCredit, { color: theme.textTertiary }]}>{SEMESTER_CREDITS[sem.semester]} credits</Text>
                   </View>
                   <TextInput
-                    style={styles.sgpaInput}
-                    placeholder="0.00"
+                    style={[styles.sgpaInput, {
+                      backgroundColor: theme.backgroundSecondary,
+                      color: theme.text,
+                      borderColor: theme.border,
+                    }]}
+                    placeholder="—"
+                    placeholderTextColor={theme.textTertiary}
                     keyboardType="decimal-pad"
                     value={sem.sgpa}
-                    onChangeText={(text) => updateSemesterSGPA(index, text)}
+                    onChangeText={(t) => updateSemesterSGPA(index, t)}
                     maxLength={5}
                   />
                 </View>
               ))}
             </View>
 
-            {/* Calculate Button */}
-            <TouchableOpacity style={styles.calculateButton} onPress={calculateCGPA}>
-              <Text style={styles.calculateButtonText}>Calculate CGPA</Text>
+            <TouchableOpacity style={[styles.calcBtn, { backgroundColor: theme.gpaCalculator }]} onPress={calculateCGPA}>
+              <Text style={styles.calcBtnText}>Calculate CGPA</Text>
             </TouchableOpacity>
-
-            {/* Result Card */}
-            {calculatedCGPA !== null && (
-              <View style={[styles.resultCard, { borderColor: getResultColor(calculatedCGPA) }]}>
-                <Text style={styles.resultLabel}>Your CGPA</Text>
-                <Text style={[styles.resultValue, { color: getResultColor(calculatedCGPA) }]}>
-                  {calculatedCGPA.toFixed(2)}
-                </Text>
-                <Text style={styles.resultIndicator}>
-                  {getResultIndicator(calculatedCGPA)}
-                </Text>
-                <View style={styles.resultActions}>
-                  <TouchableOpacity style={styles.actionButton} onPress={resetCGPA}>
-                    <Text style={styles.actionButtonText}>🔄 Reset</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.actionButton, styles.saveButton]}
-                    onPress={saveResult}
-                  >
-                    <Text style={[styles.actionButtonText, styles.saveButtonText]}>
-                      💾 Save
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            )}
           </View>
         )}
       </ScrollView>
 
-      {/* Semester Picker Modal */}
-      <Modal
-        visible={showSemesterPicker}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setShowSemesterPicker(false)}
-      >
-        <TouchableOpacity
-          style={styles.modalOverlay}
-          activeOpacity={1}
-          onPress={() => setShowSemesterPicker(false)}
-        >
-          <View style={styles.pickerContainer}>
-            <Text style={styles.pickerTitle}>Select Semester</Text>
-            {Object.keys(SEMESTER_SUBJECTS).map((semester) => (
+      {/* ── Result Modal ── */}
+      <Modal visible={showResultModal} transparent animationType="fade" onRequestClose={() => setShowResultModal(false)}>
+        <View style={styles.resultOverlay}>
+          <View style={[styles.resultModal, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
+            {/* Close */}
+            <TouchableOpacity
+              style={[styles.resultCloseBtn, { backgroundColor: theme.backgroundSecondary }]}
+              onPress={() => setShowResultModal(false)}
+            >
+              <X size={16} color={theme.textSecondary} strokeWidth={2.5} />
+            </TouchableOpacity>
+
+            {resultValue !== null && (() => {
+              const color = getResultColor(resultValue);
+              const { label, desc } = getResultLabel(resultValue);
+              return (
+                <>
+                  {/* Type label */}
+                  <Text style={[styles.resultTypeText, { color: theme.textSecondary }]}>
+                    {resultType}{resultType === 'SGPA' ? ` · ${selectedSemester}` : ''}
+                  </Text>
+
+                  {/* GPA value */}
+                  <Text style={[styles.resultGPA, { color }]}>{resultValue.toFixed(2)}</Text>
+
+                  {/* Grade badge */}
+                  <View style={[styles.resultBadge, { backgroundColor: color + '18', borderColor: color + '40' }]}>
+                    <Text style={[styles.resultBadgeText, { color }]}>{label}</Text>
+                  </View>
+
+                  {/* Description */}
+                  <Text style={[styles.resultDesc, { color: theme.textSecondary }]}>{desc}</Text>
+
+                  {/* Scale bar */}
+                  <View style={styles.scaleWrap}>
+                    <View style={[styles.scaleTrack, { backgroundColor: theme.backgroundTertiary }]}>
+                      <View style={[styles.scaleFill, { width: `${Math.min((resultValue / 10) * 100, 100)}%`, backgroundColor: color }]} />
+                    </View>
+                    <View style={styles.scaleEnds}>
+                      <Text style={[styles.scaleEndText, { color: theme.textTertiary }]}>0</Text>
+                      <Text style={[styles.scaleEndText, { color: theme.textTertiary }]}>10</Text>
+                    </View>
+                  </View>
+
+                  {/* Actions */}
+                  <View style={styles.resultActions}>
+                    <TouchableOpacity
+                      style={[styles.resultActionBtn, { backgroundColor: theme.backgroundSecondary, borderColor: theme.border }]}
+                      onPress={() => { setShowResultModal(false); if (resultType === 'SGPA') resetSGPA(); else resetCGPA(); }}
+                    >
+                      <RotateCcw size={15} color={theme.textSecondary} strokeWidth={2} />
+                      <Text style={[styles.resultActionText, { color: theme.textSecondary }]}>Recalculate</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.resultActionBtn, { backgroundColor: theme.gpaCalculator, borderColor: theme.gpaCalculator }]}
+                      onPress={() => {
+                        setShowResultModal(false);
+                        Alert.alert('Saved', `${resultType}: ${resultValue?.toFixed(2)} saved.`);
+                      }}
+                    >
+                      <BookmarkCheck size={15} color="#FFFFFF" strokeWidth={2} />
+                      <Text style={[styles.resultActionText, { color: '#FFFFFF' }]}>Save</Text>
+                    </TouchableOpacity>
+                  </View>
+                </>
+              );
+            })()}
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── Semester Picker ── */}
+      <Modal visible={showSemesterPicker} transparent animationType="fade" onRequestClose={() => setShowSemesterPicker(false)}>
+        <TouchableOpacity style={styles.pickerOverlay} activeOpacity={1} onPress={() => setShowSemesterPicker(false)}>
+          <View style={[styles.pickerSheet, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
+            <Text style={[styles.pickerTitle, { color: theme.text }]}>Select Semester</Text>
+            {Object.keys(SEMESTER_SUBJECTS).map((sem) => (
               <TouchableOpacity
-                key={semester}
-                style={styles.pickerOption}
-                onPress={() => {
-                  setSelectedSemester(semester);
-                  setShowSemesterPicker(false);
-                }}
+                key={sem}
+                style={[styles.pickerItem, { borderBottomColor: theme.divider }]}
+                onPress={() => { setSelectedSemester(sem); setShowSemesterPicker(false); }}
               >
-                <Text style={styles.pickerOptionText}>{semester}</Text>
+                <Text style={[styles.pickerItemText, { color: selectedSemester === sem ? theme.gpaCalculator : theme.text, fontWeight: selectedSemester === sem ? '700' : '400' }]}>
+                  {sem}
+                </Text>
+                {selectedSemester === sem && <Check size={16} color={theme.gpaCalculator} strokeWidth={2.5} />}
               </TouchableOpacity>
             ))}
           </View>
         </TouchableOpacity>
       </Modal>
 
-      {/* Grade Picker Modal */}
-      <Modal
-        visible={showGradePicker}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setShowGradePicker(false)}
-      >
-        <TouchableOpacity
-          style={styles.modalOverlay}
-          activeOpacity={1}
-          onPress={() => setShowGradePicker(false)}
-        >
-          <View style={styles.pickerContainer}>
-            <Text style={styles.pickerTitle}>Select Grade</Text>
-            {GRADES.map((grade) => (
-              <TouchableOpacity
-                key={grade}
-                style={styles.pickerOption}
-                onPress={() => {
-                  updateSubjectGrade(selectedSubjectIndex, grade);
-                  setShowGradePicker(false);
-                }}
-              >
-                <View style={styles.gradeOption}>
-                  <Text style={styles.pickerOptionText}>{grade}</Text>
-                  <Text style={styles.gradePoint}>{GRADE_POINTS[grade]} Points</Text>
-                </View>
-              </TouchableOpacity>
-            ))}
+      {/* ── Grade Picker ── */}
+      <Modal visible={showGradePicker} transparent animationType="fade" onRequestClose={() => setShowGradePicker(false)}>
+        <TouchableOpacity style={styles.pickerOverlay} activeOpacity={1} onPress={() => setShowGradePicker(false)}>
+          <View style={[styles.pickerSheet, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
+            <Text style={[styles.pickerTitle, { color: theme.text }]}>Select Grade</Text>
+            {GRADES.map((grade) => {
+              const selected = subjectGrades[selectedSubjectIndex]?.grade === grade;
+              return (
+                <TouchableOpacity
+                  key={grade}
+                  style={[styles.pickerItem, { borderBottomColor: theme.divider }]}
+                  onPress={() => { updateSubjectGrade(selectedSubjectIndex, grade); setShowGradePicker(false); }}
+                >
+                  <Text style={[styles.pickerItemText, { color: selected ? theme.gpaCalculator : theme.text, fontWeight: selected ? '700' : '400' }]}>
+                    {grade}
+                  </Text>
+                  <Text style={[styles.gradePointText, { color: theme.textTertiary }]}>{GRADE_POINTS[grade]} pts</Text>
+                  {selected && <Check size={16} color={theme.gpaCalculator} strokeWidth={2.5} />}
+                </TouchableOpacity>
+              );
+            })}
           </View>
         </TouchableOpacity>
       </Modal>
 
-      {/* Semester Count Picker Modal */}
-      <Modal
-        visible={showSemesterCountPicker}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setShowSemesterCountPicker(false)}
-      >
-        <TouchableOpacity
-          style={styles.modalOverlay}
-          activeOpacity={1}
-          onPress={() => setShowSemesterCountPicker(false)}
-        >
-          <View style={styles.pickerContainer}>
-            <Text style={styles.pickerTitle}>Select Completed Semesters</Text>
+      {/* ── Semester Count Picker ── */}
+      <Modal visible={showSemesterCountPicker} transparent animationType="fade" onRequestClose={() => setShowSemesterCountPicker(false)}>
+        <TouchableOpacity style={styles.pickerOverlay} activeOpacity={1} onPress={() => setShowSemesterCountPicker(false)}>
+          <View style={[styles.pickerSheet, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
+            <Text style={[styles.pickerTitle, { color: theme.text }]}>Semesters Completed</Text>
             {[1, 2, 3, 4, 5, 6, 7, 8].map((count) => (
               <TouchableOpacity
                 key={count}
-                style={styles.pickerOption}
-                onPress={() => {
-                  setSelectedSemesters(count);
-                  setShowSemesterCountPicker(false);
-                }}
+                style={[styles.pickerItem, { borderBottomColor: theme.divider }]}
+                onPress={() => { setSelectedSemesters(count); setShowSemesterCountPicker(false); }}
               >
-                <Text style={styles.pickerOptionText}>
+                <Text style={[styles.pickerItemText, { color: selectedSemesters === count ? theme.gpaCalculator : theme.text, fontWeight: selectedSemesters === count ? '700' : '400' }]}>
                   {count} Semester{count > 1 ? 's' : ''}
                 </Text>
+                {selectedSemesters === count && <Check size={16} color={theme.gpaCalculator} strokeWidth={2.5} />}
               </TouchableOpacity>
             ))}
           </View>
@@ -549,269 +430,103 @@ export default function GPACalculatorScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-  },
+  container: { flex: 1 },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1,
   },
-  backButton: {
-    fontSize: 28,
-    color: '#1F2937',
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#1F2937',
-  },
+  headerIconBtn: { width: 40, height: 40, justifyContent: 'center', alignItems: 'center' },
+  headerTitle: { fontSize: 17, fontWeight: '700' },
   tabContainer: {
-    flexDirection: 'row',
-    backgroundColor: '#F3F4F6',
-    margin: 16,
-    borderRadius: 12,
-    padding: 4,
+    flexDirection: 'row', margin: 16, borderRadius: 12, padding: 3,
   },
-  tab: {
-    flex: 1,
-    paddingVertical: 12,
-    alignItems: 'center',
-    borderRadius: 10,
+  tab: { flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 10 },
+  tabText: { fontSize: 14, fontWeight: '600' },
+  content: { flex: 1, paddingHorizontal: 16 },
+  dropdownRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    borderRadius: 12, padding: 14, marginBottom: 12, borderWidth: 1,
   },
-  activeTab: {
-    backgroundColor: '#FFFFFF',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  tabText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#6B7280',
-  },
-  activeTabText: {
-    color: '#6366F1',
-  },
-  content: {
-    flex: 1,
-    paddingHorizontal: 16,
-  },
-  selectorCard: {
-    backgroundColor: '#F8FAFC',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
-  },
-  selectorLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#64748B',
-    marginBottom: 8,
-  },
-  dropdown: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 10,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  dropdownText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1F2937',
-  },
-  dropdownArrow: {
-    fontSize: 12,
-    color: '#64748B',
-  },
+  dropdownLabel: { fontSize: 13, fontWeight: '500' },
+  dropdownRight: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  dropdownValue: { fontSize: 14, fontWeight: '700' },
   subjectsCard: {
-    backgroundColor: '#F8FAFC',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
+    borderRadius: 12, marginBottom: 14, borderWidth: 1, overflow: 'hidden',
   },
-  cardTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#1F2937',
-    marginBottom: 12,
+  cardLabel: {
+    fontSize: 10, fontWeight: '700', letterSpacing: 0.8,
+    paddingHorizontal: 14, paddingTop: 14, paddingBottom: 8,
   },
   subjectRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 10,
-    padding: 12,
-    marginBottom: 10,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 14, paddingVertical: 11, borderBottomWidth: 1,
   },
-  subjectInfo: {
-    flex: 1,
+  subjectInfo: { flex: 1 },
+  subjectName: { fontSize: 13, fontWeight: '600', marginBottom: 2 },
+  subjectCredit: { fontSize: 11 },
+  gradeBtn: {
+    paddingHorizontal: 14, paddingVertical: 7, borderRadius: 8,
+    minWidth: 52, alignItems: 'center', borderWidth: 1,
   },
-  subjectName: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#1F2937',
-    marginBottom: 4,
-  },
-  subjectCredit: {
-    fontSize: 12,
-    color: '#64748B',
-  },
-  gradeButton: {
-    backgroundColor: '#F3F4F6',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
-    minWidth: 80,
-    alignItems: 'center',
-  },
-  gradeButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#6B7280',
-  },
-  sgpaRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 10,
-    padding: 12,
-    marginBottom: 10,
-  },
-  semesterInfo: {
-    flex: 1,
-  },
-  semesterName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1F2937',
-    marginBottom: 4,
-  },
-  semesterCredit: {
-    fontSize: 12,
-    color: '#64748B',
-  },
+  gradeBtnText: { fontSize: 13, fontWeight: '700' },
   sgpaInput: {
-    backgroundColor: '#F3F4F6',
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1F2937',
-    minWidth: 80,
-    textAlign: 'center',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8,
+    fontSize: 14, fontWeight: '700', minWidth: 70, textAlign: 'center', borderWidth: 1,
   },
-  calculateButton: {
-    backgroundColor: '#6366F1',
-    borderRadius: 12,
-    padding: 16,
-    alignItems: 'center',
-    marginBottom: 16,
+  calcBtn: { borderRadius: 12, padding: 15, alignItems: 'center', marginBottom: 16 },
+  calcBtnText: { fontSize: 15, fontWeight: '700', color: '#FFFFFF' },
+  // Result modal
+  resultOverlay: {
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.55)',
+    justifyContent: 'center', alignItems: 'center', padding: 20,
   },
-  calculateButtonText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#FFFFFF',
+  resultModal: {
+    width: '100%', maxWidth: 340, borderRadius: 20, padding: 24,
+    alignItems: 'center', borderWidth: 1,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.2, shadowRadius: 16, elevation: 12,
   },
-  resultCard: {
-    backgroundColor: '#F8FAFC',
-    borderRadius: 12,
-    padding: 24,
-    alignItems: 'center',
-    marginBottom: 24,
-    borderWidth: 3,
+  resultCloseBtn: {
+    position: 'absolute', top: 14, right: 14,
+    width: 30, height: 30, borderRadius: 15,
+    alignItems: 'center', justifyContent: 'center',
   },
-  resultLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#64748B',
-    marginBottom: 8,
+  resultTypeText: { fontSize: 11, fontWeight: '600', letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 8 },
+  resultGPA: { fontSize: 64, fontWeight: '800', lineHeight: 72, marginBottom: 12 },
+  resultBadge: {
+    paddingHorizontal: 14, paddingVertical: 5,
+    borderRadius: 20, borderWidth: 1, marginBottom: 8,
   },
-  resultValue: {
-    fontSize: 48,
-    fontWeight: '800',
-    marginBottom: 8,
+  resultBadgeText: { fontSize: 13, fontWeight: '700' },
+  resultDesc: { fontSize: 12, marginBottom: 20, textAlign: 'center' },
+  scaleWrap: { width: '100%', marginBottom: 20 },
+  scaleTrack: { height: 6, borderRadius: 3, overflow: 'hidden', marginBottom: 4 },
+  scaleFill: { height: '100%', borderRadius: 3 },
+  scaleEnds: { flexDirection: 'row', justifyContent: 'space-between' },
+  scaleEndText: { fontSize: 10, fontWeight: '500' },
+  resultActions: { flexDirection: 'row', gap: 10, width: '100%' },
+  resultActionBtn: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 6, paddingVertical: 12, borderRadius: 10, borderWidth: 1,
   },
-  resultIndicator: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#64748B',
-    marginBottom: 20,
+  resultActionText: { fontSize: 13, fontWeight: '700' },
+  // Pickers
+  pickerOverlay: {
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center', alignItems: 'center', padding: 20,
   },
-  resultActions: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  actionButton: {
-    backgroundColor: '#F3F4F6',
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 10,
-  },
-  actionButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#6B7280',
-  },
-  saveButton: {
-    backgroundColor: '#6366F1',
-  },
-  saveButtonText: {
-    color: '#FFFFFF',
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  pickerContainer: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 20,
-    width: '80%',
-    maxHeight: '70%',
+  pickerSheet: {
+    width: '100%', maxWidth: 320, borderRadius: 16,
+    overflow: 'hidden', borderWidth: 1,
   },
   pickerTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#1F2937',
-    marginBottom: 16,
-    textAlign: 'center',
+    fontSize: 15, fontWeight: '700',
+    paddingHorizontal: 16, paddingVertical: 14,
   },
-  pickerOption: {
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
+  pickerItem: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 16, paddingVertical: 13, borderBottomWidth: 1,
   },
-  pickerOptionText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1F2937',
-  },
-  gradeOption: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  gradePoint: {
-    fontSize: 14,
-    color: '#64748B',
-  },
+  pickerItemText: { fontSize: 14, flex: 1 },
+  gradePointText: { fontSize: 12, marginRight: 10 },
 });

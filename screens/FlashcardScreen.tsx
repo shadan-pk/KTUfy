@@ -34,9 +34,10 @@ const FlashcardScreen: React.FC<FlashcardScreenProps> = ({ navigation }) => {
     const [isFlipped, setIsFlipped] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [hasGenerated, setHasGenerated] = useState(false);
+    const [isCached, setIsCached] = useState(false);
     const flipAnim = useRef(new Animated.Value(0)).current;
 
-    const handleGenerate = async () => {
+    const handleGenerate = async (forceRegenerate: boolean = false) => {
         const trimmed = topic.trim();
         if (!trimmed) {
             Alert.alert('Enter a Topic', 'Please type a topic to generate flashcards.');
@@ -47,13 +48,15 @@ const FlashcardScreen: React.FC<FlashcardScreenProps> = ({ navigation }) => {
         setFlashcards([]);
         setCurrentIndex(0);
         setIsFlipped(false);
+        setIsCached(false);
         flipAnim.setValue(0);
 
         try {
-            const response = await generateFlashcards(trimmed, 10);
+            const response = await generateFlashcards(trimmed, 10, forceRegenerate);
             if (response.flashcards && response.flashcards.length > 0) {
                 setFlashcards(response.flashcards);
                 setHasGenerated(true);
+                setIsCached(response.cached ?? false);
             } else {
                 Alert.alert('No Flashcards', 'Could not generate flashcards for this topic. Try a different one.');
             }
@@ -149,12 +152,12 @@ const FlashcardScreen: React.FC<FlashcardScreenProps> = ({ navigation }) => {
                             value={topic}
                             onChangeText={setTopic}
                             returnKeyType="go"
-                            onSubmitEditing={handleGenerate}
+                            onSubmitEditing={() => handleGenerate()}
                             editable={!isLoading}
                         />
                         <TouchableOpacity
                             style={[styles.generateButton, isLoading && styles.generateButtonDisabled]}
-                            onPress={handleGenerate}
+                            onPress={() => handleGenerate()}
                             disabled={isLoading}
                         >
                             {isLoading ? (
@@ -262,10 +265,17 @@ const FlashcardScreen: React.FC<FlashcardScreenProps> = ({ navigation }) => {
                             </TouchableOpacity>
                         </View>
 
+                        {/* Cached indicator */}
+                        {isCached && (
+                            <View style={[styles.cachedBadge, { backgroundColor: theme.backgroundSecondary, borderColor: theme.border }]}>
+                                <Text style={[styles.cachedBadgeText, { color: theme.textSecondary }]}>📦 Loaded from cache</Text>
+                            </View>
+                        )}
+
                         {/* Regenerate */}
                         <TouchableOpacity
                             style={[styles.regenerateButton, { borderColor: theme.primary }]}
-                            onPress={handleGenerate}
+                            onPress={() => handleGenerate(true)}
                         >
                             <Text style={[styles.regenerateText, { color: theme.primary }]}>🔄 Regenerate Cards</Text>
                         </TouchableOpacity>
@@ -495,6 +505,18 @@ const styles = StyleSheet.create({
     navButtonText: {
         fontSize: 14,
         fontWeight: '600',
+    },
+    cachedBadge: {
+        alignSelf: 'center',
+        paddingHorizontal: 14,
+        paddingVertical: 6,
+        borderRadius: 20,
+        borderWidth: 1,
+        marginBottom: 10,
+    },
+    cachedBadgeText: {
+        fontSize: 12,
+        fontWeight: '500',
     },
     regenerateButton: {
         borderWidth: 1.5,

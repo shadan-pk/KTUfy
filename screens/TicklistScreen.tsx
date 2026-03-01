@@ -18,6 +18,8 @@ import { getTicklistsForUser, upsertTicklist, deleteTicklist } from '../supabase
 import supabase from '../supabaseClient';
 import { getCachedTicklists, setCachedTicklists } from '../services/cacheService';
 import { TicklistScreenSkeleton } from '../components/SkeletonLoader';
+import { useTheme } from '../contexts/ThemeContext';
+import { Trash2, Plus } from 'lucide-react-native';
 
 interface TicklistItem {
   id: string;
@@ -40,6 +42,7 @@ interface TicklistScreenProps {
 
 const TicklistScreen: React.FC<TicklistScreenProps> = ({ navigation }) => {
   const { user: authUser } = useAuth();
+  const { theme, isDark } = useTheme();
   const [supabaseUser, setSupabaseUser] = React.useState<any | null>(null);
   const [subjects, setSubjects] = React.useState<Subject[]>([]);
   const [filter, setFilter] = React.useState<'all' | 'pending' | 'completed'>('all');
@@ -128,12 +131,10 @@ const TicklistScreen: React.FC<TicklistScreenProps> = ({ navigation }) => {
       items: [],
     };
 
-    // Close modal and clear form immediately
     setShowAddSubjectModal(false);
     setSubjectName('');
     setSubjectCode('');
 
-    // Optimistic update — show in UI immediately
     const updatedSubjects = [...subjects, newSubject];
     setSubjects(updatedSubjects);
     setCachedTicklists(updatedSubjects);
@@ -149,7 +150,6 @@ const TicklistScreen: React.FC<TicklistScreenProps> = ({ navigation }) => {
       });
     } catch (error) {
       console.error('Error adding subject:', error);
-      // Revert optimistic update on failure
       setSubjects(subjects);
       setCachedTicklists(subjects);
       Alert.alert('Error', 'Failed to add subject. Please try again.');
@@ -176,11 +176,9 @@ const TicklistScreen: React.FC<TicklistScreenProps> = ({ navigation }) => {
     const subject = subjects.find(s => s.id === selectedSubjectId);
     if (!subject) return;
 
-    // Close modal and clear form immediately
     setShowAddItemModal(false);
     setItemTitle('');
 
-    // Optimistic update — show in UI immediately
     const updatedItems = [...subject.items, newItem];
     const updatedSubjects = subjects.map(s =>
       s.id === selectedSubjectId ? { ...s, items: updatedItems } : s
@@ -199,7 +197,6 @@ const TicklistScreen: React.FC<TicklistScreenProps> = ({ navigation }) => {
       });
     } catch (error) {
       console.error('Error adding item:', error);
-      // Revert optimistic update
       setSubjects(subjects);
       setCachedTicklists(subjects);
       Alert.alert('Error', 'Failed to add item. Please try again.');
@@ -217,7 +214,6 @@ const TicklistScreen: React.FC<TicklistScreenProps> = ({ navigation }) => {
           style: 'destructive',
           onPress: async () => {
             if (!supabaseUser) return;
-            // Optimistic update
             const updatedSubjects = subjects.filter(s => s.id !== subjectId);
             setSubjects(updatedSubjects);
             setCachedTicklists(updatedSubjects);
@@ -225,7 +221,6 @@ const TicklistScreen: React.FC<TicklistScreenProps> = ({ navigation }) => {
               await deleteTicklist(subjectId, supabaseUser.id);
             } catch (error) {
               console.error('Error deleting subject:', error);
-              // Revert on failure
               setSubjects(subjects);
               setCachedTicklists(subjects);
               Alert.alert('Error', 'Failed to delete subject. Please try again.');
@@ -245,7 +240,6 @@ const TicklistScreen: React.FC<TicklistScreenProps> = ({ navigation }) => {
 
       const updatedItems = subject.items.filter(item => item.id !== itemId);
 
-      // Persist the updated items to Supabase
       await upsertTicklist({
         id: subjectId,
         user_id: supabaseUser.id,
@@ -255,7 +249,6 @@ const TicklistScreen: React.FC<TicklistScreenProps> = ({ navigation }) => {
         items: updatedItems,
       });
 
-      // Update local state for immediate UI feedback
       setSubjects(prev => prev.map(s => (s.id === subjectId ? { ...s, items: updatedItems } : s)));
     } catch (error) {
       console.error('Error deleting item:', error);
@@ -273,7 +266,6 @@ const TicklistScreen: React.FC<TicklistScreenProps> = ({ navigation }) => {
       item.id === itemId ? { ...item, completed: !item.completed } : item
     );
 
-    // Optimistic update
     const updatedSubjects = subjects.map(s =>
       s.id === subjectId ? { ...s, items: updatedItems } : s
     );
@@ -291,7 +283,6 @@ const TicklistScreen: React.FC<TicklistScreenProps> = ({ navigation }) => {
       });
     } catch (error) {
       console.error('Error toggling item:', error);
-      // Revert on failure
       setSubjects(subjects);
       setCachedTicklists(subjects);
       Alert.alert('Error', 'Failed to update item. Please try again.');
@@ -333,80 +324,87 @@ const TicklistScreen: React.FC<TicklistScreenProps> = ({ navigation }) => {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.container} edges={['bottom']}>
+      <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['bottom']}>
         <TicklistScreenSkeleton />
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['bottom']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['bottom']}>
       {/* Header Stats */}
       <View style={styles.headerStats}>
-        <View style={styles.statCard}>
-          <Text style={styles.statValue}>{totalProgress.percentage}%</Text>
-          <Text style={styles.statLabel}>Complete</Text>
-        </View>
-        <View style={styles.statCard}>
-          <Text style={styles.statValue}>{totalProgress.completed}/{totalProgress.total}</Text>
-          <Text style={styles.statLabel}>Modules</Text>
-        </View>
-        <View style={styles.statCard}>
-          <Text style={styles.statValue}>{subjects.length}</Text>
-          <Text style={styles.statLabel}>Subjects</Text>
-        </View>
+        {[
+          { value: `${totalProgress.percentage}%`, label: 'Complete' },
+          { value: `${totalProgress.completed}/${totalProgress.total}`, label: 'Modules' },
+          { value: subjects.length, label: 'Subjects' },
+        ].map((stat, i) => (
+          <View key={i} style={[styles.statCard, {
+            backgroundColor: theme.card,
+            borderColor: theme.cardBorder,
+            shadowColor: theme.shadow,
+          }]}>
+            <Text style={[styles.statValue, { color: theme.primary }]}>{stat.value}</Text>
+            <Text style={[styles.statLabel, { color: theme.textSecondary }]}>{stat.label}</Text>
+          </View>
+        ))}
       </View>
 
-      {/* Progress Bar */}
-      <View style={styles.overallProgress}>
+      {/* Overall Progress */}
+      <View style={[styles.overallProgress, {
+        backgroundColor: theme.card,
+        borderColor: theme.cardBorder,
+        shadowColor: theme.shadow,
+      }]}>
         <View style={styles.progressHeader}>
-          <Text style={styles.progressTitle}>Overall Progress</Text>
-          <Text style={styles.progressPercent}>{totalProgress.percentage}%</Text>
+          <Text style={[styles.progressTitle, { color: theme.text }]}>Overall Progress</Text>
+          <Text style={[styles.progressPercent, { color: theme.primary }]}>{totalProgress.percentage}%</Text>
         </View>
-        <View style={styles.progressBar}>
-          <View style={[styles.progressFill, { width: `${totalProgress.percentage}%` }]} />
+        <View style={[styles.progressBar, { backgroundColor: theme.backgroundTertiary }]}>
+          <View style={[styles.progressFill, {
+            width: `${totalProgress.percentage}%`,
+            backgroundColor: theme.primary,
+          }]} />
         </View>
       </View>
 
       {/* Filter Tabs */}
-      <View style={styles.filterContainer}>
-        <TouchableOpacity
-          style={[styles.filterTab, filter === 'all' && styles.filterTabActive]}
-          onPress={() => setFilter('all')}
-        >
-          <Text style={[styles.filterText, filter === 'all' && styles.filterTextActive]}>
-            All ({subjects.length})
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.filterTab, filter === 'pending' && styles.filterTabActive]}
-          onPress={() => setFilter('pending')}
-        >
-          <Text style={[styles.filterText, filter === 'pending' && styles.filterTextActive]}>
-            Pending
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.filterTab, filter === 'completed' && styles.filterTabActive]}
-          onPress={() => setFilter('completed')}
-        >
-          <Text style={[styles.filterText, filter === 'completed' && styles.filterTextActive]}>
-            Completed
-          </Text>
-        </TouchableOpacity>
+      <View style={[styles.filterContainer, { backgroundColor: theme.backgroundSecondary }]}>
+        {(['all', 'pending', 'completed'] as const).map((f) => (
+          <TouchableOpacity
+            key={f}
+            style={[
+              styles.filterTab,
+              filter === f && { backgroundColor: theme.primary },
+            ]}
+            onPress={() => setFilter(f)}
+          >
+            <Text style={[
+              styles.filterText,
+              { color: theme.textSecondary },
+              filter === f && { color: '#FFFFFF' },
+            ]}>
+              {f === 'all' ? `All (${subjects.length})` : f.charAt(0).toUpperCase() + f.slice(1)}
+            </Text>
+          </TouchableOpacity>
+        ))}
       </View>
 
       {/* Subjects List */}
-      <ScrollView style={styles.subjectsList} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.subjectsList}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: 20 }}
+      >
         {subjects.length === 0 ? (
           <View style={styles.emptyState}>
             <Text style={styles.emptyIcon}>📝</Text>
-            <Text style={styles.emptyTitle}>No Subjects Added Yet</Text>
-            <Text style={styles.emptyText}>
+            <Text style={[styles.emptyTitle, { color: theme.text }]}>No Subjects Added Yet</Text>
+            <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
               Start by adding your subjects and modules to track your study progress.
             </Text>
             <TouchableOpacity
-              style={styles.addButton}
+              style={[styles.addButton, { backgroundColor: theme.primary }]}
               onPress={() => setShowAddSubjectModal(true)}
             >
               <Text style={styles.addButtonText}>+ Add Subject</Text>
@@ -422,26 +420,31 @@ const TicklistScreen: React.FC<TicklistScreenProps> = ({ navigation }) => {
                   filter === 'pending' ? !item.completed : item.completed
                 );
 
-            // Show subjects even if they have no items yet (when filter is 'all')
             if (displayItems.length === 0 && filter !== 'all') return null;
 
             return (
-              <View key={subject.id} style={styles.subjectCard}>
+              <View key={subject.id} style={[styles.subjectCard, {
+                backgroundColor: theme.card,
+                borderColor: theme.cardBorder,
+                shadowColor: theme.shadow,
+              }]}>
                 <View style={styles.subjectHeader}>
                   <View style={[styles.subjectColorBar, { backgroundColor: subject.color }]} />
                   <View style={styles.subjectInfo}>
-                    <Text style={styles.subjectName}>{subject.name}</Text>
-                    <Text style={styles.subjectCode}>{subject.code}</Text>
+                    <Text style={[styles.subjectName, { color: theme.text }]}>{subject.name}</Text>
+                    <Text style={[styles.subjectCode, { color: theme.textSecondary }]}>{subject.code}</Text>
                   </View>
                   <View style={styles.subjectProgress}>
-                    <Text style={styles.subjectProgressText}>
+                    <Text style={[styles.subjectProgressText, { color: theme.textSecondary }]}>
                       {progress.completed}/{progress.total}
                     </Text>
-                    <Text style={styles.subjectProgressPercent}>{progress.percentage}%</Text>
+                    <Text style={[styles.subjectProgressPercent, { color: subject.color }]}>
+                      {progress.percentage}%
+                    </Text>
                   </View>
                 </View>
 
-                <View style={styles.progressBar}>
+                <View style={[styles.progressBar, { backgroundColor: theme.backgroundTertiary }]}>
                   <View
                     style={[
                       styles.progressFill,
@@ -452,14 +455,16 @@ const TicklistScreen: React.FC<TicklistScreenProps> = ({ navigation }) => {
 
                 <View style={styles.itemsList}>
                   {displayItems.length === 0 && filter === 'all' ? (
-                    <View style={styles.noItemsContainer}>
-                      <Text style={styles.noItemsText}>No modules added yet. Tap below to add your first module!</Text>
+                    <View style={[styles.noItemsContainer, { backgroundColor: theme.backgroundSecondary }]}>
+                      <Text style={[styles.noItemsText, { color: theme.textSecondary }]}>
+                        No modules added yet. Tap below to add your first module!
+                      </Text>
                     </View>
                   ) : (
                     displayItems.map(item => (
                       <TouchableOpacity
                         key={item.id}
-                        style={styles.tickItem}
+                        style={[styles.tickItem, { borderBottomColor: theme.divider }]}
                         onPress={() => toggleItem(subject.id, item.id)}
                         onLongPress={() => deleteItem(subject.id, item.id)}
                         activeOpacity={0.7}
@@ -467,20 +472,27 @@ const TicklistScreen: React.FC<TicklistScreenProps> = ({ navigation }) => {
                         <View
                           style={[
                             styles.checkbox,
-                            item.completed && [styles.checkboxChecked, { backgroundColor: subject.color }],
+                            { borderColor: theme.border },
+                            item.completed && { backgroundColor: subject.color, borderColor: subject.color },
                           ]}
                         >
                           {item.completed && <Text style={styles.checkmark}>✓</Text>}
                         </View>
                         <View style={styles.itemContent}>
                           <Text
-                            style={[styles.itemText, item.completed && styles.itemTextCompleted]}
+                            style={[
+                              styles.itemText,
+                              { color: theme.text },
+                              item.completed && { textDecorationLine: 'line-through', color: theme.textTertiary },
+                            ]}
                           >
                             {item.title}
                           </Text>
                           {item.isTrending && (
-                            <View style={styles.trendingBadge}>
-                              <Text style={styles.trendingText}>🔥 Trending</Text>
+                            <View style={[styles.trendingBadge, {
+                              backgroundColor: isDark ? 'rgba(239, 68, 68, 0.15)' : '#FEE2E2',
+                            }]}>
+                              <Text style={[styles.trendingText, { color: theme.error }]}>🔥 Trending</Text>
                             </View>
                           )}
                         </View>
@@ -490,13 +502,16 @@ const TicklistScreen: React.FC<TicklistScreenProps> = ({ navigation }) => {
 
                   {/* Add Item Button */}
                   <TouchableOpacity
-                    style={styles.addItemButton}
+                    style={[styles.addItemButton, {
+                      backgroundColor: theme.backgroundSecondary,
+                      borderColor: theme.border,
+                    }]}
                     onPress={() => {
                       setSelectedSubjectId(subject.id);
                       setShowAddItemModal(true);
                     }}
                   >
-                    <Text style={styles.addItemButtonText}>+ Add Module/Topic</Text>
+                    <Text style={[styles.addItemButtonText, { color: theme.primary }]}>+ Add Module/Topic</Text>
                   </TouchableOpacity>
                 </View>
 
@@ -505,20 +520,18 @@ const TicklistScreen: React.FC<TicklistScreenProps> = ({ navigation }) => {
                   style={styles.deleteSubjectButton}
                   onPress={() => deleteSubject(subject.id)}
                 >
-                  <Text style={styles.deleteSubjectButtonText}>Delete Subject</Text>
+                  <Text style={[styles.deleteSubjectButtonText, { color: theme.error }]}>Delete Subject</Text>
                 </TouchableOpacity>
               </View>
             );
           })
         )}
-
-        <View style={{ height: 20 }} />
       </ScrollView>
 
       {/* Floating Add Subject Button */}
       {subjects.length > 0 && (
         <TouchableOpacity
-          style={styles.fab}
+          style={[styles.fab, { backgroundColor: theme.primary, shadowColor: theme.shadow }]}
           onPress={() => setShowAddSubjectModal(true)}
         >
           <Text style={styles.fabText}>+</Text>
@@ -536,50 +549,65 @@ const TicklistScreen: React.FC<TicklistScreenProps> = ({ navigation }) => {
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={styles.modalOverlay}
         >
-          <View style={styles.modalContent}>
+          <View style={[styles.modalContent, {
+            backgroundColor: theme.card,
+            borderTopColor: theme.border,
+          }]}>
+            <View style={[styles.modalHandle, { backgroundColor: theme.border }]} />
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Add New Subject</Text>
-              <TouchableOpacity onPress={() => setShowAddSubjectModal(false)}>
-                <Text style={styles.modalClose}>✕</Text>
+              <Text style={[styles.modalTitle, { color: theme.text }]}>Add New Subject</Text>
+              <TouchableOpacity
+                style={[styles.modalCloseBtn, { backgroundColor: theme.backgroundSecondary }]}
+                onPress={() => setShowAddSubjectModal(false)}
+              >
+                <Text style={[styles.modalClose, { color: theme.textSecondary }]}>✕</Text>
               </TouchableOpacity>
             </View>
 
             <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>Subject Name</Text>
+              <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>Subject Name</Text>
               <TextInput
-                style={styles.input}
+                style={[styles.input, {
+                  backgroundColor: theme.backgroundSecondary,
+                  color: theme.text,
+                  borderColor: theme.border,
+                }]}
                 placeholder="e.g., Computer Networks"
                 value={subjectName}
                 onChangeText={setSubjectName}
-                placeholderTextColor="#9CA3AF"
+                placeholderTextColor={theme.textTertiary}
               />
             </View>
 
             <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>Subject Code</Text>
+              <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>Subject Code</Text>
               <TextInput
-                style={styles.input}
+                style={[styles.input, {
+                  backgroundColor: theme.backgroundSecondary,
+                  color: theme.text,
+                  borderColor: theme.border,
+                }]}
                 placeholder="e.g., CST401"
                 value={subjectCode}
                 onChangeText={setSubjectCode}
-                placeholderTextColor="#9CA3AF"
+                placeholderTextColor={theme.textTertiary}
                 autoCapitalize="characters"
               />
             </View>
 
             <View style={styles.modalButtons}>
               <TouchableOpacity
-                style={styles.modalButtonCancel}
+                style={[styles.modalButtonCancel, { backgroundColor: theme.backgroundSecondary }]}
                 onPress={() => {
                   setShowAddSubjectModal(false);
                   setSubjectName('');
                   setSubjectCode('');
                 }}
               >
-                <Text style={styles.modalButtonCancelText}>Cancel</Text>
+                <Text style={[styles.modalButtonCancelText, { color: theme.textSecondary }]}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={styles.modalButtonAdd}
+                style={[styles.modalButtonAdd, { backgroundColor: theme.primary }]}
                 onPress={addSubject}
               >
                 <Text style={styles.modalButtonAddText}>Add Subject</Text>
@@ -600,38 +628,49 @@ const TicklistScreen: React.FC<TicklistScreenProps> = ({ navigation }) => {
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={styles.modalOverlay}
         >
-          <View style={styles.modalContent}>
+          <View style={[styles.modalContent, {
+            backgroundColor: theme.card,
+            borderTopColor: theme.border,
+          }]}>
+            <View style={[styles.modalHandle, { backgroundColor: theme.border }]} />
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Add Module/Topic</Text>
-              <TouchableOpacity onPress={() => setShowAddItemModal(false)}>
-                <Text style={styles.modalClose}>✕</Text>
+              <Text style={[styles.modalTitle, { color: theme.text }]}>Add Module/Topic</Text>
+              <TouchableOpacity
+                style={[styles.modalCloseBtn, { backgroundColor: theme.backgroundSecondary }]}
+                onPress={() => setShowAddItemModal(false)}
+              >
+                <Text style={[styles.modalClose, { color: theme.textSecondary }]}>✕</Text>
               </TouchableOpacity>
             </View>
 
             <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>Module/Topic Title</Text>
+              <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>Module/Topic Title</Text>
               <TextInput
-                style={styles.input}
+                style={[styles.input, {
+                  backgroundColor: theme.backgroundSecondary,
+                  color: theme.text,
+                  borderColor: theme.border,
+                }]}
                 placeholder="e.g., Module 1: Introduction to Networks"
                 value={itemTitle}
                 onChangeText={setItemTitle}
-                placeholderTextColor="#9CA3AF"
+                placeholderTextColor={theme.textTertiary}
                 multiline
               />
             </View>
 
             <View style={styles.modalButtons}>
               <TouchableOpacity
-                style={styles.modalButtonCancel}
+                style={[styles.modalButtonCancel, { backgroundColor: theme.backgroundSecondary }]}
                 onPress={() => {
                   setShowAddItemModal(false);
                   setItemTitle('');
                 }}
               >
-                <Text style={styles.modalButtonCancelText}>Cancel</Text>
+                <Text style={[styles.modalButtonCancelText, { color: theme.textSecondary }]}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={styles.modalButtonAdd}
+                style={[styles.modalButtonAdd, { backgroundColor: theme.primary }]}
                 onPress={addItem}
               >
                 <Text style={styles.modalButtonAddText}>Add Item</Text>
@@ -647,120 +686,93 @@ const TicklistScreen: React.FC<TicklistScreenProps> = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8F9FD',
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  loadingText: {
-    marginTop: 16,
-    fontSize: 16,
-    color: '#666',
   },
   headerStats: {
     flexDirection: 'row',
     padding: 16,
-    paddingTop: 8,
+    // paddingTop: 8,
     gap: 12,
+    paddingTop: Platform.OS === 'android' ? 50 : 20
   },
   statCard: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
-    padding: 16,
-    borderRadius: 12,
+    padding: 14,
+    borderRadius: 14,
     alignItems: 'center',
-    shadowColor: '#000',
+    borderWidth: 1,
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
+    shadowOpacity: 0.06,
     shadowRadius: 4,
     elevation: 2,
   },
   statValue: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#6366F1',
+    fontSize: 22,
+    fontWeight: '800',
     marginBottom: 4,
   },
   statLabel: {
     fontSize: 12,
-    color: '#6B7280',
+    fontWeight: '500',
   },
   overallProgress: {
-    backgroundColor: '#FFFFFF',
     marginHorizontal: 16,
-    marginBottom: 16,
+    marginBottom: 14,
     padding: 16,
-    borderRadius: 12,
-    shadowColor: '#000',
+    borderRadius: 14,
+    borderWidth: 1,
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
+    shadowOpacity: 0.06,
     shadowRadius: 4,
     elevation: 2,
   },
   progressHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 8,
+    marginBottom: 10,
   },
   progressTitle: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '600',
-    color: '#1A1A2E',
   },
   progressPercent: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#6366F1',
+    fontSize: 14,
+    fontWeight: '800',
   },
   progressBar: {
     height: 8,
-    backgroundColor: '#E5E7EB',
     borderRadius: 4,
     overflow: 'hidden',
   },
   progressFill: {
     height: '100%',
-    backgroundColor: '#6366F1',
     borderRadius: 4,
   },
   filterContainer: {
     flexDirection: 'row',
-    paddingHorizontal: 16,
-    marginBottom: 16,
-    gap: 8,
+    marginHorizontal: 16,
+    marginBottom: 14,
+    borderRadius: 12,
+    padding: 4,
   },
   filterTab: {
     flex: 1,
     paddingVertical: 10,
-    paddingHorizontal: 16,
     borderRadius: 10,
-    backgroundColor: '#FFFFFF',
     alignItems: 'center',
   },
-  filterTabActive: {
-    backgroundColor: '#6366F1',
-  },
   filterText: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
-    color: '#6B7280',
-  },
-  filterTextActive: {
-    color: '#FFFFFF',
   },
   subjectsList: {
     flex: 1,
     paddingHorizontal: 16,
   },
   subjectCard: {
-    backgroundColor: '#FFFFFF',
     borderRadius: 16,
     padding: 16,
-    marginBottom: 16,
-    shadowColor: '#000',
+    marginBottom: 14,
+    borderWidth: 1,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.06,
     shadowRadius: 8,
@@ -781,29 +793,25 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   subjectName: {
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: '700',
-    color: '#1A1A2E',
     marginBottom: 4,
   },
   subjectCode: {
-    fontSize: 13,
-    color: '#6B7280',
+    fontSize: 12,
     fontWeight: '500',
   },
   subjectProgress: {
     alignItems: 'flex-end',
   },
   subjectProgressText: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
-    color: '#4B5563',
     marginBottom: 2,
   },
   subjectProgressPercent: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#6366F1',
   },
   itemsList: {
     marginTop: 12,
@@ -813,24 +821,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
   },
   checkbox: {
     width: 24,
     height: 24,
     borderRadius: 6,
     borderWidth: 2,
-    borderColor: '#D1D5DB',
     marginRight: 12,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  checkboxChecked: {
-    borderColor: 'transparent',
-  },
   checkmark: {
     color: '#FFFFFF',
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: 'bold',
   },
   itemContent: {
@@ -840,23 +843,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   itemText: {
-    fontSize: 15,
-    color: '#4B5563',
+    fontSize: 14,
     flex: 1,
   },
-  itemTextCompleted: {
-    textDecorationLine: 'line-through',
-    color: '#9CA3AF',
-  },
   trendingBadge: {
-    backgroundColor: '#FEE2E2',
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 8,
   },
   trendingText: {
     fontSize: 11,
-    color: '#DC2626',
     fontWeight: '600',
   },
   emptyState: {
@@ -872,19 +868,16 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#1A1A2E',
     marginBottom: 8,
     textAlign: 'center',
   },
   emptyText: {
     fontSize: 15,
-    color: '#6B7280',
     textAlign: 'center',
     marginBottom: 24,
     lineHeight: 22,
   },
   addButton: {
-    backgroundColor: '#6366F1',
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 12,
@@ -895,27 +888,23 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   addItemButton: {
-    backgroundColor: '#F3F4F6',
     padding: 12,
     borderRadius: 10,
     alignItems: 'center',
     marginTop: 8,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
     borderStyle: 'dashed',
   },
   addItemButtonText: {
-    color: '#6366F1',
     fontSize: 14,
     fontWeight: '600',
   },
   deleteSubjectButton: {
     marginTop: 12,
-    padding: 10,
+    padding: 8,
     alignItems: 'center',
   },
   deleteSubjectButtonText: {
-    color: '#EF4444',
     fontSize: 13,
     fontWeight: '600',
   },
@@ -923,20 +912,18 @@ const styles = StyleSheet.create({
     position: 'absolute',
     right: 20,
     bottom: 20,
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: '#6366F1',
+    width: 58,
+    height: 58,
+    borderRadius: 29,
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 8,
   },
   fabText: {
-    fontSize: 32,
+    fontSize: 30,
     color: '#FFFFFF',
     fontWeight: '300',
   },
@@ -946,11 +933,19 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: '#FFFFFF',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     padding: 24,
+    paddingBottom: 36,
     minHeight: 300,
+    borderTopWidth: 1,
+  },
+  modalHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginBottom: 20,
   },
   modalHeader: {
     flexDirection: 'row',
@@ -959,71 +954,67 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   modalTitle: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: '700',
-    color: '#1A1A2E',
+  },
+  modalCloseBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   modalClose: {
-    fontSize: 28,
-    color: '#6B7280',
-    fontWeight: '300',
+    fontSize: 16,
+    fontWeight: '600',
   },
   inputContainer: {
-    marginBottom: 20,
+    marginBottom: 18,
   },
   inputLabel: {
-    fontSize: 15,
+    fontSize: 13,
     fontWeight: '600',
-    color: '#1A1A2E',
     marginBottom: 8,
   },
   input: {
-    backgroundColor: '#F9FAFB',
     borderRadius: 12,
-    padding: 16,
-    fontSize: 16,
-    color: '#1A1A2E',
+    padding: 14,
+    fontSize: 15,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
   },
   modalButtons: {
     flexDirection: 'row',
     gap: 12,
-    marginTop: 12,
+    marginTop: 8,
   },
   modalButtonCancel: {
     flex: 1,
-    padding: 16,
+    padding: 15,
     borderRadius: 12,
-    backgroundColor: '#F3F4F6',
     alignItems: 'center',
   },
   modalButtonCancelText: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
-    color: '#6B7280',
   },
   modalButtonAdd: {
     flex: 1,
-    padding: 16,
+    padding: 15,
     borderRadius: 12,
-    backgroundColor: '#6366F1',
     alignItems: 'center',
   },
   modalButtonAddText: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '700',
     color: '#FFFFFF',
   },
   noItemsContainer: {
-    padding: 16,
-    backgroundColor: '#F9FAFB',
+    padding: 14,
     borderRadius: 10,
     marginBottom: 8,
   },
   noItemsText: {
-    fontSize: 14,
-    color: '#6B7280',
+    fontSize: 13,
     textAlign: 'center',
     lineHeight: 20,
   },

@@ -7,28 +7,29 @@ import {
   TouchableOpacity,
   Alert,
   Linking,
-  SafeAreaView,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { SyllabusViewerScreenNavigationProp } from '../types/navigation';
+import { useTheme } from '../contexts/ThemeContext';
+import { ArrowLeft, Eye, Download } from 'lucide-react-native';
 
 // KTU Branches
 const BRANCHES = [
-  { code: 'CSE', name: 'Computer Science & Engineering', icon: '💻' },
-  { code: 'ECE', name: 'Electronics & Communication', icon: '📡' },
-  { code: 'EEE', name: 'Electrical & Electronics', icon: '⚡' },
-  { code: 'ME', name: 'Mechanical Engineering', icon: '⚙️' },
-  { code: 'CE', name: 'Civil Engineering', icon: '🏗️' },
-  { code: 'IT', name: 'Information Technology', icon: '🖥️' },
-  { code: 'AE', name: 'Applied Electronics', icon: '🔌' },
-  { code: 'BT', name: 'Biotechnology', icon: '🧬' },
-  { code: 'CHE', name: 'Chemical Engineering', icon: '⚗️' },
-  { code: 'IE', name: 'Industrial Engineering', icon: '🏭' },
+  { code: 'CSE', name: 'Computer Science & Engineering', icon: '💻', color: '#2563EB' },
+  { code: 'ECE', name: 'Electronics & Communication', icon: '📡', color: '#7C3AED' },
+  { code: 'EEE', name: 'Electrical & Electronics', icon: '⚡', color: '#D97706' },
+  { code: 'ME', name: 'Mechanical Engineering', icon: '⚙️', color: '#059669' },
+  { code: 'CE', name: 'Civil Engineering', icon: '🏗️', color: '#DC2626' },
+  { code: 'IT', name: 'Information Technology', icon: '🖥️', color: '#0891B2' },
+  { code: 'AE', name: 'Applied Electronics', icon: '🔌', color: '#7C3AED' },
+  { code: 'BT', name: 'Biotechnology', icon: '🧬', color: '#059669' },
+  { code: 'CHE', name: 'Chemical Engineering', icon: '⚗️', color: '#B45309' },
+  { code: 'IE', name: 'Industrial Engineering', icon: '🏭', color: '#6D28D9' },
 ];
 
 const SEMESTERS = ['S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8'];
 
-// Mock subject data structure (replace with Firestore data)
 const SUBJECTS_DATA: { [key: string]: { [key: string]: Array<{ name: string; code: string; credits: number }> } } = {
   'CSE': {
     'S1': [
@@ -94,7 +95,6 @@ const SUBJECTS_DATA: { [key: string]: { [key: string]: Array<{ name: string; cod
       { name: 'Comprehensive Exam', code: 'CSE497', credits: 2 },
     ],
   },
-  // Add other branches similarly (for demo, using same structure)
   'ECE': {
     'S1': [
       { name: 'Calculus', code: 'MAT101', credits: 4 },
@@ -104,7 +104,6 @@ const SUBJECTS_DATA: { [key: string]: { [key: string]: Array<{ name: string; cod
       { name: 'Basic Electrical Engineering', code: 'EE100', credits: 3 },
       { name: 'Programming in C', code: 'CSE101', credits: 3 },
     ],
-    // ... other semesters
   },
 };
 
@@ -116,7 +115,8 @@ interface Subject {
 
 export default function SyllabusViewerScreen() {
   const navigation = useNavigation<SyllabusViewerScreenNavigationProp>();
-  
+  const { theme, isDark } = useTheme();
+
   const [selectedBranch, setSelectedBranch] = useState<string | null>(null);
   const [selectedSemester, setSelectedSemester] = useState<string | null>(null);
   const [subjects, setSubjects] = useState<Subject[]>([]);
@@ -127,7 +127,6 @@ export default function SyllabusViewerScreen() {
 
   const handleSemesterSelect = (semester: string) => {
     setSelectedSemester(semester);
-    // Load subjects for the selected branch and semester
     const branchSubjects = SUBJECTS_DATA[selectedBranch!]?.[semester] || [];
     setSubjects(branchSubjects);
   };
@@ -141,7 +140,6 @@ export default function SyllabusViewerScreen() {
         {
           text: 'View PDF',
           onPress: () => {
-            // In production, replace with actual PDF URL from Firestore
             const mockPdfUrl = `https://ktu.edu.in/syllabus/${subject.code}.pdf`;
             Linking.openURL(mockPdfUrl).catch(() => {
               Alert.alert('Info', 'Syllabus PDF viewer will open here.\n\nIn production, this will load the actual syllabus document.');
@@ -179,66 +177,99 @@ export default function SyllabusViewerScreen() {
     return parts.join(' → ');
   };
 
+  const selectedBranchData = BRANCHES.find(b => b.code === selectedBranch);
+
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
       {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={handleBack}>
-          <Text style={styles.backButton}>←</Text>
+      <View style={[styles.header, { borderBottomColor: theme.border }]}>
+        <TouchableOpacity onPress={handleBack} style={styles.headerIconBtn}>
+          <ArrowLeft size={20} color={theme.text} strokeWidth={2} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Syllabus Viewer</Text>
-        <View style={{ width: 30 }} />
+        <View style={styles.headerCenter}>
+          <Text style={[styles.headerTitle, { color: theme.text }]}>
+            {selectedSemester
+              ? `${selectedBranch} · ${selectedSemester}`
+              : selectedBranch
+                ? selectedBranch
+                : 'Syllabus'}
+          </Text>
+        </View>
+        <View style={{ width: 40 }} />
       </View>
 
       {/* Breadcrumb */}
-      <View style={styles.breadcrumbContainer}>
-        <Text style={styles.breadcrumbText}>{getBreadcrumb()}</Text>
+      <View style={[styles.breadcrumbContainer, { backgroundColor: theme.backgroundSecondary, borderBottomColor: theme.border }]}>
+        <Text style={[styles.breadcrumbText, { color: theme.textSecondary }]}>{getBreadcrumb()}</Text>
       </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 32 }}>
         {!selectedBranch ? (
           /* Step 1: Select Branch */
           <View>
-            <View style={styles.infoCard}>
-              <Text style={styles.infoTitle}>📖 View Complete KTU Syllabus</Text>
-              <Text style={styles.infoDescription}>
+            <View style={[styles.infoCard, {
+              backgroundColor: isDark ? 'rgba(37, 99, 235, 0.12)' : '#EEF2FF',
+              borderLeftColor: theme.primary,
+            }]}>
+              <Text style={[styles.infoTitle, { color: theme.text }]}>Browse KTU Syllabus</Text>
+              <Text style={[styles.infoDescription, { color: theme.textSecondary }]}>
                 Access syllabus for all subjects by branch and semester
               </Text>
             </View>
 
-            <Text style={styles.sectionTitle}>Select Your Branch</Text>
+            <Text style={[styles.sectionTitle, { color: theme.text }]}>Select Your Branch</Text>
             {BRANCHES.map((branch) => (
               <TouchableOpacity
                 key={branch.code}
-                style={styles.card}
+                style={[styles.branchCard, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}
                 onPress={() => handleBranchSelect(branch.code)}
                 activeOpacity={0.7}
               >
-                <View style={styles.cardIcon}>
+                <View style={[styles.branchIconCircle, { backgroundColor: `${branch.color}18` }]}>
                   <Text style={styles.cardEmoji}>{branch.icon}</Text>
                 </View>
                 <View style={styles.cardContent}>
-                  <Text style={styles.cardTitle}>{branch.code}</Text>
-                  <Text style={styles.cardSubtitle}>{branch.name}</Text>
+                  <Text style={[styles.branchCode, { color: theme.text }]}>{branch.code}</Text>
+                  <Text style={[styles.branchName, { color: theme.textSecondary }]}>{branch.name}</Text>
                 </View>
-                <Text style={styles.cardArrow}>›</Text>
+                <View style={[styles.arrowCircle, { backgroundColor: theme.backgroundSecondary }]}>
+                  <Text style={[styles.cardArrow, { color: theme.textTertiary }]}>›</Text>
+                </View>
               </TouchableOpacity>
             ))}
           </View>
         ) : !selectedSemester ? (
           /* Step 2: Select Semester */
           <View>
-            <Text style={styles.sectionTitle}>Select Semester</Text>
+            {selectedBranchData && (
+              <View style={[styles.branchBanner, {
+                backgroundColor: `${selectedBranchData.color}18`,
+                borderColor: `${selectedBranchData.color}40`,
+              }]}>
+                <Text style={styles.branchBannerIcon}>{selectedBranchData.icon}</Text>
+                <View>
+                  <Text style={[styles.branchBannerCode, { color: selectedBranchData.color }]}>
+                    {selectedBranchData.code}
+                  </Text>
+                  <Text style={[styles.branchBannerName, { color: theme.textSecondary }]}>
+                    {selectedBranchData.name}
+                  </Text>
+                </View>
+              </View>
+            )}
+            <Text style={[styles.sectionTitle, { color: theme.text }]}>Select Semester</Text>
             <View style={styles.semesterGrid}>
               {SEMESTERS.map((semester) => (
                 <TouchableOpacity
                   key={semester}
-                  style={styles.semesterCard}
+                  style={[styles.semesterCard, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}
                   onPress={() => handleSemesterSelect(semester)}
                   activeOpacity={0.7}
                 >
-                  <Text style={styles.semesterText}>{semester}</Text>
-                  <Text style={styles.semesterSubtext}>Semester {semester.replace('S', '')}</Text>
+                  <Text style={[styles.semesterText, { color: theme.primary }]}>{semester}</Text>
+                  <Text style={[styles.semesterSubtext, { color: theme.textSecondary }]}>
+                    Semester {semester.replace('S', '')}
+                  </Text>
                 </TouchableOpacity>
               ))}
             </View>
@@ -246,38 +277,44 @@ export default function SyllabusViewerScreen() {
         ) : (
           /* Step 3: Display Subjects */
           <View>
-            <Text style={styles.sectionTitle}>Subjects</Text>
+            <Text style={[styles.sectionTitle, { color: theme.text }]}>Subjects</Text>
             {subjects.length === 0 ? (
               <View style={styles.emptyState}>
                 <Text style={styles.emptyStateIcon}>📚</Text>
-                <Text style={styles.emptyStateText}>No subjects found</Text>
-                <Text style={styles.emptyStateSubtext}>
-                  Syllabus data will be loaded from Firestore
+                <Text style={[styles.emptyStateText, { color: theme.textSecondary }]}>No subjects found</Text>
+                <Text style={[styles.emptyStateSubtext, { color: theme.textTertiary }]}>
+                  Syllabus data will be loaded from the server
                 </Text>
               </View>
             ) : (
               subjects.map((subject, index) => (
                 <TouchableOpacity
                   key={index}
-                  style={styles.subjectCard}
+                  style={[styles.subjectCard, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}
                   onPress={() => handleViewSyllabus(subject)}
                   activeOpacity={0.7}
                 >
-                  <View style={styles.subjectLeft}>
-                    <Text style={styles.subjectIcon}>📄</Text>
-                    <View style={styles.subjectInfo}>
-                      <Text style={styles.subjectName}>{subject.name}</Text>
-                      <Text style={styles.subjectCode}>
-                        {subject.code} • {subject.credits} Credits
-                      </Text>
-                    </View>
+                  <View style={[styles.subjectIndexBadge, { backgroundColor: theme.primary + '20' }]}>
+                    <Text style={[styles.subjectIndex, { color: theme.primary }]}>{index + 1}</Text>
+                  </View>
+                  <View style={styles.subjectInfo}>
+                    <Text style={[styles.subjectName, { color: theme.text }]}>{subject.name}</Text>
+                    <Text style={[styles.subjectCode, { color: theme.textSecondary }]}>
+                      {subject.code} • {subject.credits} Credits
+                    </Text>
                   </View>
                   <View style={styles.subjectActions}>
-                    <TouchableOpacity style={styles.actionIcon}>
-                      <Text style={styles.actionIconText}>👁️</Text>
+                    <TouchableOpacity
+                      style={[styles.actionIconBtn, { backgroundColor: theme.backgroundSecondary }]}
+                      onPress={() => handleViewSyllabus(subject)}
+                    >
+                      <Eye size={15} color={theme.textSecondary} strokeWidth={2} />
                     </TouchableOpacity>
-                    <TouchableOpacity style={styles.actionIcon}>
-                      <Text style={styles.actionIconText}>⬇️</Text>
+                    <TouchableOpacity
+                      style={[styles.actionIconBtn, { backgroundColor: theme.backgroundSecondary }]}
+                      onPress={() => Alert.alert('Download', `Downloading ${subject.name} syllabus...`)}
+                    >
+                      <Download size={15} color={theme.textSecondary} strokeWidth={2} />
                     </TouchableOpacity>
                   </View>
                 </TouchableOpacity>
@@ -293,36 +330,31 @@ export default function SyllabusViewerScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
   },
-  backButton: {
-    fontSize: 28,
-    color: '#1F2937',
+
+  headerCenter: {
+    flex: 1,
+    alignItems: 'center',
   },
   headerTitle: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '700',
-    color: '#1F2937',
   },
   breadcrumbContainer: {
     paddingHorizontal: 20,
-    paddingVertical: 12,
-    backgroundColor: '#F9FAFB',
+    paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
   },
   breadcrumbText: {
-    fontSize: 14,
-    color: '#6B7280',
+    fontSize: 13,
     fontWeight: '500',
   },
   content: {
@@ -331,161 +363,177 @@ const styles = StyleSheet.create({
     paddingTop: 16,
   },
   infoCard: {
-    backgroundColor: '#EEF2FF',
-    borderRadius: 12,
+    borderRadius: 14,
     padding: 16,
     marginBottom: 20,
     borderLeftWidth: 4,
-    borderLeftColor: '#6366F1',
   },
   infoTitle: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '700',
-    color: '#1F2937',
     marginBottom: 6,
   },
   infoDescription: {
-    fontSize: 14,
-    color: '#6B7280',
+    fontSize: 13,
     lineHeight: 20,
   },
   sectionTitle: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: '700',
-    color: '#1F2937',
-    marginBottom: 16,
-    marginTop: 8,
+    marginBottom: 14,
+    marginTop: 4,
   },
-  card: {
+  branchCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F8FAFC',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 10,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
   },
-  cardIcon: {
-    width: 50,
-    height: 50,
+  branchIconCircle: {
+    width: 48,
+    height: 48,
     borderRadius: 12,
-    backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 12,
+    marginRight: 14,
   },
   cardEmoji: {
-    fontSize: 24,
+    fontSize: 22,
   },
   cardContent: {
     flex: 1,
   },
-  cardTitle: {
+  branchCode: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#1F2937',
-    marginBottom: 4,
+    marginBottom: 3,
   },
-  cardSubtitle: {
-    fontSize: 13,
-    color: '#64748B',
+  branchName: {
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  arrowCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   cardArrow: {
-    fontSize: 24,
-    color: '#CBD5E1',
-    fontWeight: '300',
+    fontSize: 22,
+    fontWeight: '400',
+    marginTop: -2,
+  },
+  branchBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 20,
+    borderWidth: 1,
+    gap: 14,
+  },
+  branchBannerIcon: {
+    fontSize: 36,
+  },
+  branchBannerCode: {
+    fontSize: 20,
+    fontWeight: '800',
+    marginBottom: 2,
+  },
+  branchBannerName: {
+    fontSize: 13,
   },
   semesterGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
+    gap: 12,
   },
   semesterCard: {
-    width: '48%',
-    backgroundColor: '#F8FAFC',
-    borderRadius: 12,
+    width: '47%',
+    borderRadius: 14,
     padding: 20,
-    marginBottom: 12,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#E2E8F0',
   },
   semesterText: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#6366F1',
+    fontSize: 26,
+    fontWeight: '800',
     marginBottom: 4,
   },
   semesterSubtext: {
     fontSize: 12,
-    color: '#64748B',
+    fontWeight: '500',
   },
   subjectCard: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#F8FAFC',
-    borderRadius: 12,
+    borderRadius: 14,
     padding: 14,
     marginBottom: 10,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
   },
-  subjectLeft: {
-    flexDirection: 'row',
+  subjectIndexBadge: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
     alignItems: 'center',
-    flex: 1,
-  },
-  subjectIcon: {
-    fontSize: 24,
+    justifyContent: 'center',
     marginRight: 12,
+  },
+  subjectIndex: {
+    fontSize: 14,
+    fontWeight: '700',
   },
   subjectInfo: {
     flex: 1,
   },
   subjectName: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '600',
-    color: '#1F2937',
     marginBottom: 4,
   },
   subjectCode: {
     fontSize: 12,
-    color: '#64748B',
   },
   subjectActions: {
     flexDirection: 'row',
     gap: 8,
   },
-  actionIcon: {
-    width: 36,
-    height: 36,
+  actionIconBtn: {
+    width: 34,
+    height: 34,
     borderRadius: 8,
-    backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
   },
   actionIconText: {
-    fontSize: 16,
+    fontSize: 15,
+  },
+  headerIconBtn: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   emptyState: {
     alignItems: 'center',
     paddingVertical: 60,
   },
   emptyStateIcon: {
-    fontSize: 64,
+    fontSize: 60,
     marginBottom: 16,
   },
   emptyStateText: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: '600',
-    color: '#6B7280',
     marginBottom: 8,
   },
   emptyStateSubtext: {
-    fontSize: 14,
-    color: '#9CA3AF',
+    fontSize: 13,
     textAlign: 'center',
   },
 });

@@ -48,3 +48,4 @@ User data is stored in Firestore with the following fields:
 - `yearEnding` - Calculated year ending (yearJoined + 4)
 - `rollNumber` - Extracted roll number
 - `createdAt` - Account creation timestamp
+- `semester` - semester (S1-S8)

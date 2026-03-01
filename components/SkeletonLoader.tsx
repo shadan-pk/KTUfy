@@ -206,21 +206,20 @@ export const LibraryScreenSkeleton: React.FC = () => {
 // ─── TicklistScreenSkeleton ───────────────────────────────────────────────────
 export const TicklistScreenSkeleton: React.FC = () => {
     const { theme } = useTheme();
-    // Since Ticklist doesn't use theme internally, use a fixed shimmer color
     const shimmer = theme.backgroundSecondary;
     return (
-        <View style={[sk.container, { backgroundColor: '#F8F9FD' }]}>
+        <View style={[sk.container, { backgroundColor: theme.background }]}>
             {/* Stats row */}
             <View style={sk.statsRow}>
                 {[0, 1, 2].map(i => (
-                    <View key={i} style={[sk.tickStatCard, { backgroundColor: '#FFFFFF' }]}>
+                    <View key={i} style={[sk.tickStatCard, { backgroundColor: theme.card }]}>
                         <SkeletonBox width={60} height={28} borderRadius={6} style={{ marginBottom: 6, backgroundColor: shimmer }} />
                         <SkeletonBox width={50} height={12} borderRadius={4} style={{ backgroundColor: shimmer }} />
                     </View>
                 ))}
             </View>
             {/* Progress bar card */}
-            <View style={[sk.progressCard, { backgroundColor: '#FFFFFF' }]}>
+            <View style={[sk.progressCard, { backgroundColor: theme.card }]}>
                 <View style={sk.cardRow}>
                     <SkeletonBox width="50%" height={14} borderRadius={5} style={{ backgroundColor: shimmer }} />
                     <SkeletonBox width={40} height={14} borderRadius={5} style={{ backgroundColor: shimmer }} />
@@ -235,7 +234,7 @@ export const TicklistScreenSkeleton: React.FC = () => {
             </View>
             {/* Subject cards */}
             {[0, 1].map(i => (
-                <View key={i} style={[sk.subjectCard, { backgroundColor: '#FFFFFF' }]}>
+                <View key={i} style={[sk.subjectCard, { backgroundColor: theme.card }]}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
                         <View style={[sk.colorBar, { backgroundColor: shimmer }]} />
                         <View style={{ flex: 1 }}>
@@ -249,6 +248,32 @@ export const TicklistScreenSkeleton: React.FC = () => {
                     ))}
                 </View>
             ))}
+        </View>
+    );
+};
+
+// ─── UpcomingExamWidgetSkeleton ───────────────────────────────────────────────
+export const UpcomingExamWidgetSkeleton: React.FC = () => {
+    const { theme } = useTheme();
+    const shimmer = theme.backgroundSecondary;
+    return (
+        <View style={[sk.examWidgetCard, { backgroundColor: theme.background, borderColor: theme.border }]}>
+            {/* Date box skeleton */}
+            <View style={[sk.examWidgetDate, { backgroundColor: shimmer }]}>
+                <SkeletonBox width={28} height={10} borderRadius={3} style={{ marginBottom: 4, backgroundColor: theme.background + '40' }} />
+                <SkeletonBox width={28} height={28} borderRadius={5} style={{ marginBottom: 2, backgroundColor: theme.background + '40' }} />
+                <SkeletonBox width={22} height={10} borderRadius={3} style={{ backgroundColor: theme.background + '40' }} />
+            </View>
+            {/* Event info skeleton */}
+            <View style={{ flex: 1, paddingLeft: 4 }}>
+                <SkeletonBox width="80%" height={14} borderRadius={5} style={{ marginBottom: 8, backgroundColor: shimmer }} />
+                <SkeletonBox width="50%" height={11} borderRadius={4} style={{ backgroundColor: shimmer }} />
+            </View>
+            {/* Right col skeleton */}
+            <View style={sk.examWidgetRight}>
+                <SkeletonBox width={32} height={16} borderRadius={4} style={{ marginBottom: 4, backgroundColor: shimmer }} />
+                <SkeletonBox width={24} height={10} borderRadius={3} style={{ backgroundColor: shimmer }} />
+            </View>
         </View>
     );
 };
@@ -368,4 +393,14 @@ const sk = StyleSheet.create({
         alignItems: 'center', paddingVertical: 28,
         borderBottomWidth: 1, marginBottom: 0,
     },
+    // Upcoming exam widget skeleton
+    examWidgetCard: {
+        flexDirection: 'row', alignItems: 'center',
+        borderRadius: 14, borderWidth: 1, padding: 12,
+    },
+    examWidgetDate: {
+        width: 56, paddingVertical: 8, borderRadius: 10,
+        alignItems: 'center', justifyContent: 'center', marginRight: 12,
+    },
+    examWidgetRight: { alignItems: 'center', minWidth: 44 },
 });

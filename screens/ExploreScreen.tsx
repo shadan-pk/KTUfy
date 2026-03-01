@@ -21,6 +21,8 @@ import { useTheme } from '../contexts/ThemeContext';
 import { getCachedTicklists, setCachedTicklists } from '../services/cacheService';
 import supabase from '../supabaseClient';
 import { getExamSchedule, ExamEvent } from '../services/scheduleService';
+import { UpcomingExamWidgetSkeleton } from '../components/SkeletonLoader';
+import { ArrowLeft } from 'lucide-react-native';
 
 const { width } = Dimensions.get('window');
 
@@ -396,7 +398,7 @@ const ExploreScreen: React.FC<ExploreScreenProps> = ({ navigation }) => {
             <SafeAreaView edges={['top']} style={[styles.headerSafe, { backgroundColor: theme.background }]}>
                 <View style={[styles.header, { borderBottomColor: theme.divider }]}>
                     <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-                        <Text style={[styles.backIcon, { color: theme.text }]}>←</Text>
+                        <ArrowLeft size={20} color={theme.text} strokeWidth={2} />
                     </TouchableOpacity>
                     <View style={styles.headerInfo}>
                         <Text style={[styles.greetingText, { color: theme.textSecondary }]}>{getGreeting()}</Text>
@@ -424,11 +426,7 @@ const ExploreScreen: React.FC<ExploreScreenProps> = ({ navigation }) => {
                     </View>
 
                     {examsLoading ? (
-                        <View style={{ paddingVertical: 12 }}>
-                            {[0, 1, 2].map(i => (
-                                <View key={i} style={[styles.examSkeletonRow, { backgroundColor: theme.divider }]} />
-                            ))}
-                        </View>
+                        <UpcomingExamWidgetSkeleton />
                     ) : upcomingExams.length === 0 ? (
                         // Always show a card even when empty — with today's date
                         <View style={[styles.calCard, { backgroundColor: theme.background, borderColor: theme.border }]}>

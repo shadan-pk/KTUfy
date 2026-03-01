@@ -11,6 +11,8 @@ export interface SyllabusSubject {
     name: string;
     code: string;
     credits: number;
+    semester?: number;
+    module_count?: number;
 }
 
 export interface SyllabusModule {
@@ -33,6 +35,7 @@ export interface SubjectSyllabus {
 export interface BranchInfo {
     code: string;
     name: string;
+    subject_count?: number;
 }
 
 /**

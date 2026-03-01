@@ -21,7 +21,7 @@ A React Native mobile application built with Expo, now migrated to Supabase for 
 
 1. Clone the repository:
 ```bash
-git clone <repository-url>
+git clone https://github.com/shadan-pk/KTUfy.git
 cd KTUfy
 ```
 

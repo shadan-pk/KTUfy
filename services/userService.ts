@@ -14,6 +14,7 @@ export interface UserProfile {
   roll_number: string;
   college: string;
   branch: string;
+  semester?: string;
   metadata?: any;
   user_id?: string;
   role?: string;
