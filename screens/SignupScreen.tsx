@@ -10,10 +10,12 @@ import {
   Platform,
   ScrollView,
   StatusBar,
+  Modal,
 } from 'react-native';
 import { useAuth } from '../auth/AuthProvider';
 import { SignupScreenNavigationProp } from '../types/navigation';
 import { useTheme } from '../contexts/ThemeContext';
+import { Mail } from 'lucide-react-native';
 
 interface SignupScreenProps {
   navigation: SignupScreenNavigationProp;
@@ -45,6 +47,7 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
   const [registrationError, setRegistrationError] = useState<string | null>(null);
   const [signupError, setSignupError] = useState<string | null>(null);
   const [step, setStep] = useState<SignupStep>(1);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
 
   // Parse registration number format: MEA22CS051
   const parseRegistrationNumber = (regNum: string): ParsedRegistration => {
@@ -145,9 +148,7 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
       // The DB trigger on_auth_user_created handles creating the public.users profile row.
       await signUp(email, password, metadata);
 
-      Alert.alert('Success', 'Account created successfully!', [
-        { text: 'OK', onPress: () => navigation.navigate('Login') },
-      ]);
+      setShowSuccessModal(true);
     } catch (error: any) {
       const errorMessage = error.message || 'Signup failed. Please try again.';
       setSignupError(errorMessage);
@@ -157,6 +158,7 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
   };
 
   return (
+    <>
     <KeyboardAvoidingView
       style={[styles.container, { backgroundColor: theme.background }]}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -608,6 +610,30 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
+
+      {/* Success Modal */}
+      <Modal visible={showSuccessModal} transparent animationType="fade">
+        <View style={styles.successOverlay}>
+          <View style={[styles.successBox, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>  
+            <View style={[styles.successIconWrap, { backgroundColor: 'rgba(16,185,129,0.1)' }]}>
+              <Mail size={28} color="#10B981" strokeWidth={2} />
+            </View>
+            <Text style={[styles.successTitle, { color: theme.text }]}>Check your email</Text>
+            <Text style={[styles.successDesc, { color: theme.textSecondary }]}>
+              We sent a confirmation link to{' '}
+              <Text style={{ fontWeight: '700', color: theme.text }}>{email}</Text>.
+              Verify your email to activate your account.
+            </Text>
+            <TouchableOpacity
+              style={[styles.successBtn, { backgroundColor: theme.primary }]}
+              onPress={() => { setShowSuccessModal(false); navigation.navigate('Login'); }}
+            >
+              <Text style={styles.successBtnText}>Go to Login</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+    </>
   );
 };
 
@@ -883,6 +909,51 @@ const styles = StyleSheet.create({
   semesterChipText: {
     fontSize: 15,
     fontWeight: '700',
+  },
+  // Success modal
+  successOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 32,
+  },
+  successBox: {
+    width: '100%',
+    borderRadius: 20,
+    padding: 28,
+    alignItems: 'center',
+    borderWidth: 1,
+  },
+  successIconWrap: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  successTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    marginBottom: 8,
+  },
+  successDesc: {
+    fontSize: 14,
+    lineHeight: 20,
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  successBtn: {
+    width: '100%',
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  successBtnText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '600',
   },
 });
 

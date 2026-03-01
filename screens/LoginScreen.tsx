@@ -14,6 +14,7 @@ import {
 import { useAuth } from '../auth/AuthProvider';
 import { LoginScreenNavigationProp } from '../types/navigation';
 import { useTheme } from '../contexts/ThemeContext';
+import { Mail } from 'lucide-react-native';
 
 interface LoginScreenProps {
   navigation: LoginScreenNavigationProp;
@@ -28,6 +29,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
   const [loading, setLoading] = useState(false);
   const [mode, setMode] = useState<LoginMode>('initial');
   const [error, setError] = useState<string | null>(null);
+  const [emailNotConfirmed, setEmailNotConfirmed] = useState(false);
 
   const { signIn } = useAuth();
 
@@ -38,13 +40,20 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
     }
 
     setError(null);
+    setEmailNotConfirmed(false);
     setLoading(true);
     try {
       await signIn(email, password);
       // Navigation will be handled by the main App component
     } catch (error: any) {
-      const errorMessage = error.message || 'Login failed. Please check your email and password.';
-      setError(errorMessage);
+      const msg = (error.message || '').toLowerCase();
+      if (msg.includes('email not confirmed') || msg.includes('email_not_confirmed')) {
+        setEmailNotConfirmed(true);
+        setError(null);
+      } else {
+        const errorMessage = error.message || 'Login failed. Please check your email and password.';
+        setError(errorMessage);
+      }
     } finally {
       setLoading(false);
     }
@@ -127,6 +136,18 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
                 {error && (
                   <View style={styles.errorContainer}>
                     <Text style={[styles.errorMessage, { color: theme.error }]}>{error}</Text>
+                  </View>
+                )}
+
+                {emailNotConfirmed && (
+                  <View style={[styles.confirmBanner, { backgroundColor: isDark ? 'rgba(245,158,11,0.1)' : '#FFFBEB', borderColor: isDark ? 'rgba(245,158,11,0.25)' : '#FDE68A' }]}>
+                    <Mail size={18} color="#F59E0B" strokeWidth={2} style={{ marginRight: 10, marginTop: 2 }} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.confirmBannerTitle, { color: theme.text }]}>Email not verified</Text>
+                      <Text style={[styles.confirmBannerDesc, { color: theme.textSecondary }]}>
+                        Check your inbox and click the confirmation link before signing in.
+                      </Text>
+                    </View>
                   </View>
                 )}
 
@@ -342,6 +363,22 @@ const styles = StyleSheet.create({
     color: '#EF4444',
     fontSize: 13,
     fontWeight: '500',
+  },
+  confirmBanner: {
+    flexDirection: 'row',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 14,
+    borderWidth: 1,
+  },
+  confirmBannerTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    marginBottom: 2,
+  },
+  confirmBannerDesc: {
+    fontSize: 12,
+    lineHeight: 17,
   },
   stepHeader: {
     flexDirection: 'row',
