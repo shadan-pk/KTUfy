@@ -353,7 +353,35 @@ export const ProfileScreenSkeleton: React.FC = () => {
         </View>
     );
 };
-
+// ─── LoginScreenSkeleton ───────────────────────────────────────────────────────
+export const LoginScreenSkeleton: React.FC = () => {
+    const { theme } = useTheme();
+    return (
+        <View style={[sk.container, { backgroundColor: theme.background, justifyContent: 'flex-end' }]}>
+            {/* Logo area */}
+            <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+                <SkeletonBox width={160} height={48} borderRadius={10} style={{ marginBottom: 12 }} />
+            </View>
+            {/* Bottom sheet card */}
+            <View style={[sk.loginCard, { backgroundColor: theme.backgroundSecondary }]}>
+                {/* Title */}
+                <SkeletonBox width={180} height={24} borderRadius={8} style={{ alignSelf: 'center', marginBottom: 24 }} />
+                {/* Google button */}
+                <SkeletonBox width="100%" height={48} borderRadius={999} style={{ marginBottom: 12 }} />
+                {/* Divider */}
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginVertical: 16, gap: 10 }}>
+                    <SkeletonBox width="40%" height={1} borderRadius={0} />
+                    <SkeletonBox width={24} height={14} borderRadius={4} />
+                    <SkeletonBox width="40%" height={1} borderRadius={0} />
+                </View>
+                {/* Email button */}
+                <SkeletonBox width="100%" height={48} borderRadius={999} style={{ marginBottom: 24 }} />
+                {/* Footer */}
+                <SkeletonBox width={200} height={14} borderRadius={6} style={{ alignSelf: 'center' }} />
+            </View>
+        </View>
+    );
+};
 // ─── Styles ───────────────────────────────────────────────────────────────────
 const sk = StyleSheet.create({
     container: { flex: 1 },
@@ -403,4 +431,8 @@ const sk = StyleSheet.create({
         alignItems: 'center', justifyContent: 'center', marginRight: 12,
     },
     examWidgetRight: { alignItems: 'center', minWidth: 44 },
+    loginCard: {
+        borderTopLeftRadius: 28, borderTopRightRadius: 28,
+        paddingHorizontal: 20, paddingTop: 24, paddingBottom: 32,
+    },
 });

@@ -77,7 +77,7 @@ const LearningZoneScreen: React.FC<LearningZoneScreenProps> = ({ navigation }) =
       id: 'flashcards',
       title: 'AI Flashcards',
       description: 'Generate flashcards for any topic and flip to study',
-      icon: '🃏',
+      icon: '�',
       color: '#3B82F6',
       gradient: ['#3B82F6', '#2563EB'],
       onPress: () => navigation.navigate('Flashcards'),

@@ -268,7 +268,7 @@ const FlashcardScreen: React.FC<FlashcardScreenProps> = ({ navigation }) => {
                         {/* Cached indicator */}
                         {isCached && (
                             <View style={[styles.cachedBadge, { backgroundColor: theme.backgroundSecondary, borderColor: theme.border }]}>
-                                <Text style={[styles.cachedBadgeText, { color: theme.textSecondary }]}>📦 Loaded from cache</Text>
+                                <Text style={[styles.cachedBadgeText, { color: theme.textSecondary }]}>📦 Loaded from db</Text>
                             </View>
                         )}
 
@@ -439,18 +439,8 @@ const styles = StyleSheet.create({
     cardContainer: {
         height: 260,
         marginBottom: 20,
-    },
-    card: {
-        position: 'absolute',
-        width: '100%',
-        height: '100%',
         borderRadius: 20,
-        padding: 28,
-        justifyContent: 'center',
-        alignItems: 'center',
-        backfaceVisibility: 'hidden',
-        borderWidth: 2,
-        // Shadow
+        // Shadow on the container so it doesn't flip with the card faces
         ...Platform.select({
             ios: {
                 shadowColor: '#000',
@@ -462,6 +452,17 @@ const styles = StyleSheet.create({
                 elevation: 8,
             },
         }),
+    },
+    card: {
+        position: 'absolute',
+        width: '100%',
+        height: '100%',
+        borderRadius: 20,
+        padding: 28,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backfaceVisibility: 'hidden',
+        borderWidth: 2,
     },
     cardBack: {
         position: 'absolute',

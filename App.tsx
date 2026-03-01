@@ -4,11 +4,12 @@ import { createStackNavigator, CardStyleInterpolators } from '@react-navigation/
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { useAuth, AuthProvider } from './auth/AuthProvider';
 import { StatusBar } from 'expo-status-bar';
-import { View, ActivityIndicator, StyleSheet, StatusBar as RNStatusBar, Platform } from 'react-native';
+import { View, StyleSheet, StatusBar as RNStatusBar, Platform } from 'react-native';
 import 'react-native-gesture-handler';
 
 // Import Theme Provider
 import { ThemeProvider, useTheme } from './contexts/ThemeContext';
+import { LoginScreenSkeleton } from './components/SkeletonLoader';
 
 // Import screens
 import LoginScreen from './screens/LoginScreen';
@@ -81,11 +82,7 @@ function AppContent() {
   const { isDark, theme } = useTheme();
 
   if (user === undefined) {
-    return (
-      <View style={[styles.loadingContainer, { backgroundColor: theme.background }]}>
-        <ActivityIndicator size="large" color={theme.primary} />
-      </View>
-    );
+    return <LoginScreenSkeleton />;
   }
 
   return (

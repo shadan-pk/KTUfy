@@ -341,16 +341,6 @@ export default function GPACalculatorScreen() {
                       <RotateCcw size={15} color={theme.textSecondary} strokeWidth={2} />
                       <Text style={[styles.resultActionText, { color: theme.textSecondary }]}>Recalculate</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[styles.resultActionBtn, { backgroundColor: theme.gpaCalculator, borderColor: theme.gpaCalculator }]}
-                      onPress={() => {
-                        setShowResultModal(false);
-                        Alert.alert('Saved', `${resultType}: ${resultValue?.toFixed(2)} saved.`);
-                      }}
-                    >
-                      <BookmarkCheck size={15} color="#FFFFFF" strokeWidth={2} />
-                      <Text style={[styles.resultActionText, { color: '#FFFFFF' }]}>Save</Text>
-                    </TouchableOpacity>
                   </View>
                 </>
               );
