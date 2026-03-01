@@ -72,6 +72,9 @@ const ChatbotScreen: React.FC<ChatbotScreenProps> = ({ navigation }) => {
   const [editingSessionId, setEditingSessionId] = React.useState<string | null>(null);
   const [editingTitle, setEditingTitle] = React.useState('');
   const [initialPromptSent, setInitialPromptSent] = React.useState(false);
+  const [streamingMsgId, setStreamingMsgId] = React.useState<string | null>(null);
+  const [streamingText, setStreamingText] = React.useState('');
+  const streamingRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const scrollViewRef = React.useRef<ScrollView>(null);
 
   const { serverOnline } = useServerStatus();
@@ -124,12 +127,12 @@ const ChatbotScreen: React.FC<ChatbotScreenProps> = ({ navigation }) => {
     }
   }, [initialPrompt, initialPromptSent, isLoading]);
 
-  // Auto-scroll
+  // Auto-scroll only when user sends a message (to show typing indicator)
   React.useEffect(() => {
-    if (scrollViewRef.current && messages.length > 0) {
+    if (scrollViewRef.current && isTyping) {
       setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
     }
-  }, [messages]);
+  }, [isTyping]);
 
   const showWelcomeMessage = () => {
     const offline = !(process.env.API_BASE_URL && process.env.API_BASE_URL !== 'undefined');
@@ -230,11 +233,39 @@ const ChatbotScreen: React.FC<ChatbotScreenProps> = ({ navigation }) => {
     }
   };
 
+  // Render text with **bold** markdown support
+  const renderFormattedText = (text: string, color: string) => {
+    const parts = text.split(/(\*\*.*?\*\*)/g);
+    return parts.map((part, i) => {
+      if (part.startsWith('**') && part.endsWith('**')) {
+        return (
+          <Text key={i} style={{ fontWeight: '700', color }}>
+            {part.slice(2, -2)}
+          </Text>
+        );
+      }
+      return <Text key={i}>{part}</Text>;
+    });
+  };
+
   const handleNewChat = async () => {
     setCurrentSessionId(null);
     setMessages([]);
     showWelcomeMessage();
     closeSidebar();
+  };
+
+  // Lightweight refresh — only updates sidebar session list, never switches active chat
+  const refreshSessionList = async () => {
+    try {
+      if (process.env.API_BASE_URL && process.env.API_BASE_URL !== 'undefined') {
+        const sessionList = await getChatSessions();
+        setSessions(sessionList);
+        await setCachedChatSessions(sessionList);
+      }
+    } catch (err: any) {
+      console.log('[Chat] Could not refresh session list:', err.message);
+    }
   };
 
   const generateLocalResponse = (userMessage: string): string => {
@@ -253,6 +284,27 @@ const ChatbotScreen: React.FC<ChatbotScreenProps> = ({ navigation }) => {
     if (lm.includes('programming') || lm.includes('coding'))
       return "💻 Programming tips:\n\n• Practice daily\n• Understand concepts first\n• Build projects\n• Debug systematically\n• Read others' code\n\nWhat language?";
     return `I understand you're asking about "${userMessage}". I'm offline, but here's general guidance:\n\n• Break topics into smaller parts\n• Use multiple resources\n• Practice regularly\n• Ask specific questions\n\nCould you provide more details?`;
+  };
+
+  // Typewriter helper — streams text char-by-char into a message
+  const typewriteMessage = (msgId: string, fullText: string, onDone?: () => void) => {
+    // Clear any previous streaming
+    if (streamingRef.current) clearTimeout(streamingRef.current);
+    let idx = 0;
+    const step = () => {
+      if (idx < fullText.length) {
+        const chunk = Math.min(3, fullText.length - idx);
+        idx += chunk;
+        setStreamingText(fullText.slice(0, idx));
+        streamingRef.current = setTimeout(step, 18);
+      } else {
+        setStreamingMsgId(null);
+        setStreamingText('');
+        streamingRef.current = null;
+        onDone?.();
+      }
+    };
+    step();
   };
 
   const sendMessage = async (messageText: string) => {
@@ -274,7 +326,8 @@ const ChatbotScreen: React.FC<ChatbotScreenProps> = ({ navigation }) => {
         const response = await sendChatMessage(messageText, currentSessionId || undefined);
         if (!currentSessionId && response.session_id) {
           setCurrentSessionId(response.session_id);
-          loadChatSessions();
+          // Only refresh session list, don't auto-load any session
+          refreshSessionList();
         }
         const aiMsg: Message = {
           id: response.assistant_message.id,
@@ -282,10 +335,18 @@ const ChatbotScreen: React.FC<ChatbotScreenProps> = ({ navigation }) => {
           isUser: false,
           timestamp: new Date(response.assistant_message.created_at),
         };
-        setMessages(prev => {
-          const updated = [...prev, aiMsg];
-          if (currentSessionId) setCachedChatHistory(currentSessionId, updated);
-          return updated;
+        // Set streaming state BEFORE adding message to avoid empty flash
+        const aiMsgEmpty = { ...aiMsg, text: '' };
+        setStreamingMsgId(aiMsg.id);
+        setStreamingText('');
+        setMessages(prev => [...prev, aiMsgEmpty]);
+        setIsTyping(false);
+        typewriteMessage(aiMsg.id, aiMsg.text, () => {
+          setMessages(prev => {
+            const updated = prev.map(m => m.id === aiMsg.id ? aiMsg : m);
+            if (currentSessionId) setCachedChatHistory(currentSessionId, updated);
+            return updated;
+          });
         });
       } else {
         throw new Error('Backend not available');
@@ -297,8 +358,14 @@ const ChatbotScreen: React.FC<ChatbotScreenProps> = ({ navigation }) => {
           text: generateLocalResponse(messageText),
           isUser: false, timestamp: new Date(),
         };
-        setMessages(prev => [...prev, aiMsg]);
+        const aiMsgEmpty = { ...aiMsg, text: '' };
+        setStreamingMsgId(aiMsg.id);
+        setStreamingText('');
+        setMessages(prev => [...prev, aiMsgEmpty]);
         setIsTyping(false);
+        typewriteMessage(aiMsg.id, aiMsg.text, () => {
+          setMessages(prev => prev.map(m => m.id === aiMsg.id ? aiMsg : m));
+        });
       }, 1000);
       return;
     }
@@ -426,9 +493,16 @@ const ChatbotScreen: React.FC<ChatbotScreenProps> = ({ navigation }) => {
                       <Text style={[styles.aiLabelText, { color: theme.primary }]}>KTUfy AI</Text>
                     </View>
                   )}
-                  <Text style={[styles.msgText, { color: m.isUser ? '#FFFFFF' : theme.text }]}>
-                    {m.text}
-                  </Text>
+                  {(() => {
+                    const displayText = m.id === streamingMsgId ? streamingText : m.text;
+                    if (!displayText && !m.isUser) return null;
+                    const textColor = m.isUser ? '#FFFFFF' : theme.text;
+                    return (
+                      <Text style={[styles.msgText, { color: textColor }]}>
+                        {m.isUser ? displayText : renderFormattedText(displayText, textColor)}
+                      </Text>
+                    );
+                  })()}
                   <Text style={[styles.msgTime, { color: m.isUser ? 'rgba(255,255,255,0.6)' : theme.textTertiary }]}>
                     {formatTime(m.timestamp)}
                   </Text>

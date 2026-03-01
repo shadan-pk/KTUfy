@@ -245,7 +245,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 
       <KeyboardAvoidingView
         style={styles.keyboardView}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        // behavior={Platform.OS === 'ios' ? 'padding' : '10'}
       >
         {/* Main content area */}
         <View style={styles.mainContent}>
