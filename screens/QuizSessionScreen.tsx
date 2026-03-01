@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../contexts/ThemeContext';
+import { Trophy, Target, CheckCircle2, XCircle, RotateCcw, ArrowLeft, ChevronDown, ChevronUp } from 'lucide-react-native';
 
 // Types for Quiz
 interface QuizOption {
@@ -547,97 +548,126 @@ const QuizSessionScreen: React.FC<QuizSessionProps> = ({ navigation }) => {
   // Results View
   if (viewMode === 'results' && currentQuiz) {
     const score = calculateScore();
+    const scoreColor = getProgressColor(score.percentage);
+    const wrong = score.total - score.correct;
 
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['bottom']}>
-        <View style={[styles.header, { backgroundColor: theme.card, borderBottomColor: theme.cardBorder }]}>
-          <Text style={[styles.headerTitle, { color: theme.text }]}>Quiz Results</Text>
+        {/* Minimal Header */}
+        <View style={[styles.resultHeader, { borderBottomColor: theme.border }]}>
+          <TouchableOpacity
+            onPress={() => { setViewMode('menu'); setCurrentQuiz(null); }}
+            style={styles.resultHeaderBackBtn}
+          >
+            <ArrowLeft size={20} color={theme.text} strokeWidth={2} />
+          </TouchableOpacity>
+          <Text style={[styles.resultHeaderTitle, { color: theme.text }]}>Results</Text>
+          <View style={{ width: 40 }} />
         </View>
 
-        <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-          <View style={[styles.resultsCard, { backgroundColor: theme.card }]}>
-            <View style={styles.scoreCircle}>
-              <Text style={[styles.scorePercentage, { color: getProgressColor(score.percentage) }]}>
-                {score.percentage}%
-              </Text>
-              <Text style={[styles.scoreLabel, { color: theme.text }]}>
-                {score.correct}/{score.total} Correct
-              </Text>
+        <ScrollView style={styles.content} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
+          {/* Score Hero Card */}
+          <View style={[styles.scoreHeroCard, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
+            <View style={[styles.scoreRing, { borderColor: scoreColor }]}>
+              <Text style={[styles.scoreHeroPercent, { color: scoreColor }]}>{score.percentage}%</Text>
             </View>
+            <Text style={[styles.scoreHeroTitle, { color: theme.text }]}>
+              {score.percentage >= 80
+                ? 'Excellent!'
+                : score.percentage >= 60
+                ? 'Good Job!'
+                : 'Keep Learning!'}
+            </Text>
+            <Text style={[styles.scoreHeroSub, { color: theme.textSecondary }]}>
+              {currentQuiz.title}
+            </Text>
+          </View>
 
-            <View style={styles.scoreMessage}>
-              <Text style={[styles.scoreTitle, { color: theme.text }]}>
-                {score.percentage >= 80
-                  ? '🎉 Excellent!'
-                  : score.percentage >= 60
-                  ? '👍 Good Job!'
-                  : '💪 Keep Learning!'}
-              </Text>
-              <Text style={[styles.scoreDescription, { color: theme.textSecondary }]}>
-                {score.percentage >= 80
-                  ? 'You have a strong understanding of the topic.'
-                  : score.percentage >= 60
-                  ? 'You have a good grasp of the topic. Review weak areas.'
-                  : 'Keep practicing to improve your knowledge.'}
-              </Text>
+          {/* Stats Row */}
+          <View style={styles.statsRow}>
+            <View style={[styles.statBox, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
+              <View style={[styles.statIconWrap, { backgroundColor: 'rgba(16,185,129,0.1)' }]}>
+                <CheckCircle2 size={18} color="#10B981" strokeWidth={2} />
+              </View>
+              <Text style={[styles.statBoxValue, { color: '#10B981' }]}>{score.correct}</Text>
+              <Text style={[styles.statBoxLabel, { color: theme.textSecondary }]}>Correct</Text>
+            </View>
+            <View style={[styles.statBox, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
+              <View style={[styles.statIconWrap, { backgroundColor: 'rgba(239,68,68,0.1)' }]}>
+                <XCircle size={18} color="#EF4444" strokeWidth={2} />
+              </View>
+              <Text style={[styles.statBoxValue, { color: '#EF4444' }]}>{wrong}</Text>
+              <Text style={[styles.statBoxLabel, { color: theme.textSecondary }]}>Wrong</Text>
+            </View>
+            <View style={[styles.statBox, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
+              <View style={[styles.statIconWrap, { backgroundColor: 'rgba(99,102,241,0.1)' }]}>
+                <Target size={18} color="#6366F1" strokeWidth={2} />
+              </View>
+              <Text style={[styles.statBoxValue, { color: '#6366F1' }]}>{score.total}</Text>
+              <Text style={[styles.statBoxLabel, { color: theme.textSecondary }]}>Total</Text>
             </View>
           </View>
 
-          <View style={[styles.reviewSection, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
-            <Text style={[styles.reviewTitle, { color: theme.text }]}>Review Answers</Text>
-            {currentQuiz.questions.map((question, index) => {
-              const selectedOptionId = selectedAnswers[question.id];
-              const selectedOption = question.options.find(opt => opt.id === selectedOptionId);
-              const correctOption = question.options.find(opt => opt.isCorrect);
-              const isCorrect = selectedOption?.isCorrect;
+          {/* Review Section */}
+          <View style={styles.reviewSectionHeader}>
+            <Text style={[styles.reviewSectionTitle, { color: theme.text }]}>Answer Review</Text>
+          </View>
 
-              return (
-                <View key={question.id} style={[styles.reviewItem, { borderBottomColor: theme.cardBorder }]}>
-                  <View style={styles.reviewItemHeader}>
-                    <Text style={[styles.reviewItemNumber, { color: theme.textSecondary }]}>
+          {currentQuiz.questions.map((question, index) => {
+            const selectedOptionId = selectedAnswers[question.id];
+            const selectedOption = question.options.find(opt => opt.id === selectedOptionId);
+            const correctOption = question.options.find(opt => opt.isCorrect);
+            const isCorrect = selectedOption?.isCorrect;
+
+            return (
+              <View
+                key={question.id}
+                style={[styles.reviewCard, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}
+              >
+                <View style={styles.reviewCardHeader}>
+                  <View style={[styles.reviewQBadge, { backgroundColor: isCorrect ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)' }]}>
+                    <Text style={[styles.reviewQBadgeText, { color: isCorrect ? '#10B981' : '#EF4444' }]}>
                       Q{index + 1}
                     </Text>
-                    <Text style={[styles.reviewItemStatus, { color: isCorrect ? '#10B981' : '#EF4444' }]}>
-                      {isCorrect ? '✓ Correct' : '✗ Incorrect'}
-                    </Text>
                   </View>
-                  <Text style={[styles.reviewItemQuestion, { color: theme.text }]}>{question.question}</Text>
-                  {selectedOption && (
-                    <Text
-                      style={[
-                        styles.reviewItemAnswer,
-                        { color: isCorrect ? '#10B981' : '#EF4444' },
-                      ]}
-                    >
-                      Your answer: {selectedOption.text}
-                    </Text>
+                  {isCorrect ? (
+                    <CheckCircle2 size={18} color="#10B981" strokeWidth={2} />
+                  ) : (
+                    <XCircle size={18} color="#EF4444" strokeWidth={2} />
                   )}
-                  {!isCorrect && correctOption && (
-                    <Text style={[styles.reviewItemAnswer, { color: '#10B981' }]}>
-                      Correct answer: {correctOption.text}
-                    </Text>
-                  )}
-                  <Text style={[styles.reviewItemExplanation, { color: theme.textSecondary }]}>
-                    {question.explanation}
-                  </Text>
                 </View>
-              );
-            })}
-          </View>
+                <Text style={[styles.reviewCardQuestion, { color: theme.text }]}>{question.question}</Text>
+                {selectedOption && (
+                  <View style={[styles.reviewAnswerRow, { backgroundColor: isCorrect ? 'rgba(16,185,129,0.06)' : 'rgba(239,68,68,0.06)', borderColor: isCorrect ? 'rgba(16,185,129,0.2)' : 'rgba(239,68,68,0.2)' }]}>
+                    <Text style={[styles.reviewAnswerLabel, { color: theme.textSecondary }]}>Your answer</Text>
+                    <Text style={[styles.reviewAnswerText, { color: isCorrect ? '#10B981' : '#EF4444' }]}>{selectedOption.text}</Text>
+                  </View>
+                )}
+                {!isCorrect && correctOption && (
+                  <View style={[styles.reviewAnswerRow, { backgroundColor: 'rgba(16,185,129,0.06)', borderColor: 'rgba(16,185,129,0.2)' }]}>
+                    <Text style={[styles.reviewAnswerLabel, { color: theme.textSecondary }]}>Correct answer</Text>
+                    <Text style={[styles.reviewAnswerText, { color: '#10B981' }]}>{correctOption.text}</Text>
+                  </View>
+                )}
+                {question.explanation ? (
+                  <Text style={[styles.reviewExplanation, { color: theme.textSecondary }]}>{question.explanation}</Text>
+                ) : null}
+              </View>
+            );
+          })}
 
-          <View style={styles.actionButtons}>
+          {/* Action Buttons */}
+          <View style={styles.resultActions}>
             <TouchableOpacity
-              style={[styles.actionButton, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}
-              onPress={() => {
-                setViewMode('menu');
-                setCurrentQuiz(null);
-              }}
+              style={[styles.resultBtnOutline, { borderColor: theme.cardBorder }]}
+              onPress={() => { setViewMode('menu'); setCurrentQuiz(null); }}
             >
-              <Text style={[styles.actionButtonText, { color: theme.primary }]}>Back to Quizzes</Text>
+              <ArrowLeft size={16} color={theme.primary} strokeWidth={2} />
+              <Text style={[styles.resultBtnOutlineText, { color: theme.primary }]}>Back</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[styles.actionButton, { backgroundColor: theme.primary }]}
+              style={[styles.resultBtnPrimary, { backgroundColor: theme.primary }]}
               onPress={() => {
                 setCurrentQuestionIndex(0);
                 setSelectedAnswers({});
@@ -646,11 +676,10 @@ const QuizSessionScreen: React.FC<QuizSessionProps> = ({ navigation }) => {
                 setViewMode('quiz');
               }}
             >
-              <Text style={[styles.actionButtonText, { color: '#FFFFFF' }]}>Retake Quiz</Text>
+              <RotateCcw size={16} color="#FFFFFF" strokeWidth={2} />
+              <Text style={styles.resultBtnPrimaryText}>Retake</Text>
             </TouchableOpacity>
           </View>
-
-          <View style={{ height: 50 }} />
         </ScrollView>
       </SafeAreaView>
     );
@@ -936,6 +965,178 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: 'center',
     lineHeight: 20,
+  },
+  // --- New Results UI ---
+  resultHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 14,
+    borderBottomWidth: 1,
+  },
+  resultHeaderBackBtn: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  resultHeaderTitle: {
+    flex: 1,
+    textAlign: 'center',
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  scoreHeroCard: {
+    margin: 20,
+    marginBottom: 16,
+    padding: 28,
+    borderRadius: 16,
+    alignItems: 'center',
+    borderWidth: 1,
+  },
+  scoreRing: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    borderWidth: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  scoreHeroPercent: {
+    fontSize: 32,
+    fontWeight: '800',
+  },
+  scoreHeroTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  scoreHeroSub: {
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  statsRow: {
+    flexDirection: 'row',
+    paddingHorizontal: 20,
+    gap: 10,
+    marginBottom: 24,
+  },
+  statBox: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+  },
+  statIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+  statBoxValue: {
+    fontSize: 20,
+    fontWeight: '800',
+    marginBottom: 2,
+  },
+  statBoxLabel: {
+    fontSize: 11,
+    fontWeight: '500',
+  },
+  reviewSectionHeader: {
+    paddingHorizontal: 20,
+    marginBottom: 12,
+  },
+  reviewSectionTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  reviewCard: {
+    marginHorizontal: 20,
+    marginBottom: 10,
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+  },
+  reviewCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  reviewQBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  reviewQBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  reviewCardQuestion: {
+    fontSize: 14,
+    fontWeight: '600',
+    lineHeight: 20,
+    marginBottom: 10,
+  },
+  reviewAnswerRow: {
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 6,
+    borderWidth: 1,
+  },
+  reviewAnswerLabel: {
+    fontSize: 11,
+    fontWeight: '500',
+    marginBottom: 2,
+  },
+  reviewAnswerText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  reviewExplanation: {
+    fontSize: 12,
+    lineHeight: 18,
+    marginTop: 6,
+    fontStyle: 'italic',
+  },
+  resultActions: {
+    flexDirection: 'row',
+    gap: 12,
+    paddingHorizontal: 20,
+    marginTop: 14,
+  },
+  resultBtnOutline: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  resultBtnOutlineText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  resultBtnPrimary: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 14,
+    borderRadius: 12,
+  },
+  resultBtnPrimaryText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#FFFFFF',
   },
   reviewSection: {
     marginHorizontal: 20,

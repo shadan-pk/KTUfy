@@ -19,7 +19,7 @@ import supabase from '../supabaseClient';
 import { getCachedTicklists, setCachedTicklists } from '../services/cacheService';
 import { TicklistScreenSkeleton } from '../components/SkeletonLoader';
 import { useTheme } from '../contexts/ThemeContext';
-import { Trash2, Plus } from 'lucide-react-native';
+import { Trash2, Plus, ArrowLeft } from 'lucide-react-native';
 
 interface TicklistItem {
   id: string;
@@ -43,7 +43,7 @@ interface TicklistScreenProps {
 const TicklistScreen: React.FC<TicklistScreenProps> = ({ navigation }) => {
   const { user: authUser } = useAuth();
   const { theme, isDark } = useTheme();
-  const [supabaseUser, setSupabaseUser] = React.useState<any | null>(null);
+  const [supabaseUser, setSupabaseUser] = React.useState<any | undefined>(undefined);
   const [subjects, setSubjects] = React.useState<Subject[]>([]);
   const [filter, setFilter] = React.useState<'all' | 'pending' | 'completed'>('all');
   const [loading, setLoading] = React.useState(true);
@@ -70,12 +70,17 @@ const TicklistScreen: React.FC<TicklistScreenProps> = ({ navigation }) => {
         setSupabaseUser(userRes?.user ?? null);
       } catch (err) {
         console.error('Error getting supabase user:', err);
+        setSupabaseUser(null);
       }
     })();
   }, []);
 
   // Load subjects from cache first, then refresh from Supabase
   React.useEffect(() => {
+    if (supabaseUser === undefined) {
+      // Still loading auth
+      return;
+    }
     if (!supabaseUser) {
       setLoading(false);
       return;
@@ -321,6 +326,14 @@ const TicklistScreen: React.FC<TicklistScreenProps> = ({ navigation }) => {
   if (loading) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['bottom']}>
+        {/* Header */}
+        <View style={[styles.screenHeader, { borderBottomColor: theme.border }]}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerBackBtn}>
+            <ArrowLeft size={20} color={theme.text} strokeWidth={2} />
+          </TouchableOpacity>
+          <Text style={[styles.screenHeaderTitle, { color: theme.text }]}>Study Checklist</Text>
+          <View style={{ width: 40 }} />
+        </View>
         <TicklistScreenSkeleton />
       </SafeAreaView>
     );
@@ -328,6 +341,14 @@ const TicklistScreen: React.FC<TicklistScreenProps> = ({ navigation }) => {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['bottom']}>
+      {/* Header */}
+      <View style={[styles.screenHeader, { borderBottomColor: theme.border }]}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerBackBtn}>
+          <ArrowLeft size={20} color={theme.text} strokeWidth={2} />
+        </TouchableOpacity>
+        <Text style={[styles.screenHeaderTitle, { color: theme.text }]}>Study Checklist</Text>
+        <View style={{ width: 40 }} />
+      </View>
       {/* Header Stats */}
       <View style={styles.headerStats}>
         {[
@@ -711,12 +732,30 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  screenHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingTop: Platform.OS === 'android' ? 50 : 16,
+    paddingBottom: 14,
+    borderBottomWidth: 1,
+  },
+  headerBackBtn: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  screenHeaderTitle: {
+    flex: 1,
+    textAlign: 'center',
+    fontSize: 18,
+    fontWeight: '700',
+  },
   headerStats: {
     flexDirection: 'row',
     padding: 16,
-    // paddingTop: 8,
     gap: 12,
-    paddingTop: Platform.OS === 'android' ? 50 : 20
   },
   statCard: {
     flex: 1,

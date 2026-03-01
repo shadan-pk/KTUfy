@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   Alert,
   ActivityIndicator,
   Platform,
+  BackHandler,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -214,7 +215,7 @@ export default function SyllabusViewerScreen() {
     }
   };
 
-  const handleBack = () => {
+  const handleBack = useCallback(() => {
     if (selectedSubject) {
       setSelectedSubject(null);
       setSyllabusDetail(null);
@@ -226,8 +227,26 @@ export default function SyllabusViewerScreen() {
       setSelectedBranch(null);
     } else {
       navigation.goBack();
+      return false;
     }
-  };
+    return true;
+  }, [selectedSubject, selectedSemester, selectedBranch, navigation]);
+
+  // Intercept hardware/swipe back to navigate within screen hierarchy
+  useEffect(() => {
+    const backHandler = BackHandler.addEventListener('hardwareBackPress', handleBack);
+    return () => backHandler.remove();
+  }, [handleBack]);
+
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('beforeRemove', (e: any) => {
+      if (selectedBranch || selectedSemester || selectedSubject) {
+        e.preventDefault();
+        handleBack();
+      }
+    });
+    return unsubscribe;
+  }, [navigation, selectedBranch, selectedSemester, selectedSubject, handleBack]);
 
   const getBreadcrumb = () => {
     const parts = ['Syllabus'];
