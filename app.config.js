@@ -28,6 +28,16 @@ module.exports = {
     web: {
       favicon: "./assets/favicon.png"
     },
+    plugins: [
+      [
+        "expo-media-library",
+        {
+          photosPermission: "Allow $(PRODUCT_NAME) to access your photos to save processed files.",
+          savePhotosPermission: "Allow $(PRODUCT_NAME) to save processed files to your gallery.",
+          isAccessMediaLocationEnabled: true
+        }
+      ]
+    ],
     extra: {
       SUPABASE_URL: process.env.SUPABASE_URL || 'https://bojrxrzwcuzduilfwyqp.supabase.co',
       SUPABASE_ANON_KEY: process.env.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJvanJ4cnp3Y3V6ZHVpbGZ3eXFwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjA5MDY5NTcsImV4cCI6MjA3NjQ4Mjk1N30.005yfg5xqJ6JrmAKcqBnlE92e6BRuxWSnXB-vWHrBR4',
