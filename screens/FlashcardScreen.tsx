@@ -85,13 +85,18 @@ const FlashcardScreen: React.FC<FlashcardScreenProps> = ({ navigation }) => {
     };
 
     const goToCard = (direction: 'next' | 'prev') => {
-        setIsFlipped(false);
+        // Reset flip instantly before changing card
+        flipAnim.stopAnimation();
         flipAnim.setValue(0);
-        if (direction === 'next') {
-            setCurrentIndex((prev) => (prev + 1) % flashcards.length);
-        } else {
-            setCurrentIndex((prev) => (prev - 1 + flashcards.length) % flashcards.length);
-        }
+        setIsFlipped(false);
+        // Use setTimeout to let the animation reset take effect before changing content
+        setTimeout(() => {
+            if (direction === 'next') {
+                setCurrentIndex((prev) => (prev + 1) % flashcards.length);
+            } else {
+                setCurrentIndex((prev) => (prev - 1 + flashcards.length) % flashcards.length);
+            }
+        }, 50);
     };
 
     const frontInterpolate = flipAnim.interpolate({
@@ -440,18 +445,6 @@ const styles = StyleSheet.create({
         height: 260,
         marginBottom: 20,
         borderRadius: 20,
-        // Shadow on the container so it doesn't flip with the card faces
-        ...Platform.select({
-            ios: {
-                shadowColor: '#000',
-                shadowOffset: { width: 0, height: 4 },
-                shadowOpacity: 0.15,
-                shadowRadius: 12,
-            },
-            android: {
-                elevation: 8,
-            },
-        }),
     },
     card: {
         position: 'absolute',

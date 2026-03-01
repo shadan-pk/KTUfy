@@ -13,23 +13,23 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { SyllabusViewerScreenNavigationProp } from '../types/navigation';
 import { useTheme } from '../contexts/ThemeContext';
-import { ArrowLeft, Download, ChevronDown, ChevronRight, BookOpen } from 'lucide-react-native';
+import { ArrowLeft, Download, ChevronDown, ChevronRight, BookOpen, Monitor, Radio, Zap, Cog, Building2, Laptop, Plug, Dna, FlaskConical, Factory, BookX, AlertTriangle, GraduationCap } from 'lucide-react-native';
 import { getSubjectSyllabus, syllabusToText, SubjectSyllabus } from '../services/syllabusService';
 import { File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 
 // KTU Branches
 const BRANCHES = [
-  { code: 'CSE', name: 'Computer Science & Engineering', icon: '💻', color: '#2563EB' },
-  { code: 'ECE', name: 'Electronics & Communication', icon: '📡', color: '#7C3AED' },
-  { code: 'EEE', name: 'Electrical & Electronics', icon: '⚡', color: '#D97706' },
-  { code: 'ME', name: 'Mechanical Engineering', icon: '⚙️', color: '#059669' },
-  { code: 'CE', name: 'Civil Engineering', icon: '🏗️', color: '#DC2626' },
-  { code: 'IT', name: 'Information Technology', icon: '🖥️', color: '#0891B2' },
-  { code: 'AE', name: 'Applied Electronics', icon: '🔌', color: '#7C3AED' },
-  { code: 'BT', name: 'Biotechnology', icon: '🧬', color: '#059669' },
-  { code: 'CHE', name: 'Chemical Engineering', icon: '⚗️', color: '#B45309' },
-  { code: 'IE', name: 'Industrial Engineering', icon: '🏭', color: '#6D28D9' },
+  { code: 'CSE', name: 'Computer Science & Engineering', icon: Monitor, color: '#2563EB' },
+  { code: 'ECE', name: 'Electronics & Communication', icon: Radio, color: '#7C3AED' },
+  { code: 'EEE', name: 'Electrical & Electronics', icon: Zap, color: '#D97706' },
+  { code: 'ME', name: 'Mechanical Engineering', icon: Cog, color: '#059669' },
+  { code: 'CE', name: 'Civil Engineering', icon: Building2, color: '#DC2626' },
+  { code: 'IT', name: 'Information Technology', icon: Laptop, color: '#0891B2' },
+  { code: 'AE', name: 'Applied Electronics', icon: Plug, color: '#7C3AED' },
+  { code: 'BT', name: 'Biotechnology', icon: Dna, color: '#059669' },
+  { code: 'CHE', name: 'Chemical Engineering', icon: FlaskConical, color: '#B45309' },
+  { code: 'IE', name: 'Industrial Engineering', icon: Factory, color: '#6D28D9' },
 ];
 
 const SEMESTERS = ['S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8'];
@@ -291,7 +291,7 @@ export default function SyllabusViewerScreen() {
                 activeOpacity={0.7}
               >
                 <View style={[styles.branchIconCircle, { backgroundColor: `${branch.color}18` }]}>
-                  <Text style={styles.cardEmoji}>{branch.icon}</Text>
+                  <branch.icon size={22} color={branch.color} strokeWidth={2} />
                 </View>
                 <View style={styles.cardContent}>
                   <Text style={[styles.branchCode, { color: theme.text }]}>{branch.code}</Text>
@@ -311,7 +311,9 @@ export default function SyllabusViewerScreen() {
                 backgroundColor: `${selectedBranchData.color}18`,
                 borderColor: `${selectedBranchData.color}40`,
               }]}>
-                <Text style={styles.branchBannerIcon}>{selectedBranchData.icon}</Text>
+                <View style={styles.branchBannerIconWrap}>
+                  <selectedBranchData.icon size={32} color={selectedBranchData.color} strokeWidth={2} />
+                </View>
                 <View>
                   <Text style={[styles.branchBannerCode, { color: selectedBranchData.color }]}>
                     {selectedBranchData.code}
@@ -345,7 +347,7 @@ export default function SyllabusViewerScreen() {
             <Text style={[styles.sectionTitle, { color: theme.text }]}>Subjects</Text>
             {subjects.length === 0 ? (
               <View style={styles.emptyState}>
-                <Text style={styles.emptyStateIcon}>📚</Text>
+                <GraduationCap size={56} color={theme.textTertiary} strokeWidth={1.5} />
                 <Text style={[styles.emptyStateText, { color: theme.textSecondary }]}>No subjects found</Text>
                 <Text style={[styles.emptyStateSubtext, { color: theme.textTertiary }]}>
                   Syllabus data will be loaded from the server
@@ -387,7 +389,7 @@ export default function SyllabusViewerScreen() {
               </View>
             ) : detailError ? (
               <View style={styles.emptyState}>
-                <Text style={styles.emptyStateIcon}>⚠️</Text>
+                <AlertTriangle size={56} color={theme.textTertiary} strokeWidth={1.5} />
                 <Text style={[styles.emptyStateText, { color: theme.textSecondary }]}>
                   Couldn't load syllabus
                 </Text>
@@ -598,9 +600,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginRight: 14,
   },
-  cardEmoji: {
-    fontSize: 22,
-  },
   cardContent: {
     flex: 1,
   },
@@ -634,8 +633,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     gap: 14,
   },
-  branchBannerIcon: {
-    fontSize: 36,
+  branchBannerIconWrap: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   branchBannerCode: {
     fontSize: 20,
@@ -846,10 +849,6 @@ const styles = StyleSheet.create({
   emptyState: {
     alignItems: 'center',
     paddingVertical: 60,
-  },
-  emptyStateIcon: {
-    fontSize: 60,
-    marginBottom: 16,
   },
   emptyStateText: {
     fontSize: 17,

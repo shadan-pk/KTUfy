@@ -52,6 +52,7 @@ const TicklistScreen: React.FC<TicklistScreenProps> = ({ navigation }) => {
   const [showAddSubjectModal, setShowAddSubjectModal] = React.useState(false);
   const [showAddItemModal, setShowAddItemModal] = React.useState(false);
   const [selectedSubjectId, setSelectedSubjectId] = React.useState<string>('');
+  const [deleteConfirmId, setDeleteConfirmId] = React.useState<string | null>(null);
 
   // Form states
   const [subjectName, setSubjectName] = React.useState('');
@@ -204,31 +205,26 @@ const TicklistScreen: React.FC<TicklistScreenProps> = ({ navigation }) => {
   };
 
   const deleteSubject = (subjectId: string) => {
-    Alert.alert(
-      'Delete Subject',
-      'Are you sure you want to delete this subject and all its items?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            if (!supabaseUser) return;
-            const updatedSubjects = subjects.filter(s => s.id !== subjectId);
-            setSubjects(updatedSubjects);
-            setCachedTicklists(updatedSubjects);
-            try {
-              await deleteTicklist(subjectId, supabaseUser.id);
-            } catch (error) {
-              console.error('Error deleting subject:', error);
-              setSubjects(subjects);
-              setCachedTicklists(subjects);
-              Alert.alert('Error', 'Failed to delete subject. Please try again.');
-            }
-          },
-        },
-      ]
-    );
+    setDeleteConfirmId(subjectId);
+  };
+
+  const confirmDeleteSubject = async () => {
+    if (!deleteConfirmId || !supabaseUser) {
+      setDeleteConfirmId(null);
+      return;
+    }
+    const updatedSubjects = subjects.filter(s => s.id !== deleteConfirmId);
+    setSubjects(updatedSubjects);
+    setCachedTicklists(updatedSubjects);
+    setDeleteConfirmId(null);
+    try {
+      await deleteTicklist(deleteConfirmId, supabaseUser.id);
+    } catch (error) {
+      console.error('Error deleting subject:', error);
+      setSubjects(subjects);
+      setCachedTicklists(subjects);
+      Alert.alert('Error', 'Failed to delete subject. Please try again.');
+    }
   };
 
   const deleteItem = async (subjectId: string, itemId: string) => {
@@ -617,6 +613,34 @@ const TicklistScreen: React.FC<TicklistScreenProps> = ({ navigation }) => {
         </KeyboardAvoidingView>
       </Modal>
 
+      {/* Delete Confirm Modal */}
+      <Modal
+        visible={!!deleteConfirmId}
+        animationType="fade"
+        transparent={true}
+        onRequestClose={() => setDeleteConfirmId(null)}
+      >
+        <View style={styles.deleteOverlay}>
+          <View style={[styles.deleteBox, { backgroundColor: theme.card }]}>
+            <Text style={[styles.deleteTitle, { color: theme.text }]}>Delete subject?</Text>
+            <View style={styles.deleteActions}>
+              <TouchableOpacity
+                style={[styles.deleteBtn, { backgroundColor: theme.backgroundSecondary }]}
+                onPress={() => setDeleteConfirmId(null)}
+              >
+                <Text style={[styles.deleteBtnText, { color: theme.textSecondary }]}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.deleteBtn, { backgroundColor: theme.error || '#EF4444' }]}
+                onPress={confirmDeleteSubject}
+              >
+                <Text style={[styles.deleteBtnText, { color: '#fff' }]}>Delete</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       {/* Add Item Modal */}
       <Modal
         visible={showAddItemModal}
@@ -906,6 +930,39 @@ const styles = StyleSheet.create({
   },
   deleteSubjectButtonText: {
     fontSize: 13,
+    fontWeight: '600',
+  },
+  deleteOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 40,
+  },
+  deleteBox: {
+    width: '100%',
+    borderRadius: 16,
+    padding: 24,
+    alignItems: 'center',
+  },
+  deleteTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 20,
+  },
+  deleteActions: {
+    flexDirection: 'row',
+    gap: 12,
+    width: '100%',
+  },
+  deleteBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  deleteBtnText: {
+    fontSize: 14,
     fontWeight: '600',
   },
   fab: {
