@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -54,43 +54,124 @@ interface HomeScreenProps {
   navigation: HomeScreenNavigationProp;
 }
 
+const TAGLINES = [
+  'Your AI Study Companion',
+  'Learn Faster with Intelligence',
+  'Your Grades, Reimagined',
+  'Built for KTU Students',
+];
+
 const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   const { theme, isDark } = useTheme();
   const [promptText, setPromptText] = useState('');
 
+  // Typewriter state
+  const [displayedText, setDisplayedText] = useState('');
+  const [taglineIndex, setTaglineIndex] = useState(0);
+  const [charIndex, setCharIndex] = useState(0);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
+  const cursorAnim = useRef(new Animated.Value(1)).current;
+  const blinkRef = useRef<Animated.CompositeAnimation | null>(null);
+
+  // Cursor: blink only when paused, solid otherwise
+  useEffect(() => {
+    if (isPaused) {
+      blinkRef.current = Animated.loop(
+        Animated.sequence([
+          Animated.timing(cursorAnim, { toValue: 0, duration: 400, useNativeDriver: false }),
+          Animated.timing(cursorAnim, { toValue: 1, duration: 400, useNativeDriver: false }),
+        ])
+      );
+      blinkRef.current.start();
+    } else {
+      if (blinkRef.current) {
+        blinkRef.current.stop();
+        blinkRef.current = null;
+      }
+      cursorAnim.stopAnimation(() => {
+        cursorAnim.setValue(1);
+      });
+    }
+    return () => {
+      if (blinkRef.current) {
+        blinkRef.current.stop();
+        blinkRef.current = null;
+      }
+    };
+  }, [isPaused]);
+
+  // Typewriter effect
+  useEffect(() => {
+    const current = TAGLINES[taglineIndex];
+    let timeout: ReturnType<typeof setTimeout>;
+
+    if (!isDeleting && charIndex <= current.length) {
+      setDisplayedText(current.slice(0, charIndex));
+      if (charIndex === current.length) {
+        // Pause at full text, then start deleting
+        setIsPaused(true);
+        timeout = setTimeout(() => { setIsPaused(false); setIsDeleting(true); }, 2000);
+      } else {
+        timeout = setTimeout(() => setCharIndex((c) => c + 1), 70);
+      }
+    } else if (isDeleting && charIndex >= 0) {
+      setDisplayedText(current.slice(0, charIndex));
+      if (charIndex === 0) {
+        setIsDeleting(false);
+        setTaglineIndex((i) => (i + 1) % TAGLINES.length);
+      } else {
+        timeout = setTimeout(() => setCharIndex((c) => c - 1), 40);
+      }
+    }
+
+    return () => clearTimeout(timeout);
+  }, [charIndex, isDeleting, taglineIndex]);
+
   // Animations
-  const animValue = useRef(new Animated.Value(0)).current;
-  const pulseAnim = useRef(new Animated.Value(0)).current;
   const logoOpacity = useRef(new Animated.Value(0)).current;
   const contentOpacity = useRef(new Animated.Value(0)).current;
   const contentY = useRef(new Animated.Value(24)).current;
 
+  // Particle system
+  const PARTICLE_COUNT = 12;
+  const particleAnims = useRef(
+    Array.from({ length: PARTICLE_COUNT }, () => new Animated.Value(0))
+  ).current;
+  const particleConfigs = useRef(
+    Array.from({ length: PARTICLE_COUNT }, (_, i) => ({
+      x: width * 0.12 + (i / PARTICLE_COUNT) * width * 0.76 + (Math.random() - 0.5) * 24,
+      duration: 2400 + Math.random() * 2200,
+      initialDelay: i * 380 + Math.random() * 500,
+      size: 2 + Math.random() * 1.5,
+      trailHeight: 22 + Math.random() * 28,
+    }))
+  ).current;
+
   useEffect(() => {
-    // Gradient cycle
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(animValue, { toValue: 1, duration: 6000, useNativeDriver: false }),
-        Animated.timing(animValue, { toValue: 0, duration: 6000, useNativeDriver: false }),
-      ])
-    ).start();
-
-    // Glow pulse
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnim, { toValue: 1, duration: 3000, useNativeDriver: false }),
-        Animated.timing(pulseAnim, { toValue: 0, duration: 3000, useNativeDriver: false }),
-      ])
-    ).start();
-
     // Entrance
     Animated.parallel([
       Animated.timing(logoOpacity, { toValue: 1, duration: 900, useNativeDriver: true }),
       Animated.timing(contentOpacity, { toValue: 1, duration: 700, delay: 350, useNativeDriver: true }),
       Animated.timing(contentY, { toValue: 0, duration: 700, delay: 350, useNativeDriver: true }),
     ]).start();
-  }, []);
 
-  const glowOpacity = pulseAnim.interpolate({ inputRange: [0, 1], outputRange: isDark ? [0.04, 0.18] : [0.02, 0.1] });
+    // Particles — shoot upward in a loop
+    particleAnims.forEach((anim, i) => {
+      const cfg = particleConfigs[i];
+      let first = true;
+      const run = () => {
+        anim.setValue(0);
+        Animated.timing(anim, {
+          toValue: 1,
+          duration: cfg.duration + (Math.random() - 0.5) * 500,
+          useNativeDriver: true,
+          delay: first ? cfg.initialDelay : Math.random() * 900,
+        }).start(() => { first = false; run(); });
+      };
+      run();
+    });
+  }, []);
 
   const handlePromptSubmit = () => {
     if (!promptText.trim()) return;
@@ -121,9 +202,46 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         </View>
       )}
 
-      {/* Animated glow orbs */}
-      <Animated.View style={[styles.orb, styles.orb1, { opacity: glowOpacity, backgroundColor: theme.primary + '12' }]} />
-      <Animated.View style={[styles.orb, styles.orb2, { opacity: glowOpacity, backgroundColor: theme.primary + '0D' }]} />
+      {/* Particles shooting upward */}
+      <View style={styles.particleContainer} pointerEvents="none">
+        {particleAnims.map((anim, i) => {
+          const cfg = particleConfigs[i];
+          const translateY = anim.interpolate({
+            inputRange: [0, 1],
+            outputRange: [height * 0.45, -cfg.trailHeight - 30],
+          });
+          const opacity = anim.interpolate({
+            inputRange: [0, 0.08, 0.5, 0.85, 1],
+            outputRange: [0, isDark ? 0.9 : 0.45, isDark ? 0.4 : 0.35, 0.2, 0],
+          });
+          const scale = anim.interpolate({
+            inputRange: [0, 0.15, 0.8, 1],
+            outputRange: [0.3, 1, 0.8, 0.4],
+          });
+          return (
+            <Animated.View
+              key={i}
+              style={{
+                position: 'absolute',
+                left: cfg.x - cfg.size / 2,
+                width: cfg.size,
+                height: cfg.trailHeight,
+                borderRadius: cfg.size,
+                opacity,
+                transform: [{ translateY }, { scaleY: scale }],
+                overflow: 'hidden',
+              }}
+            >
+              <LinearGradient
+                colors={['#60A5FA', '#3B82F6', '#3B82F660', 'transparent']}
+                start={{ x: 0.5, y: 0 }}
+                end={{ x: 0.5, y: 1 }}
+                style={{ flex: 1, borderRadius: cfg.size }}
+              />
+            </Animated.View>
+          );
+        })}
+      </View>
 
       <KeyboardAvoidingView
         style={styles.keyboardView}
@@ -133,9 +251,11 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         <View style={styles.mainContent}>
           {/* Logo — upper portion */}
           <Animated.View style={[styles.logoSection, { opacity: logoOpacity }]}>
-            <Animated.View style={[styles.logoGlow, { opacity: glowOpacity, backgroundColor: theme.primary + '1F' }]} />
             <Text style={[styles.logoText, { color: theme.text, textShadowColor: theme.primary + '66' }]}>KTUfy</Text>
-            <Text style={[styles.tagline, { color: theme.textSecondary }]}>YOUR AI STUDY COMPANION</Text>
+            <View style={styles.taglineRow}>
+              <Text style={[styles.tagline, { color: theme.textSecondary }]}>{displayedText}</Text>
+              <Animated.Text style={[styles.cursor, { color: '#3B82F6', opacity: cursorAnim }]}>|</Animated.Text>
+            </View>
           </Animated.View>
 
           {/* Center — prompt input only */}
@@ -252,15 +372,10 @@ const styles = StyleSheet.create({
     borderRadius: 12, borderWidth: 1, zIndex: 10,
   },
   offlineText: { fontSize: FONT.caption, flex: 1, lineHeight: 18 },
-  // Glow orbs
-  orb: { position: 'absolute', borderRadius: 999 },
-  orb1: {
-    width: width * 1.2, height: width * 1.2,
-    top: -height * 0.15, left: -width * 0.3,
-  },
-  orb2: {
-    width: width * 0.8, height: width * 0.8,
-    bottom: height * 0.2, right: -width * 0.2,
+  // Particle layer
+  particleContainer: {
+    ...StyleSheet.absoluteFillObject,
+    overflow: 'hidden',
   },
   // Main
   mainContent: {
@@ -271,10 +386,6 @@ const styles = StyleSheet.create({
   },
   // Logo
   logoSection: { alignItems: 'center', marginBottom: 48 },
-  logoGlow: {
-    position: 'absolute', width: 200, height: 200,
-    borderRadius: 100, top: -60,
-  },
   logoText: {
     fontSize: FONT.display + 20,
     fontFamily: 'Inter-Black',
@@ -284,11 +395,23 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 5, height: 0 },
     textShadowRadius: 20,
   },
+  taglineRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 8,
+    minHeight: 18,
+  },
   tagline: {
     fontSize: FONT.caption,
-    marginTop: 8,
-    letterSpacing: 3,
+    letterSpacing: 2,
     fontWeight: '500',
+    textTransform: 'uppercase',
+  },
+  cursor: {
+    fontSize: FONT.caption + 5,
+    fontWeight: '800',
+    marginLeft: 1,
   },
   // Center
   centerContent: { alignItems: 'center' },
