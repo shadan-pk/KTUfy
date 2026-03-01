@@ -203,12 +203,24 @@ const PdfToolsScreen: React.FC<Props> = ({ navigation }) => {
         </View>
     );
 
+    const isProcessDisabled = (() => {
+        if (!serverOnline) return true;
+        switch (activeTab) {
+            case 'merge': return pdfFiles.length < 2;
+            case 'split': return !selectedFile || !splitRanges.trim();
+            case 'compress': return !selectedFile;
+            case 'img2pdf': return imageFiles.length === 0;
+            case 'pdf2img': return !selectedFile;
+            default: return true;
+        }
+    })();
+
     const renderProcessBtn = (label = 'Process PDF') => (
         <TouchableOpacity
-            style={[styles.processBtn, { backgroundColor: ACCENT, opacity: !serverOnline ? 0.5 : 1 }]}
+            style={[styles.processBtn, { backgroundColor: ACCENT, opacity: isProcessDisabled ? 0.5 : 1 }]}
             onPress={process}
             activeOpacity={0.8}
-            disabled={!serverOnline}
+            disabled={isProcessDisabled}
         >
             <Text style={styles.processBtnText}>{serverOnline ? label : 'Server Offline'}</Text>
         </TouchableOpacity>

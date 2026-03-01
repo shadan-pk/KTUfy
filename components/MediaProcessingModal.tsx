@@ -20,7 +20,6 @@ import {
     Animated,
     Dimensions,
     Platform,
-    Linking,
     ActivityIndicator,
     Alert,
 } from 'react-native';
@@ -29,7 +28,6 @@ import {
     XCircle,
     Download,
     Share2,
-    MessageCircle,
     Pencil,
     Check,
     Music,
@@ -38,11 +36,27 @@ import {
 } from 'lucide-react-native';
 import { Paths, File as ExpoFile } from 'expo-file-system';
 import * as MediaLibrary from 'expo-media-library';
-import * as IntentLauncher from 'expo-intent-launcher';
+import * as Sharing from 'expo-sharing';
 import { useTheme } from '../contexts/ThemeContext';
-import { ProcessingResult, shareFile } from '../services/mediaService';
+import { ProcessingResult } from '../services/mediaService';
 
 const { width: SCREEN_W } = Dimensions.get('window');
+
+// ─── Mime helper ─────────────────────────────────────────────
+const MIME_MAP: Record<string, string> = {
+    jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png',
+    webp: 'image/webp', gif: 'image/gif', bmp: 'image/bmp', avif: 'image/avif',
+    mp3: 'audio/mpeg', wav: 'audio/wav', aac: 'audio/aac',
+    ogg: 'audio/ogg', flac: 'audio/flac', m4a: 'audio/mp4',
+    mp4: 'video/mp4', avi: 'video/x-msvideo', mkv: 'video/x-matroska',
+    mov: 'video/quicktime', webm: 'video/webm',
+    pdf: 'application/pdf',
+};
+
+function getMimeType(filename: string): string {
+    const ext = filename.split('.').pop()?.toLowerCase() || '';
+    return MIME_MAP[ext] || 'application/octet-stream';
+}
 
 // ─── Types ───────────────────────────────────────────────────
 export type MediaType = 'image' | 'audio' | 'video' | 'pdf';
@@ -171,6 +185,7 @@ const MediaProcessingModal: React.FC<MediaProcessingModalProps> = ({
     const { theme, isDark } = useTheme();
     const [editingName, setEditingName] = useState(false);
     const [fileName, setFileName] = useState('');
+    const [actionFeedback, setActionFeedback] = useState<string | null>(null);
 
     // Sync filename from result
     useEffect(() => {
@@ -206,6 +221,12 @@ const MediaProcessingModal: React.FC<MediaProcessingModalProps> = ({
         }
     }, [result, fileName, onRename]);
 
+    // ── Show brief inline feedback ──
+    const showFeedback = useCallback((msg: string) => {
+        setActionFeedback(msg);
+        setTimeout(() => setActionFeedback(null), 2500);
+    }, []);
+
     // ── Actions ──
 
     const handleDownload = useCallback(async () => {
@@ -218,73 +239,34 @@ const MediaProcessingModal: React.FC<MediaProcessingModalProps> = ({
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
+            showFeedback('Downloaded!');
         } else {
-            // Save directly to device gallery / media library
             try {
                 const { status } = await MediaLibrary.requestPermissionsAsync();
                 if (status !== 'granted') {
                     Alert.alert('Permission needed', 'Storage permission is required to save files.');
                     return;
                 }
-                const asset = await MediaLibrary.createAssetAsync(result.localUri);
-                Alert.alert('Saved', `"${fileName || result.filename}" saved to your device gallery.`);
+                await MediaLibrary.createAssetAsync(result.localUri);
+                showFeedback('Saved to gallery!');
             } catch (err: any) {
                 console.error('Save to gallery failed:', err);
-                // Fallback: if not a media type gallery supports, use share sheet to "Save to Files"
-                await shareFile(result.localUri);
-            }
-        }
-    }, [result, fileName]);
-
-    const handleShareWhatsApp = useCallback(async () => {
-        if (!result) return;
-
-        if (Platform.OS === 'web') {
-            const url = `https://wa.me/?text=${encodeURIComponent('Check out this file: ' + (fileName || result.filename))}`;
-            window.open(url, '_blank');
-        } else if (Platform.OS === 'android') {
-            // On Android, use IntentLauncher to target WhatsApp directly
-            try {
-                const canOpen = await Linking.canOpenURL('whatsapp://send');
-                if (!canOpen) {
-                    Alert.alert('WhatsApp not found', 'WhatsApp does not seem to be installed on this device.');
-                    return;
+                // Fallback for non-media types (e.g. PDF) — use share sheet to "Save to Files"
+                try {
+                    const mimeType = getMimeType(result.filename);
+                    await Sharing.shareAsync(result.localUri, { mimeType, dialogTitle: 'Save file' });
+                    showFeedback('Saved!');
+                } catch (e2: any) {
+                    Alert.alert('Save failed', e2?.message || 'Could not save the file.');
                 }
-                // Get content URI for the file
-                const fileObj = new ExpoFile(result.localUri);
-                const ext = result.filename.split('.').pop()?.toLowerCase() || '';
-                const mimeMap: Record<string, string> = {
-                    jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png',
-                    webp: 'image/webp', gif: 'image/gif', bmp: 'image/bmp',
-                    mp3: 'audio/mpeg', wav: 'audio/wav', aac: 'audio/aac',
-                    ogg: 'audio/ogg', flac: 'audio/flac', m4a: 'audio/mp4',
-                    mp4: 'video/mp4', avi: 'video/x-msvideo', mkv: 'video/x-matroska',
-                    mov: 'video/quicktime', webm: 'video/webm',
-                    pdf: 'application/pdf',
-                };
-                const mimeType = mimeMap[ext] || 'application/octet-stream';
-
-                await IntentLauncher.startActivityAsync('android.intent.action.SEND', {
-                    type: mimeType,
-                    packageName: 'com.whatsapp',
-                    extra: { 'android.intent.extra.STREAM': result.localUri },
-                    flags: 1, // FLAG_GRANT_READ_URI_PERMISSION
-                });
-            } catch (err) {
-                console.warn('WhatsApp intent failed, falling back to share sheet:', err);
-                await shareFile(result.localUri);
             }
-        } else {
-            // iOS: no direct WhatsApp targeting, use share sheet
-            await shareFile(result.localUri);
         }
-    }, [result, fileName]);
+    }, [result, fileName, showFeedback]);
 
     const handleShare = useCallback(async () => {
         if (!result) return;
 
         if (Platform.OS === 'web') {
-            // Use Web Share API if available
             if (typeof navigator !== 'undefined' && navigator.share) {
                 try {
                     const res = await fetch(result.localUri);
@@ -292,9 +274,8 @@ const MediaProcessingModal: React.FC<MediaProcessingModalProps> = ({
                     const file = new File([blob], fileName || result.filename, { type: blob.type });
                     await navigator.share({ files: [file], title: fileName || result.filename });
                     return;
-                } catch { /* fall through to download */ }
+                } catch { /* fall through */ }
             }
-            // Fallback: trigger download
             const a = document.createElement('a');
             a.href = result.localUri;
             a.download = fileName || result.filename;
@@ -302,8 +283,13 @@ const MediaProcessingModal: React.FC<MediaProcessingModalProps> = ({
             a.click();
             document.body.removeChild(a);
         } else {
-            // Generic share sheet
-            await shareFile(result.localUri);
+            try {
+                const mimeType = getMimeType(result.filename);
+                await Sharing.shareAsync(result.localUri, { mimeType, dialogTitle: 'Share file' });
+            } catch (err: any) {
+                console.error('Share failed:', err);
+                Alert.alert('Sharing failed', err?.message || 'Could not share the file.');
+            }
         }
     }, [result, fileName]);
 
@@ -414,6 +400,14 @@ const MediaProcessingModal: React.FC<MediaProcessingModalProps> = ({
                                 </TouchableOpacity>
                             </View>
 
+                            {/* Inline feedback toast */}
+                            {actionFeedback && (
+                                <View style={[styles.feedbackToast, { backgroundColor: accent }]}>
+                                    <CheckCircle2 size={14} color="#FFF" strokeWidth={2.5} />
+                                    <Text style={styles.feedbackText}>{actionFeedback}</Text>
+                                </View>
+                            )}
+
                             {/* Action buttons */}
                             <View style={styles.actionRow}>
                                 {/* Download */}
@@ -424,16 +418,6 @@ const MediaProcessingModal: React.FC<MediaProcessingModalProps> = ({
                                 >
                                     <Download size={18} color={accent} strokeWidth={2} />
                                     <Text style={[styles.actionLabel, { color: theme.text }]}>Save</Text>
-                                </TouchableOpacity>
-
-                                {/* WhatsApp */}
-                                <TouchableOpacity
-                                    style={[styles.actionBtn, { backgroundColor: '#25D366' + '12', borderColor: '#25D366' + '30' }]}
-                                    onPress={handleShareWhatsApp}
-                                    activeOpacity={0.7}
-                                >
-                                    <MessageCircle size={18} color="#25D366" strokeWidth={2} />
-                                    <Text style={[styles.actionLabel, { color: isDark ? '#4ADE80' : '#16A34A' }]}>WhatsApp</Text>
                                 </TouchableOpacity>
 
                                 {/* Share */}
@@ -571,6 +555,24 @@ const styles = StyleSheet.create({
     actionLabel: {
         fontSize: 11,
         fontWeight: '600',
+    },
+
+    /* Feedback toast */
+    feedbackToast: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 6,
+        paddingVertical: 8,
+        paddingHorizontal: 16,
+        borderRadius: 8,
+        marginTop: 10,
+        width: '100%',
+    },
+    feedbackText: {
+        fontSize: 13,
+        fontWeight: '600',
+        color: '#FFF',
     },
 
     /* Primary button */

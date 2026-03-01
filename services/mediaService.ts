@@ -17,8 +17,13 @@ const MEDIA_TIMEOUT_MS = 180_000;
 
 // ─── Auth helper ──────────────────────────────────────────────
 async function getToken(): Promise<string | null> {
-    const { data: { session } } = await supabase.auth.getSession();
-    return session?.access_token ?? null;
+    try {
+        const { data: { session } } = await supabase.auth.getSession();
+        return session?.access_token ?? null;
+    } catch {
+        // Session not ready yet (e.g. still loading from AsyncStorage)
+        return null;
+    }
 }
 
 // ─── Types ────────────────────────────────────────────────────
@@ -106,8 +111,25 @@ function extractFilename(res: Response): string {
 /**
  * Upload file(s) to a media endpoint and download the result.
  * Uses fetch + FormData on all platforms.
+ * Automatically retries once on transient failures (cold connection, auth not ready, etc.)
  */
 export async function processMedia(
+    endpoint: string,
+    files: { fieldName: string; file: PickedFile }[],
+    fields: Record<string, string> = {},
+): Promise<ProcessingResult> {
+    try {
+        return await _processMediaCore(endpoint, files, fields);
+    } catch (firstError: any) {
+        // Retry once after a short delay — handles cold connections, auth not yet loaded, etc.
+        console.warn('processMedia: first attempt failed, retrying…', firstError?.message);
+        await new Promise(r => setTimeout(r, 600));
+        return _processMediaCore(endpoint, files, fields);
+    }
+}
+
+/** Core implementation (called by processMedia with retry wrapper) */
+async function _processMediaCore(
     endpoint: string,
     files: { fieldName: string; file: PickedFile }[],
     fields: Record<string, string> = {},
