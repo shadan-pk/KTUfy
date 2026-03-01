@@ -88,14 +88,14 @@ const lightTheme: Theme = {
 
 const darkTheme: Theme = {
   // Background colors
-  background: '#01040f',
-  backgroundSecondary: '#070B1E',
-  backgroundTertiary: '#0A1128',
+  background: '#0D1117',
+  backgroundSecondary: '#161B22',
+  backgroundTertiary: '#21262D',
 
   // Card colors
-  card: '#0F1A3E',
-  cardSecondary: '#152154',
-  cardBorder: 'rgba(37, 99, 235, 0.3)',
+  card: '#161B22',
+  cardSecondary: '#21262D',
+  cardBorder: 'rgba(48, 54, 61, 0.8)',
 
   // Text colors
   text: '#E6EDF3',
@@ -114,9 +114,9 @@ const darkTheme: Theme = {
   info: '#3B82F6',
 
   // UI element colors
-  border: 'rgba(71, 85, 105, 0.4)',
-  divider: 'rgba(71, 85, 105, 0.15)',
-  shadow: 'rgba(0, 0, 0, 0.3)',
+  border: 'rgba(48, 54, 61, 1)',
+  divider: 'rgba(48, 54, 61, 0.6)',
+  shadow: 'rgba(0, 0, 0, 0.4)',
   overlay: 'rgba(0, 0, 0, 0.7)',
 
   // Feature colors

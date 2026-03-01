@@ -375,7 +375,7 @@ const ExploreScreen: React.FC<ExploreScreenProps> = ({ navigation }) => {
     const totalProgress = getTotalProgress();
 
     // Tool cards data
-    const WHATSAPP_GROUP_LINK = 'https://chat.whatsapp.com/XXXXXXXXXX'; // TODO: Replace with actual group link
+    const WHATSAPP_GROUP_LINK = 'https://chat.whatsapp.com/DUD93gIX2cLFb76kYKaSsu?mode=gi_t'; // TODO: Replace with actual group link
 
     const toolCards = [
         { key: 'MediaTools', label: 'Media Tools', icon: '⬡', desc: 'Video, Audio, Image & PDF', color: '#F43F5E' },

@@ -48,7 +48,7 @@ const Stack = createStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator();
 
 // ─── Dark background for smooth transitions ───────────────────────
-const DARK_BG = '#050816';
+const DARK_BG = '#0D1117';
 
 /**
  * Main Tabs — Home, Chatbot, Library, Profile
@@ -59,7 +59,7 @@ function MainTabs() {
     <View style={{
       flex: 1,
       // paddingTop: Platform.OS === 'android' ? RNStatusBar.currentHeight : 0,
-      backgroundColor: '#050816',
+      backgroundColor: '#0D1117',
     }}>
       <Tab.Navigator
         tabBar={(props) => <BottomNavBar {...props} />}

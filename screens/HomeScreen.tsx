@@ -14,28 +14,28 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { HomeScreenNavigationProp } from '../types/navigation';
 import { useTheme } from '../contexts/ThemeContext';
-import { ArrowRight, WifiOff } from 'lucide-react-native';
+import { ArrowRight, WifiOff, BookOpen, Wrench } from 'lucide-react-native';
 import { useServerStatus } from '../hooks/useServerStatus';
 
 const { width, height } = Dimensions.get('window');
 
 // ─── Theme Colors (Blue Palette) ─────────────────────────────────
 const C = {
-  bg900: '#01040f',
-  bg850: '#070B1E',
-  bg800: '#0A1128',
-  bg700: '#0F1A3E',
+  bg900: '#0D1117',
+  bg850: '#161B22',
+  bg800: '#21262D',
+  bg700: '#161B22',
   accent: '#2563EB',
   accentLight: '#3B82F6',
-  accentGlow: 'rgba(37, 99, 235, 0.12)',
-  accentBorder: 'rgba(37, 99, 235, 0.3)',
+  accentGlow: 'rgba(37, 99, 235, 0.10)',
+  accentBorder: 'rgba(48, 54, 61, 0.8)',
   textPrimary: '#E6EDF3',
   textSecondary: '#8B949E',
   textMuted: '#484F58',
-  inputBg: 'rgba(10, 17, 40, 0.85)',
-  inputBorder: 'rgba(71, 85, 105, 0.4)',
-  navBg: 'rgba(5, 8, 22, 0.95)',
-  navBorder: 'rgba(71, 85, 105, 0.3)',
+  inputBg: 'rgba(22, 27, 34, 0.85)',
+  inputBorder: 'rgba(48, 54, 61, 0.6)',
+  navBg: 'rgba(13, 17, 23, 0.95)',
+  navBorder: 'rgba(48, 54, 61, 0.6)',
   white: '#FFFFFF',
 };
 
@@ -187,8 +187,32 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         </View>
       </KeyboardAvoidingView>
 
-      {/* Explore KTUfy — floating card above nav */}
+      {/* Feature shortcuts + Explore — floating above nav */}
       <View style={styles.exploreFloating}>
+        <View style={styles.featureRow}>
+          <TouchableOpacity
+            style={[styles.featureCard, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}
+            onPress={() => navigation.navigate('LearningZone')}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.featureIconWrap, { backgroundColor: theme.learningZone + '1A' }]}>  
+              <BookOpen size={18} color={theme.learningZone} strokeWidth={2} />
+            </View>
+            <Text style={[styles.featureLabel, { color: theme.text }]}>Learning Zone</Text>
+            <Text style={[styles.featureDesc, { color: theme.textSecondary }]}>Flashcards, quizzes & more</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.featureCard, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}
+            onPress={() => navigation.navigate('MediaTools')}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.featureIconWrap, { backgroundColor: theme.primary + '1A' }]}>
+              <Wrench size={18} color={theme.primary} strokeWidth={2} />
+            </View>
+            <Text style={[styles.featureLabel, { color: theme.text }]}>Media Tools</Text>
+            <Text style={[styles.featureDesc, { color: theme.textSecondary }]}>Video, audio & PDF tools</Text>
+          </TouchableOpacity>
+        </View>
         <TouchableOpacity
           style={[styles.exploreButton, { borderColor: theme.border }]}
           onPress={() => navigation.navigate('Explore')}
@@ -243,7 +267,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     paddingHorizontal: 24,
-    paddingBottom: 120, // space for explore card + nav
+    paddingBottom: 130, // space for feature cards + explore + nav
   },
   // Logo
   logoSection: { alignItems: 'center', marginBottom: 48 },
@@ -252,11 +276,12 @@ const styles = StyleSheet.create({
     borderRadius: 100, top: -60,
   },
   logoText: {
-    fontSize: FONT.display,
-    fontWeight: '800',
-    letterSpacing: 12,
-    textTransform: 'uppercase',
-    textShadowOffset: { width: 0, height: 0 },
+    fontSize: FONT.display + 20,
+    fontFamily: 'Inter-Black',
+    fontWeight: '900',
+    letterSpacing: 2,
+    // textTransform: 'uppercase',
+    textShadowOffset: { width: 5, height: 0 },
     textShadowRadius: 20,
   },
   tagline: {
@@ -297,6 +322,34 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: Platform.OS === 'ios' ? 78 : 28,
     left: 24, right: 24,
+  },
+  featureRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 10,
+  },
+  featureCard: {
+    flex: 1,
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 14,
+  },
+  featureIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  featureLabel: {
+    fontSize: FONT.body,
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  featureDesc: {
+    fontSize: FONT.micro + 1,
+    lineHeight: 15,
   },
   exploreButton: {
     borderRadius: 14, borderWidth: 1,
