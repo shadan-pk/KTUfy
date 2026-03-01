@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
     View,
     Text,
@@ -8,7 +8,6 @@ import {
     TextInput,
     Alert,
     StatusBar,
-    ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../contexts/ThemeContext';
@@ -17,10 +16,11 @@ import { RootStackParamList } from '../types/navigation';
 import {
     pickSingleFile,
     processMedia,
-    shareFile,
     formatFileSize,
     PickedFile,
+    ProcessingResult,
 } from '../services/mediaService';
+import MediaProcessingModal from '../components/MediaProcessingModal';
 
 type Props = { navigation: StackNavigationProp<RootStackParamList, 'ImageTools'> };
 
@@ -44,20 +44,29 @@ const ImageToolsScreen: React.FC<Props> = ({ navigation }) => {
     const [selectedQuality, setSelectedQuality] = useState(QUALITY_OPTIONS[2]);
     const [resizeWidth, setResizeWidth] = useState('1920');
     const [resizeHeight, setResizeHeight] = useState('1080');
-    const [processing, setProcessing] = useState(false);
+
+    // Modal state
+    const [modalVisible, setModalVisible] = useState(false);
+    const [modalPhase, setModalPhase] = useState<'processing' | 'complete' | 'error'>('processing');
+    const [modalResult, setModalResult] = useState<ProcessingResult | null>(null);
+    const [modalError, setModalError] = useState('');
 
     const pickFile = async () => {
         const file = await pickSingleFile(['image/*']);
         if (file) setSelectedFile(file);
     };
 
-    const process = async () => {
+    const process = useCallback(async () => {
         if (!selectedFile) {
             Alert.alert('No file', 'Please select an image file first.');
             return;
         }
 
-        setProcessing(true);
+        setModalResult(null);
+        setModalError('');
+        setModalPhase('processing');
+        setModalVisible(true);
+
         try {
             let endpoint = '';
             const fields: Record<string, string> = {};
@@ -86,16 +95,19 @@ const ImageToolsScreen: React.FC<Props> = ({ navigation }) => {
                 fields,
             );
 
-            Alert.alert('Success ✅', `File processed: ${result.filename}`, [
-                { text: 'Share / Save', onPress: () => shareFile(result.localUri) },
-                { text: 'OK' },
-            ]);
+            setModalResult(result);
+            setModalPhase('complete');
         } catch (err: any) {
-            Alert.alert('Processing Failed', err?.message || 'Something went wrong.');
-        } finally {
-            setProcessing(false);
+            setModalError(err?.message || 'Something went wrong.');
+            setModalPhase('error');
         }
-    };
+    }, [selectedFile, activeTab, selectedFormat, selectedQuality, resizeWidth, resizeHeight]);
+
+    const closeModal = useCallback(() => {
+        setModalVisible(false);
+        setModalResult(null);
+        setModalError('');
+    }, []);
 
     const renderFilePicker = (label: string) => (
         <TouchableOpacity
@@ -139,19 +151,12 @@ const ImageToolsScreen: React.FC<Props> = ({ navigation }) => {
 
     const renderProcessBtn = () => (
         <TouchableOpacity
-            style={[styles.processBtn, { backgroundColor: ACCENT, opacity: processing ? 0.7 : 1 }]}
+            style={[styles.processBtn, { backgroundColor: ACCENT, opacity: !selectedFile ? 0.5 : 1 }]}
             onPress={process}
             activeOpacity={0.8}
-            disabled={processing}
+            disabled={!selectedFile}
         >
-            {processing ? (
-                <View style={styles.processingRow}>
-                    <ActivityIndicator color="#FFF" size="small" />
-                    <Text style={[styles.processBtnText, { marginLeft: 8 }]}>Processing…</Text>
-                </View>
-            ) : (
-                <Text style={styles.processBtnText}>Process Image</Text>
-            )}
+            <Text style={styles.processBtnText}>Process Image</Text>
         </TouchableOpacity>
     );
 
@@ -177,7 +182,7 @@ const ImageToolsScreen: React.FC<Props> = ({ navigation }) => {
                     <TouchableOpacity
                         key={tab.key}
                         style={[styles.tab, activeTab === tab.key && { backgroundColor: ACCENT + '1A', borderBottomColor: ACCENT }]}
-                        onPress={() => { setActiveTab(tab.key); setSelectedFile(null); setWidth(''); setHeight(''); }}
+                        onPress={() => { setActiveTab(tab.key); setSelectedFile(null); setResizeWidth('1920'); setResizeHeight('1080'); }}
                     >
                         <Text style={[styles.tabIcon, { color: activeTab === tab.key ? ACCENT : theme.textSecondary }]}>{tab.icon}</Text>
                         <Text style={[styles.tabLabel, { color: activeTab === tab.key ? ACCENT : theme.textSecondary }]}>{tab.label}</Text>
@@ -263,6 +268,17 @@ const ImageToolsScreen: React.FC<Props> = ({ navigation }) => {
                 )}
                 <View style={{ height: 40 }} />
             </ScrollView>
+
+            {/* Processing / Completion Modal */}
+            <MediaProcessingModal
+                visible={modalVisible}
+                phase={modalPhase}
+                accent={ACCENT}
+                mediaType="image"
+                result={modalResult}
+                errorMessage={modalError}
+                onClose={closeModal}
+            />
         </View>
     );
 };
@@ -294,7 +310,6 @@ const styles = StyleSheet.create({
     chipText: { fontSize: 13, fontWeight: '600' },
     processBtn: { borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 8 },
     processBtnText: { color: '#FFF', fontSize: 15, fontWeight: '700' },
-    processingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
     infoCard: { borderRadius: 12, padding: 14, borderWidth: 1, marginBottom: 20 },
     infoText: { fontSize: 13, lineHeight: 19 },
     resizeRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },

@@ -1,14 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
     View,
     Text,
     TouchableOpacity,
     StyleSheet,
     ScrollView,
-    TextInput,
     Alert,
     StatusBar,
-    ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../contexts/ThemeContext';
@@ -18,10 +16,12 @@ import {
     pickSingleFile,
     pickMultipleFiles,
     processMedia,
-    shareFile,
     formatFileSize,
     PickedFile,
+    ProcessingResult,
 } from '../services/mediaService';
+import MediaProcessingModal from '../components/MediaProcessingModal';
+import AudioTrimmer from '../components/AudioTrimmer';
 
 type Props = { navigation: StackNavigationProp<RootStackParamList, 'AudioTools'> };
 
@@ -53,7 +53,12 @@ const AudioToolsScreen: React.FC<Props> = ({ navigation }) => {
     const [selectedQuality, setSelectedQuality] = useState(QUALITY_OPTIONS[2]);
     const [trimStart, setTrimStart] = useState('');
     const [trimEnd, setTrimEnd] = useState('');
-    const [processing, setProcessing] = useState(false);
+
+    // Modal state
+    const [modalVisible, setModalVisible] = useState(false);
+    const [modalPhase, setModalPhase] = useState<'processing' | 'complete' | 'error'>('processing');
+    const [modalResult, setModalResult] = useState<ProcessingResult | null>(null);
+    const [modalError, setModalError] = useState('');
 
     const pickFile = async () => {
         const file = await pickSingleFile(['audio/*']);
@@ -65,8 +70,8 @@ const AudioToolsScreen: React.FC<Props> = ({ navigation }) => {
         if (files.length) setMergeFiles(files);
     };
 
-    const process = async () => {
-        // Validate before showing spinner
+    const process = useCallback(async () => {
+        // Validate before showing modal
         if (activeTab !== 'merge' && !selectedFile) {
             Alert.alert('No file', 'Please select an audio file first.');
             return;
@@ -80,7 +85,11 @@ const AudioToolsScreen: React.FC<Props> = ({ navigation }) => {
             return;
         }
 
-        setProcessing(true);
+        setModalResult(null);
+        setModalError('');
+        setModalPhase('processing');
+        setModalVisible(true);
+
         try {
             let endpoint = '';
             const fields: Record<string, string> = {};
@@ -91,46 +100,41 @@ const AudioToolsScreen: React.FC<Props> = ({ navigation }) => {
                     endpoint = '/audio/convert';
                     fields.output_format = selectedFormat.toLowerCase();
                     fields.quality = QUALITY_MAP[selectedQuality] || '192k';
-                    files = [{ fieldName: 'file', file: selectedFile }];
+                    files = [{ fieldName: 'file', file: selectedFile! }];
                     break;
-
                 case 'trim':
-                    if (!selectedFile) { Alert.alert('No file', 'Please select an audio file first.'); return; }
-                    if (!trimStart || !trimEnd) { Alert.alert('Missing range', 'Please enter start and end times.'); return; }
                     endpoint = '/audio/trim';
                     fields.start = trimStart;
                     fields.end = trimEnd;
                     fields.output_format = selectedFormat.toLowerCase();
-                    files = [{ fieldName: 'file', file: selectedFile }];
+                    files = [{ fieldName: 'file', file: selectedFile! }];
                     break;
-
                 case 'merge':
-                    if (mergeFiles.length < 2) { Alert.alert('Not enough files', 'Please select at least 2 audio files to merge.'); return; }
                     endpoint = '/audio/merge';
                     fields.output_format = selectedFormat.toLowerCase();
                     files = mergeFiles.map((f) => ({ fieldName: 'files', file: f }));
                     break;
-
                 case 'normalize':
-                    if (!selectedFile) { Alert.alert('No file', 'Please select an audio file first.'); return; }
                     endpoint = '/audio/normalize';
                     fields.output_format = selectedFormat.toLowerCase();
-                    files = [{ fieldName: 'file', file: selectedFile }];
+                    files = [{ fieldName: 'file', file: selectedFile! }];
                     break;
             }
 
             const result = await processMedia(endpoint, files, fields);
-
-            Alert.alert('Success ✅', `File processed: ${result.filename}`, [
-                { text: 'Share / Save', onPress: () => shareFile(result.localUri) },
-                { text: 'OK' },
-            ]);
+            setModalResult(result);
+            setModalPhase('complete');
         } catch (err: any) {
-            Alert.alert('Processing Failed', err?.message || 'Something went wrong.');
-        } finally {
-            setProcessing(false);
+            setModalError(err?.message || 'Something went wrong.');
+            setModalPhase('error');
         }
-    };
+    }, [selectedFile, mergeFiles, activeTab, selectedFormat, selectedQuality, trimStart, trimEnd]);
+
+    const closeModal = useCallback(() => {
+        setModalVisible(false);
+        setModalResult(null);
+        setModalError('');
+    }, []);
 
     const renderFilePicker = (label: string) => (
         <TouchableOpacity
@@ -174,19 +178,12 @@ const AudioToolsScreen: React.FC<Props> = ({ navigation }) => {
 
     const renderProcessBtn = () => (
         <TouchableOpacity
-            style={[styles.processBtn, { backgroundColor: ACCENT, opacity: processing ? 0.7 : 1 }]}
+            style={[styles.processBtn, { backgroundColor: ACCENT, opacity: (activeTab !== 'merge' && !selectedFile) ? 0.5 : 1 }]}
             onPress={process}
             activeOpacity={0.8}
-            disabled={processing}
+            disabled={activeTab !== 'merge' && !selectedFile}
         >
-            {processing ? (
-                <View style={styles.processingRow}>
-                    <ActivityIndicator color="#FFF" size="small" />
-                    <Text style={[styles.processBtnText, { marginLeft: 8 }]}>Processing…</Text>
-                </View>
-            ) : (
-                <Text style={styles.processBtnText}>Process Audio</Text>
-            )}
+            <Text style={styles.processBtnText}>Process Audio</Text>
         </TouchableOpacity>
     );
 
@@ -234,32 +231,13 @@ const AudioToolsScreen: React.FC<Props> = ({ navigation }) => {
                 {activeTab === 'trim' && (
                     <>
                         {renderFilePicker('Select Audio File')}
-                        <View style={styles.optionBlock}>
-                            <Text style={[styles.optionLabel, { color: theme.textSecondary }]}>Trim Range</Text>
-                            <View style={styles.trimRow}>
-                                <View style={[styles.trimInput, { backgroundColor: theme.backgroundSecondary, borderColor: theme.border }]}>
-                                    <Text style={[styles.trimLabel, { color: theme.textSecondary }]}>Start (mm:ss)</Text>
-                                    <TextInput
-                                        style={[styles.trimField, { color: theme.text }]}
-                                        value={trimStart}
-                                        onChangeText={setTrimStart}
-                                        placeholder="00:00"
-                                        placeholderTextColor={theme.textTertiary}
-                                    />
-                                </View>
-                                <Text style={[styles.trimDash, { color: theme.textSecondary }]}>→</Text>
-                                <View style={[styles.trimInput, { backgroundColor: theme.backgroundSecondary, borderColor: theme.border }]}>
-                                    <Text style={[styles.trimLabel, { color: theme.textSecondary }]}>End (mm:ss)</Text>
-                                    <TextInput
-                                        style={[styles.trimField, { color: theme.text }]}
-                                        value={trimEnd}
-                                        onChangeText={setTrimEnd}
-                                        placeholder="01:30"
-                                        placeholderTextColor={theme.textTertiary}
-                                    />
-                                </View>
-                            </View>
-                        </View>
+                        {selectedFile && (
+                            <AudioTrimmer
+                                fileUri={selectedFile.uri}
+                                accent={ACCENT}
+                                onTrimChange={(start, end) => { setTrimStart(start); setTrimEnd(end); }}
+                            />
+                        )}
                         {renderChips(AUDIO_FORMATS, selectedFormat, setSelectedFormat, 'Output Format')}
                         {renderProcessBtn()}
                     </>
@@ -309,6 +287,17 @@ const AudioToolsScreen: React.FC<Props> = ({ navigation }) => {
 
                 <View style={{ height: 40 }} />
             </ScrollView>
+
+            {/* Processing / Completion Modal */}
+            <MediaProcessingModal
+                visible={modalVisible}
+                phase={modalPhase}
+                accent={ACCENT}
+                mediaType="audio"
+                result={modalResult}
+                errorMessage={modalError}
+                onClose={closeModal}
+            />
         </View>
     );
 };
@@ -340,18 +329,12 @@ const styles = StyleSheet.create({
     chipText: { fontSize: 13, fontWeight: '600' },
     processBtn: { borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 8 },
     processBtnText: { color: '#FFF', fontSize: 15, fontWeight: '700' },
-    processingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
     infoCard: { borderRadius: 12, padding: 14, borderWidth: 1, marginBottom: 0 },
     infoText: { fontSize: 13, lineHeight: 19 },
     fileRow: { flexDirection: 'row', alignItems: 'center', borderRadius: 10, borderWidth: 1, padding: 12, marginBottom: 8 },
     fileRowNum: { width: 24, fontSize: 14, fontWeight: '700' },
     fileRowName: { flex: 1, fontSize: 14, fontWeight: '500' },
     fileRowMeta: { fontSize: 12, fontWeight: '600' },
-    trimRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-    trimInput: { flex: 1, borderRadius: 12, borderWidth: 1, padding: 12 },
-    trimLabel: { fontSize: 11, fontWeight: '600', marginBottom: 6 },
-    trimField: { fontSize: 18, fontWeight: '700', textAlign: 'center' },
-    trimDash: { fontSize: 20, fontWeight: '300' },
 });
 
 export default AudioToolsScreen;

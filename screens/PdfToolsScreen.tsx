@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
     View,
     Text,
@@ -8,7 +8,6 @@ import {
     TextInput,
     Alert,
     StatusBar,
-    ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../contexts/ThemeContext';
@@ -18,10 +17,11 @@ import {
     pickSingleFile,
     pickMultipleFiles,
     processMedia,
-    shareFile,
     formatFileSize,
     PickedFile,
+    ProcessingResult,
 } from '../services/mediaService';
+import MediaProcessingModal from '../components/MediaProcessingModal';
 
 type Props = { navigation: StackNavigationProp<RootStackParamList, 'PdfTools'> };
 
@@ -54,7 +54,12 @@ const PdfToolsScreen: React.FC<Props> = ({ navigation }) => {
     const [selectedImgFormat, setSelectedImgFormat] = useState(IMAGE_FORMATS[0]);
     const [selectedQuality, setSelectedQuality] = useState(QUALITY_OPTIONS[1]);
     const [splitRanges, setSplitRanges] = useState('');
-    const [processing, setProcessing] = useState(false);
+
+    // Modal state
+    const [modalVisible, setModalVisible] = useState(false);
+    const [modalPhase, setModalPhase] = useState<'processing' | 'complete' | 'error'>('processing');
+    const [modalResult, setModalResult] = useState<ProcessingResult | null>(null);
+    const [modalError, setModalError] = useState('');
 
     const pickPdf = async (multi = false) => {
         if (multi) {
@@ -81,8 +86,8 @@ const PdfToolsScreen: React.FC<Props> = ({ navigation }) => {
         setSelectedQuality(QUALITY_OPTIONS[1]); // 'Print (150 dpi)'
     };
 
-    const process = async () => {
-        // Validate before showing spinner
+    const process = useCallback(async () => {
+        // Validate before showing modal
         if (['split', 'compress', 'pdf2img'].includes(activeTab) && !selectedFile) {
             Alert.alert('No file', 'Please select a PDF file first.');
             return;
@@ -100,7 +105,11 @@ const PdfToolsScreen: React.FC<Props> = ({ navigation }) => {
             return;
         }
 
-        setProcessing(true);
+        setModalResult(null);
+        setModalError('');
+        setModalPhase('processing');
+        setModalVisible(true);
+
         try {
             let endpoint = '';
             const fields: Record<string, string> = {};
@@ -111,28 +120,23 @@ const PdfToolsScreen: React.FC<Props> = ({ navigation }) => {
                     endpoint = '/pdf/merge';
                     files = pdfFiles.map((f) => ({ fieldName: 'files', file: f }));
                     break;
-
                 case 'split':
                     endpoint = '/pdf/split';
                     fields.ranges = splitRanges;
                     files = [{ fieldName: 'file', file: selectedFile! }];
                     break;
-
                 case 'compress':
                     endpoint = '/pdf/compress';
                     fields.quality = QUALITY_MAP[selectedQuality] || 'print';
                     files = [{ fieldName: 'file', file: selectedFile! }];
                     break;
-
                 case 'img2pdf':
                     endpoint = '/pdf/images-to-pdf';
                     files = imageFiles.map((f) => ({ fieldName: 'files', file: f }));
                     break;
-
                 case 'pdf2img': {
                     endpoint = '/pdf/pdf-to-images';
                     fields.output_format = selectedImgFormat.toLowerCase();
-                    // pdf2img only accepts screen|print|high — not 'max'
                     const q = QUALITY_MAP[selectedQuality];
                     fields.quality = (q === 'max') ? 'print' : (q || 'print');
                     files = [{ fieldName: 'file', file: selectedFile! }];
@@ -141,17 +145,21 @@ const PdfToolsScreen: React.FC<Props> = ({ navigation }) => {
             }
 
             const result = await processMedia(endpoint, files, fields);
-
-            Alert.alert('Success ✅', `File processed: ${result.filename}`, [
-                { text: 'Share / Save', onPress: () => shareFile(result.localUri) },
-                { text: 'OK' },
-            ]);
+            setModalResult(result);
+            setModalPhase('complete');
         } catch (err: any) {
-            Alert.alert('Processing Failed', err?.message || 'Something went wrong.');
-        } finally {
-            setProcessing(false);
+            setModalError(err?.message || 'Something went wrong.');
+            setModalPhase('error');
         }
-    };
+    }, [selectedFile, pdfFiles, imageFiles, activeTab, selectedQuality, selectedImgFormat, splitRanges]);
+
+    const closeModal = useCallback(() => {
+        setModalVisible(false);
+        setModalResult(null);
+        setModalError('');
+    }, []);
+
+    const completionMediaType = activeTab === 'pdf2img' ? 'image' as const : 'pdf' as const;
 
     const renderSinglePicker = (label: string, sub: string) => (
         <TouchableOpacity
@@ -195,19 +203,11 @@ const PdfToolsScreen: React.FC<Props> = ({ navigation }) => {
 
     const renderProcessBtn = (label = 'Process PDF') => (
         <TouchableOpacity
-            style={[styles.processBtn, { backgroundColor: ACCENT, opacity: processing ? 0.7 : 1 }]}
+            style={[styles.processBtn, { backgroundColor: ACCENT }]}
             onPress={process}
             activeOpacity={0.8}
-            disabled={processing}
         >
-            {processing ? (
-                <View style={styles.processingRow}>
-                    <ActivityIndicator color="#FFF" size="small" />
-                    <Text style={[styles.processBtnText, { marginLeft: 8 }]}>Processing…</Text>
-                </View>
-            ) : (
-                <Text style={styles.processBtnText}>{label}</Text>
-            )}
+            <Text style={styles.processBtnText}>{label}</Text>
         </TouchableOpacity>
     );
 
@@ -347,6 +347,17 @@ const PdfToolsScreen: React.FC<Props> = ({ navigation }) => {
 
                 <View style={{ height: 40 }} />
             </ScrollView>
+
+            {/* Processing / Completion Modal */}
+            <MediaProcessingModal
+                visible={modalVisible}
+                phase={modalPhase}
+                accent={ACCENT}
+                mediaType={completionMediaType}
+                result={modalResult}
+                errorMessage={modalError}
+                onClose={closeModal}
+            />
         </View>
     );
 };
@@ -378,7 +389,6 @@ const styles = StyleSheet.create({
     chipText: { fontSize: 12, fontWeight: '600' },
     processBtn: { borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 8 },
     processBtnText: { color: '#FFF', fontSize: 15, fontWeight: '700' },
-    processingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
     infoCard: { borderRadius: 12, padding: 14, borderWidth: 1, marginBottom: 20 },
     infoText: { fontSize: 13, lineHeight: 19 },
     fileRow: { flexDirection: 'row', alignItems: 'center', borderRadius: 10, borderWidth: 1, padding: 12, marginBottom: 8 },

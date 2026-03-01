@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
     View,
     Text,
@@ -7,7 +7,6 @@ import {
     ScrollView,
     Alert,
     StatusBar,
-    ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../contexts/ThemeContext';
@@ -16,10 +15,11 @@ import { RootStackParamList } from '../types/navigation';
 import {
     pickSingleFile,
     processMedia,
-    shareFile,
     formatFileSize,
     PickedFile,
+    ProcessingResult,
 } from '../services/mediaService';
+import MediaProcessingModal from '../components/MediaProcessingModal';
 
 type Props = { navigation: StackNavigationProp<RootStackParamList, 'VideoTools'> };
 
@@ -47,7 +47,12 @@ const VideoToolsScreen: React.FC<Props> = ({ navigation }) => {
     const [selectedAudioFmt, setSelectedAudioFmt] = useState(AUDIO_FORMATS[0]);
     const [selectedQuality, setSelectedQuality] = useState(QUALITY_OPTIONS[0]);
     const [selectedFps, setSelectedFps] = useState(FPS_OPTIONS[1]);
-    const [processing, setProcessing] = useState(false);
+
+    // Modal state
+    const [modalVisible, setModalVisible] = useState(false);
+    const [modalPhase, setModalPhase] = useState<'processing' | 'complete' | 'error'>('processing');
+    const [modalResult, setModalResult] = useState<ProcessingResult | null>(null);
+    const [modalError, setModalError] = useState('');
 
     const pickFile = async () => {
         const file = await pickSingleFile(['video/*']);
@@ -62,13 +67,17 @@ const VideoToolsScreen: React.FC<Props> = ({ navigation }) => {
         else setSelectedQuality(QUALITY_OPTIONS[0]); // 'Original'
     };
 
-    const process = async () => {
+    const process = useCallback(async () => {
         if (!selectedFile) {
             Alert.alert('No file', 'Please select a video file first.');
             return;
         }
 
-        setProcessing(true);
+        setModalResult(null);
+        setModalError('');
+        setModalPhase('processing');
+        setModalVisible(true);
+
         try {
             let endpoint = '';
             const fields: Record<string, string> = {};
@@ -77,9 +86,7 @@ const VideoToolsScreen: React.FC<Props> = ({ navigation }) => {
                 case 'convert':
                     endpoint = '/video/convert';
                     fields.output_format = selectedFormat.toLowerCase();
-                    if (selectedQuality !== 'Original') {
-                        fields.quality = selectedQuality.toLowerCase();
-                    }
+                    if (selectedQuality !== 'Original') fields.quality = selectedQuality.toLowerCase();
                     break;
                 case 'extract':
                     endpoint = '/video/extract-audio';
@@ -91,7 +98,6 @@ const VideoToolsScreen: React.FC<Props> = ({ navigation }) => {
                     break;
                 case 'compress': {
                     endpoint = '/video/compress';
-                    // Ensure we never send 'original' — only valid resolutions
                     const compressQ = selectedQuality === 'Original' ? '720p' : selectedQuality.toLowerCase();
                     fields.quality = compressQ;
                     break;
@@ -104,16 +110,21 @@ const VideoToolsScreen: React.FC<Props> = ({ navigation }) => {
                 fields,
             );
 
-            Alert.alert('Success ✅', `File processed: ${result.filename}`, [
-                { text: 'Share / Save', onPress: () => shareFile(result.localUri) },
-                { text: 'OK' },
-            ]);
+            setModalResult(result);
+            setModalPhase('complete');
         } catch (err: any) {
-            Alert.alert('Processing Failed', err?.message || 'Something went wrong.');
-        } finally {
-            setProcessing(false);
+            setModalError(err?.message || 'Something went wrong.');
+            setModalPhase('error');
         }
-    };
+    }, [selectedFile, activeTab, selectedFormat, selectedAudioFmt, selectedQuality, selectedFps]);
+
+    const closeModal = useCallback(() => {
+        setModalVisible(false);
+        setModalResult(null);
+        setModalError('');
+    }, []);
+
+    const completionMediaType = activeTab === 'extract' ? 'audio' as const : activeTab === 'gif' ? 'image' as const : 'video' as const;
 
     const renderFilePicker = (label: string) => (
         <TouchableOpacity
@@ -160,19 +171,12 @@ const VideoToolsScreen: React.FC<Props> = ({ navigation }) => {
 
     const renderProcessBtn = () => (
         <TouchableOpacity
-            style={[styles.processBtn, { backgroundColor: ACCENT, opacity: processing ? 0.7 : 1 }]}
+            style={[styles.processBtn, { backgroundColor: ACCENT, opacity: !selectedFile ? 0.5 : 1 }]}
             onPress={process}
             activeOpacity={0.8}
-            disabled={processing}
+            disabled={!selectedFile}
         >
-            {processing ? (
-                <View style={styles.processingRow}>
-                    <ActivityIndicator color="#FFF" size="small" />
-                    <Text style={[styles.processBtnText, { marginLeft: 8 }]}>Processing…</Text>
-                </View>
-            ) : (
-                <Text style={styles.processBtnText}>Process Video</Text>
-            )}
+            <Text style={styles.processBtnText}>Process Video</Text>
         </TouchableOpacity>
     );
 
@@ -249,6 +253,17 @@ const VideoToolsScreen: React.FC<Props> = ({ navigation }) => {
                 )}
                 <View style={{ height: 40 }} />
             </ScrollView>
+
+            {/* Processing / Completion Modal */}
+            <MediaProcessingModal
+                visible={modalVisible}
+                phase={modalPhase}
+                accent={ACCENT}
+                mediaType={completionMediaType}
+                result={modalResult}
+                errorMessage={modalError}
+                onClose={closeModal}
+            />
         </View>
     );
 };
@@ -280,7 +295,6 @@ const styles = StyleSheet.create({
     chipText: { fontSize: 13, fontWeight: '600' },
     processBtn: { borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 8 },
     processBtnText: { color: '#FFF', fontSize: 15, fontWeight: '700' },
-    processingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
     infoCard: { borderRadius: 12, padding: 14, borderWidth: 1, marginBottom: 20 },
     infoText: { fontSize: 13, lineHeight: 19 },
 });
