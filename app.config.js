@@ -18,6 +18,7 @@ module.exports = {
       supportsTablet: true
     },
     android: {
+      package: "com.ktufy.app",
       adaptiveIcon: {
         foregroundImage: "./assets/adaptive-icon.png",
         backgroundColor: "#ffffff"

@@ -5,13 +5,23 @@ import {
     TouchableOpacity,
     StyleSheet,
     ScrollView,
+    TextInput,
     Alert,
     StatusBar,
+    ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../contexts/ThemeContext';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../types/navigation';
+import {
+    pickSingleFile,
+    pickMultipleFiles,
+    processMedia,
+    shareFile,
+    formatFileSize,
+    PickedFile,
+} from '../services/mediaService';
 
 type Props = { navigation: StackNavigationProp<RootStackParamList, 'AudioTools'> };
 
@@ -19,6 +29,12 @@ const ACCENT = '#8B5CF6';
 
 const AUDIO_FORMATS = ['MP3', 'AAC', 'WAV', 'OGG', 'FLAC', 'M4A'];
 const QUALITY_OPTIONS = ['Low (64kbps)', 'Medium (128kbps)', 'High (192kbps)', 'Lossless (320kbps)'];
+const QUALITY_MAP: Record<string, string> = {
+    'Low (64kbps)': '64k',
+    'Medium (128kbps)': '128k',
+    'High (192kbps)': '192k',
+    'Lossless (320kbps)': '320k',
+};
 
 type TabKey = 'convert' | 'trim' | 'merge' | 'normalize';
 const TABS: { key: TabKey; label: string; icon: string }[] = [
@@ -31,32 +47,105 @@ const TABS: { key: TabKey; label: string; icon: string }[] = [
 const AudioToolsScreen: React.FC<Props> = ({ navigation }) => {
     const { theme, isDark } = useTheme();
     const [activeTab, setActiveTab] = useState<TabKey>('convert');
-    const [selectedFile, setSelectedFile] = useState<string | null>(null);
-    const [mergeFiles, setMergeFiles] = useState<string[]>([]);
+    const [selectedFile, setSelectedFile] = useState<PickedFile | null>(null);
+    const [mergeFiles, setMergeFiles] = useState<PickedFile[]>([]);
     const [selectedFormat, setSelectedFormat] = useState(AUDIO_FORMATS[0]);
     const [selectedQuality, setSelectedQuality] = useState(QUALITY_OPTIONS[2]);
+    const [trimStart, setTrimStart] = useState('');
+    const [trimEnd, setTrimEnd] = useState('');
+    const [processing, setProcessing] = useState(false);
 
-    const pickFile = (multi = false) => {
-        Alert.alert('File Picker', 'Connect your backend to enable file selection & processing.');
-        if (multi) {
-            setMergeFiles(['audio_1.mp3', 'audio_2.mp3', 'audio_3.wav']);
-        } else {
-            setSelectedFile('sample_audio.mp3');
-        }
+    const pickFile = async () => {
+        const file = await pickSingleFile(['audio/*']);
+        if (file) setSelectedFile(file);
     };
 
-    const process = () =>
-        Alert.alert('Processing', 'Backend integration coming soon! The server will handle all audio processing.');
+    const pickMergeFiles = async () => {
+        const files = await pickMultipleFiles(['audio/*']);
+        if (files.length) setMergeFiles(files);
+    };
+
+    const process = async () => {
+        // Validate before showing spinner
+        if (activeTab !== 'merge' && !selectedFile) {
+            Alert.alert('No file', 'Please select an audio file first.');
+            return;
+        }
+        if (activeTab === 'trim' && (!trimStart || !trimEnd)) {
+            Alert.alert('Missing range', 'Please enter start and end times.');
+            return;
+        }
+        if (activeTab === 'merge' && mergeFiles.length < 2) {
+            Alert.alert('Not enough files', 'Please select at least 2 audio files to merge.');
+            return;
+        }
+
+        setProcessing(true);
+        try {
+            let endpoint = '';
+            const fields: Record<string, string> = {};
+            let files: { fieldName: string; file: PickedFile }[] = [];
+
+            switch (activeTab) {
+                case 'convert':
+                    endpoint = '/audio/convert';
+                    fields.output_format = selectedFormat.toLowerCase();
+                    fields.quality = QUALITY_MAP[selectedQuality] || '192k';
+                    files = [{ fieldName: 'file', file: selectedFile }];
+                    break;
+
+                case 'trim':
+                    if (!selectedFile) { Alert.alert('No file', 'Please select an audio file first.'); return; }
+                    if (!trimStart || !trimEnd) { Alert.alert('Missing range', 'Please enter start and end times.'); return; }
+                    endpoint = '/audio/trim';
+                    fields.start = trimStart;
+                    fields.end = trimEnd;
+                    fields.output_format = selectedFormat.toLowerCase();
+                    files = [{ fieldName: 'file', file: selectedFile }];
+                    break;
+
+                case 'merge':
+                    if (mergeFiles.length < 2) { Alert.alert('Not enough files', 'Please select at least 2 audio files to merge.'); return; }
+                    endpoint = '/audio/merge';
+                    fields.output_format = selectedFormat.toLowerCase();
+                    files = mergeFiles.map((f) => ({ fieldName: 'files', file: f }));
+                    break;
+
+                case 'normalize':
+                    if (!selectedFile) { Alert.alert('No file', 'Please select an audio file first.'); return; }
+                    endpoint = '/audio/normalize';
+                    fields.output_format = selectedFormat.toLowerCase();
+                    files = [{ fieldName: 'file', file: selectedFile }];
+                    break;
+            }
+
+            const result = await processMedia(endpoint, files, fields);
+
+            Alert.alert('Success ✅', `File processed: ${result.filename}`, [
+                { text: 'Share / Save', onPress: () => shareFile(result.localUri) },
+                { text: 'OK' },
+            ]);
+        } catch (err: any) {
+            Alert.alert('Processing Failed', err?.message || 'Something went wrong.');
+        } finally {
+            setProcessing(false);
+        }
+    };
 
     const renderFilePicker = (label: string) => (
         <TouchableOpacity
             style={[styles.filePicker, { backgroundColor: theme.backgroundSecondary, borderColor: ACCENT + '60' }]}
-            onPress={() => pickFile(false)}
+            onPress={pickFile}
             activeOpacity={0.7}
         >
             <Text style={[styles.fileIcon, { color: ACCENT }]}>⬆</Text>
             {selectedFile ? (
-                <Text style={[styles.fileName, { color: theme.text }]}>{selectedFile}</Text>
+                <View style={{ alignItems: 'center' }}>
+                    <Text style={[styles.fileName, { color: theme.text }]}>{selectedFile.name}</Text>
+                    {selectedFile.size ? (
+                        <Text style={[styles.fileSize, { color: theme.textSecondary }]}>{formatFileSize(selectedFile.size)}</Text>
+                    ) : null}
+                </View>
             ) : (
                 <>
                     <Text style={[styles.filePickerTitle, { color: theme.text }]}>{label}</Text>
@@ -84,8 +173,20 @@ const AudioToolsScreen: React.FC<Props> = ({ navigation }) => {
     );
 
     const renderProcessBtn = () => (
-        <TouchableOpacity style={[styles.processBtn, { backgroundColor: ACCENT }]} onPress={process} activeOpacity={0.8}>
-            <Text style={styles.processBtnText}>Process Audio</Text>
+        <TouchableOpacity
+            style={[styles.processBtn, { backgroundColor: ACCENT, opacity: processing ? 0.7 : 1 }]}
+            onPress={process}
+            activeOpacity={0.8}
+            disabled={processing}
+        >
+            {processing ? (
+                <View style={styles.processingRow}>
+                    <ActivityIndicator color="#FFF" size="small" />
+                    <Text style={[styles.processBtnText, { marginLeft: 8 }]}>Processing…</Text>
+                </View>
+            ) : (
+                <Text style={styles.processBtnText}>Process Audio</Text>
+            )}
         </TouchableOpacity>
     );
 
@@ -111,7 +212,7 @@ const AudioToolsScreen: React.FC<Props> = ({ navigation }) => {
                     <TouchableOpacity
                         key={tab.key}
                         style={[styles.tab, activeTab === tab.key && { backgroundColor: ACCENT + '1A', borderBottomColor: ACCENT }]}
-                        onPress={() => setActiveTab(tab.key)}
+                        onPress={() => { setActiveTab(tab.key); setSelectedFile(null); setMergeFiles([]); setTrimStart(''); setTrimEnd(''); }}
                     >
                         <Text style={[styles.tabIcon, { color: activeTab === tab.key ? ACCENT : theme.textSecondary }]}>{tab.icon}</Text>
                         <Text style={[styles.tabLabel, { color: activeTab === tab.key ? ACCENT : theme.textSecondary }]}>{tab.label}</Text>
@@ -135,10 +236,28 @@ const AudioToolsScreen: React.FC<Props> = ({ navigation }) => {
                         {renderFilePicker('Select Audio File')}
                         <View style={styles.optionBlock}>
                             <Text style={[styles.optionLabel, { color: theme.textSecondary }]}>Trim Range</Text>
-                            <View style={[styles.infoCard, { backgroundColor: theme.backgroundSecondary, borderColor: theme.border }]}>
-                                <Text style={[styles.infoText, { color: theme.textSecondary }]}>
-                                    ⏱ Start time and end time inputs will be enabled after selecting a file. You can set the trim range in seconds or mm:ss format.
-                                </Text>
+                            <View style={styles.trimRow}>
+                                <View style={[styles.trimInput, { backgroundColor: theme.backgroundSecondary, borderColor: theme.border }]}>
+                                    <Text style={[styles.trimLabel, { color: theme.textSecondary }]}>Start (mm:ss)</Text>
+                                    <TextInput
+                                        style={[styles.trimField, { color: theme.text }]}
+                                        value={trimStart}
+                                        onChangeText={setTrimStart}
+                                        placeholder="00:00"
+                                        placeholderTextColor={theme.textTertiary}
+                                    />
+                                </View>
+                                <Text style={[styles.trimDash, { color: theme.textSecondary }]}>→</Text>
+                                <View style={[styles.trimInput, { backgroundColor: theme.backgroundSecondary, borderColor: theme.border }]}>
+                                    <Text style={[styles.trimLabel, { color: theme.textSecondary }]}>End (mm:ss)</Text>
+                                    <TextInput
+                                        style={[styles.trimField, { color: theme.text }]}
+                                        value={trimEnd}
+                                        onChangeText={setTrimEnd}
+                                        placeholder="01:30"
+                                        placeholderTextColor={theme.textTertiary}
+                                    />
+                                </View>
                             </View>
                         </View>
                         {renderChips(AUDIO_FORMATS, selectedFormat, setSelectedFormat, 'Output Format')}
@@ -150,7 +269,7 @@ const AudioToolsScreen: React.FC<Props> = ({ navigation }) => {
                     <>
                         <TouchableOpacity
                             style={[styles.filePicker, { backgroundColor: theme.backgroundSecondary, borderColor: ACCENT + '60' }]}
-                            onPress={() => pickFile(true)}
+                            onPress={pickMergeFiles}
                             activeOpacity={0.7}
                         >
                             <Text style={[styles.fileIcon, { color: ACCENT }]}>⊕</Text>
@@ -164,7 +283,8 @@ const AudioToolsScreen: React.FC<Props> = ({ navigation }) => {
                                 {mergeFiles.map((f, i) => (
                                     <View key={i} style={[styles.fileRow, { backgroundColor: theme.backgroundSecondary, borderColor: theme.border }]}>
                                         <Text style={[styles.fileRowNum, { color: ACCENT }]}>{i + 1}</Text>
-                                        <Text style={[styles.fileRowName, { color: theme.text }]}>{f}</Text>
+                                        <Text style={[styles.fileRowName, { color: theme.text }]}>{f.name}</Text>
+                                        {f.size ? <Text style={[styles.fileRowMeta, { color: theme.textSecondary }]}>{formatFileSize(f.size)}</Text> : null}
                                     </View>
                                 ))}
                             </View>
@@ -212,6 +332,7 @@ const styles = StyleSheet.create({
     filePickerTitle: { fontSize: 16, fontWeight: '600', marginBottom: 4 },
     filePickerSub: { fontSize: 13 },
     fileName: { fontSize: 14, fontWeight: '600' },
+    fileSize: { fontSize: 12, marginTop: 2 },
     optionBlock: { marginBottom: 20 },
     optionLabel: { fontSize: 12, fontWeight: '600', marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.5 },
     chipScroll: { gap: 8 },
@@ -219,11 +340,18 @@ const styles = StyleSheet.create({
     chipText: { fontSize: 13, fontWeight: '600' },
     processBtn: { borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 8 },
     processBtnText: { color: '#FFF', fontSize: 15, fontWeight: '700' },
+    processingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
     infoCard: { borderRadius: 12, padding: 14, borderWidth: 1, marginBottom: 0 },
     infoText: { fontSize: 13, lineHeight: 19 },
     fileRow: { flexDirection: 'row', alignItems: 'center', borderRadius: 10, borderWidth: 1, padding: 12, marginBottom: 8 },
     fileRowNum: { width: 24, fontSize: 14, fontWeight: '700' },
     fileRowName: { flex: 1, fontSize: 14, fontWeight: '500' },
+    fileRowMeta: { fontSize: 12, fontWeight: '600' },
+    trimRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+    trimInput: { flex: 1, borderRadius: 12, borderWidth: 1, padding: 12 },
+    trimLabel: { fontSize: 11, fontWeight: '600', marginBottom: 6 },
+    trimField: { fontSize: 18, fontWeight: '700', textAlign: 'center' },
+    trimDash: { fontSize: 20, fontWeight: '300' },
 });
 
 export default AudioToolsScreen;

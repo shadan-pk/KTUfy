@@ -7,11 +7,19 @@ import {
     ScrollView,
     Alert,
     StatusBar,
+    ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../contexts/ThemeContext';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../types/navigation';
+import {
+    pickSingleFile,
+    processMedia,
+    shareFile,
+    formatFileSize,
+    PickedFile,
+} from '../services/mediaService';
 
 type Props = { navigation: StackNavigationProp<RootStackParamList, 'VideoTools'> };
 
@@ -34,20 +42,77 @@ const TABS: { key: TabKey; label: string; icon: string }[] = [
 const VideoToolsScreen: React.FC<Props> = ({ navigation }) => {
     const { theme, isDark } = useTheme();
     const [activeTab, setActiveTab] = useState<TabKey>('convert');
-    const [selectedFile, setSelectedFile] = useState<string | null>(null);
+    const [selectedFile, setSelectedFile] = useState<PickedFile | null>(null);
     const [selectedFormat, setSelectedFormat] = useState(VIDEO_FORMATS[0]);
     const [selectedAudioFmt, setSelectedAudioFmt] = useState(AUDIO_FORMATS[0]);
     const [selectedQuality, setSelectedQuality] = useState(QUALITY_OPTIONS[0]);
     const [selectedFps, setSelectedFps] = useState(FPS_OPTIONS[1]);
+    const [processing, setProcessing] = useState(false);
 
-    const pickFile = () => {
-        // Placeholder — real file picker requires expo-document-picker
-        Alert.alert('File Picker', 'Connect your backend to enable file selection & processing.');
-        setSelectedFile('sample_video.mp4');
+    const pickFile = async () => {
+        const file = await pickSingleFile(['video/*']);
+        if (file) setSelectedFile(file);
     };
 
-    const process = () => {
-        Alert.alert('Processing', 'Backend integration coming soon! The server will handle all media processing.');
+    const handleTabSwitch = (key: TabKey) => {
+        setActiveTab(key);
+        setSelectedFile(null);
+        // Reset to valid defaults per tab
+        if (key === 'compress') setSelectedQuality(QUALITY_OPTIONS[1]); // '1080p'
+        else setSelectedQuality(QUALITY_OPTIONS[0]); // 'Original'
+    };
+
+    const process = async () => {
+        if (!selectedFile) {
+            Alert.alert('No file', 'Please select a video file first.');
+            return;
+        }
+
+        setProcessing(true);
+        try {
+            let endpoint = '';
+            const fields: Record<string, string> = {};
+
+            switch (activeTab) {
+                case 'convert':
+                    endpoint = '/video/convert';
+                    fields.output_format = selectedFormat.toLowerCase();
+                    if (selectedQuality !== 'Original') {
+                        fields.quality = selectedQuality.toLowerCase();
+                    }
+                    break;
+                case 'extract':
+                    endpoint = '/video/extract-audio';
+                    fields.output_format = selectedAudioFmt.toLowerCase();
+                    break;
+                case 'gif':
+                    endpoint = '/video/to-gif';
+                    fields.fps = selectedFps.replace(' fps', '');
+                    break;
+                case 'compress': {
+                    endpoint = '/video/compress';
+                    // Ensure we never send 'original' — only valid resolutions
+                    const compressQ = selectedQuality === 'Original' ? '720p' : selectedQuality.toLowerCase();
+                    fields.quality = compressQ;
+                    break;
+                }
+            }
+
+            const result = await processMedia(
+                endpoint,
+                [{ fieldName: 'file', file: selectedFile }],
+                fields,
+            );
+
+            Alert.alert('Success ✅', `File processed: ${result.filename}`, [
+                { text: 'Share / Save', onPress: () => shareFile(result.localUri) },
+                { text: 'OK' },
+            ]);
+        } catch (err: any) {
+            Alert.alert('Processing Failed', err?.message || 'Something went wrong.');
+        } finally {
+            setProcessing(false);
+        }
     };
 
     const renderFilePicker = (label: string) => (
@@ -58,7 +123,12 @@ const VideoToolsScreen: React.FC<Props> = ({ navigation }) => {
         >
             <Text style={[styles.fileIcon, { color: ACCENT }]}>⬆</Text>
             {selectedFile ? (
-                <Text style={[styles.fileName, { color: theme.text }]}>{selectedFile}</Text>
+                <View style={{ alignItems: 'center' }}>
+                    <Text style={[styles.fileName, { color: theme.text }]}>{selectedFile.name}</Text>
+                    {selectedFile.size ? (
+                        <Text style={[styles.fileSize, { color: theme.textSecondary }]}>{formatFileSize(selectedFile.size)}</Text>
+                    ) : null}
+                </View>
             ) : (
                 <>
                     <Text style={[styles.filePickerTitle, { color: theme.text }]}>{label}</Text>
@@ -89,8 +159,20 @@ const VideoToolsScreen: React.FC<Props> = ({ navigation }) => {
     );
 
     const renderProcessBtn = () => (
-        <TouchableOpacity style={[styles.processBtn, { backgroundColor: ACCENT }]} onPress={process} activeOpacity={0.8}>
-            <Text style={styles.processBtnText}>Process Video</Text>
+        <TouchableOpacity
+            style={[styles.processBtn, { backgroundColor: ACCENT, opacity: processing ? 0.7 : 1 }]}
+            onPress={process}
+            activeOpacity={0.8}
+            disabled={processing}
+        >
+            {processing ? (
+                <View style={styles.processingRow}>
+                    <ActivityIndicator color="#FFF" size="small" />
+                    <Text style={[styles.processBtnText, { marginLeft: 8 }]}>Processing…</Text>
+                </View>
+            ) : (
+                <Text style={styles.processBtnText}>Process Video</Text>
+            )}
         </TouchableOpacity>
     );
 
@@ -116,7 +198,7 @@ const VideoToolsScreen: React.FC<Props> = ({ navigation }) => {
                     <TouchableOpacity
                         key={tab.key}
                         style={[styles.tab, activeTab === tab.key && { backgroundColor: ACCENT + '20', borderBottomColor: ACCENT }]}
-                        onPress={() => setActiveTab(tab.key)}
+                        onPress={() => handleTabSwitch(tab.key)}
                     >
                         <Text style={[styles.tabIcon, { color: activeTab === tab.key ? ACCENT : theme.textSecondary }]}>{tab.icon}</Text>
                         <Text style={[styles.tabLabel, { color: activeTab === tab.key ? ACCENT : theme.textSecondary }]}>{tab.label}</Text>
@@ -190,6 +272,7 @@ const styles = StyleSheet.create({
     filePickerTitle: { fontSize: 16, fontWeight: '600', marginBottom: 4 },
     filePickerSub: { fontSize: 13 },
     fileName: { fontSize: 14, fontWeight: '600' },
+    fileSize: { fontSize: 12, marginTop: 2 },
     optionBlock: { marginBottom: 20 },
     optionLabel: { fontSize: 12, fontWeight: '600', marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.5 },
     chipScroll: { gap: 8 },
@@ -197,6 +280,7 @@ const styles = StyleSheet.create({
     chipText: { fontSize: 13, fontWeight: '600' },
     processBtn: { borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 8 },
     processBtnText: { color: '#FFF', fontSize: 15, fontWeight: '700' },
+    processingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
     infoCard: { borderRadius: 12, padding: 14, borderWidth: 1, marginBottom: 20 },
     infoText: { fontSize: 13, lineHeight: 19 },
 });

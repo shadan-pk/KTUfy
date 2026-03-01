@@ -8,11 +8,19 @@ import {
     TextInput,
     Alert,
     StatusBar,
+    ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../contexts/ThemeContext';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../types/navigation';
+import {
+    pickSingleFile,
+    processMedia,
+    shareFile,
+    formatFileSize,
+    PickedFile,
+} from '../services/mediaService';
 
 type Props = { navigation: StackNavigationProp<RootStackParamList, 'ImageTools'> };
 
@@ -31,19 +39,63 @@ const TABS: { key: TabKey; label: string; icon: string }[] = [
 const ImageToolsScreen: React.FC<Props> = ({ navigation }) => {
     const { theme, isDark } = useTheme();
     const [activeTab, setActiveTab] = useState<TabKey>('convert');
-    const [selectedFile, setSelectedFile] = useState<string | null>(null);
+    const [selectedFile, setSelectedFile] = useState<PickedFile | null>(null);
     const [selectedFormat, setSelectedFormat] = useState(IMAGE_FORMATS[0]);
-    const [selectedQuality, setSelectedQuality] = useState(QUALITY_OPTIONS[1]);
+    const [selectedQuality, setSelectedQuality] = useState(QUALITY_OPTIONS[2]);
     const [resizeWidth, setResizeWidth] = useState('1920');
     const [resizeHeight, setResizeHeight] = useState('1080');
+    const [processing, setProcessing] = useState(false);
 
-    const pickFile = () => {
-        Alert.alert('File Picker', 'Connect your backend to enable file selection & processing.');
-        setSelectedFile('sample_image.png');
+    const pickFile = async () => {
+        const file = await pickSingleFile(['image/*']);
+        if (file) setSelectedFile(file);
     };
 
-    const process = () =>
-        Alert.alert('Processing', 'Backend integration coming soon! The server will handle all image processing.');
+    const process = async () => {
+        if (!selectedFile) {
+            Alert.alert('No file', 'Please select an image file first.');
+            return;
+        }
+
+        setProcessing(true);
+        try {
+            let endpoint = '';
+            const fields: Record<string, string> = {};
+
+            switch (activeTab) {
+                case 'convert':
+                    endpoint = '/image/convert';
+                    fields.output_format = selectedFormat.toLowerCase();
+                    break;
+                case 'compress':
+                    endpoint = '/image/compress';
+                    fields.quality = selectedQuality.replace('%', '');
+                    fields.output_format = selectedFormat.toLowerCase();
+                    break;
+                case 'resize':
+                    endpoint = '/image/resize';
+                    fields.width = resizeWidth;
+                    fields.height = resizeHeight;
+                    fields.output_format = selectedFormat.toLowerCase();
+                    break;
+            }
+
+            const result = await processMedia(
+                endpoint,
+                [{ fieldName: 'file', file: selectedFile }],
+                fields,
+            );
+
+            Alert.alert('Success ✅', `File processed: ${result.filename}`, [
+                { text: 'Share / Save', onPress: () => shareFile(result.localUri) },
+                { text: 'OK' },
+            ]);
+        } catch (err: any) {
+            Alert.alert('Processing Failed', err?.message || 'Something went wrong.');
+        } finally {
+            setProcessing(false);
+        }
+    };
 
     const renderFilePicker = (label: string) => (
         <TouchableOpacity
@@ -53,7 +105,12 @@ const ImageToolsScreen: React.FC<Props> = ({ navigation }) => {
         >
             <Text style={[styles.fileIcon, { color: ACCENT }]}>⬆</Text>
             {selectedFile ? (
-                <Text style={[styles.fileName, { color: theme.text }]}>{selectedFile}</Text>
+                <View style={{ alignItems: 'center' }}>
+                    <Text style={[styles.fileName, { color: theme.text }]}>{selectedFile.name}</Text>
+                    {selectedFile.size ? (
+                        <Text style={[styles.fileSize, { color: theme.textSecondary }]}>{formatFileSize(selectedFile.size)}</Text>
+                    ) : null}
+                </View>
             ) : (
                 <>
                     <Text style={[styles.filePickerTitle, { color: theme.text }]}>{label}</Text>
@@ -81,8 +138,20 @@ const ImageToolsScreen: React.FC<Props> = ({ navigation }) => {
     );
 
     const renderProcessBtn = () => (
-        <TouchableOpacity style={[styles.processBtn, { backgroundColor: ACCENT }]} onPress={process} activeOpacity={0.8}>
-            <Text style={styles.processBtnText}>Process Image</Text>
+        <TouchableOpacity
+            style={[styles.processBtn, { backgroundColor: ACCENT, opacity: processing ? 0.7 : 1 }]}
+            onPress={process}
+            activeOpacity={0.8}
+            disabled={processing}
+        >
+            {processing ? (
+                <View style={styles.processingRow}>
+                    <ActivityIndicator color="#FFF" size="small" />
+                    <Text style={[styles.processBtnText, { marginLeft: 8 }]}>Processing…</Text>
+                </View>
+            ) : (
+                <Text style={styles.processBtnText}>Process Image</Text>
+            )}
         </TouchableOpacity>
     );
 
@@ -108,7 +177,7 @@ const ImageToolsScreen: React.FC<Props> = ({ navigation }) => {
                     <TouchableOpacity
                         key={tab.key}
                         style={[styles.tab, activeTab === tab.key && { backgroundColor: ACCENT + '1A', borderBottomColor: ACCENT }]}
-                        onPress={() => setActiveTab(tab.key)}
+                        onPress={() => { setActiveTab(tab.key); setSelectedFile(null); setWidth(''); setHeight(''); }}
                     >
                         <Text style={[styles.tabIcon, { color: activeTab === tab.key ? ACCENT : theme.textSecondary }]}>{tab.icon}</Text>
                         <Text style={[styles.tabLabel, { color: activeTab === tab.key ? ACCENT : theme.textSecondary }]}>{tab.label}</Text>
@@ -133,7 +202,7 @@ const ImageToolsScreen: React.FC<Props> = ({ navigation }) => {
                 {activeTab === 'compress' && (
                     <>
                         {renderFilePicker('Select Image File')}
-                        {renderChips(QUALITY_OPTIONS, selectedQuality, onSelect => setSelectedQuality(onSelect as string), 'Quality')}
+                        {renderChips(QUALITY_OPTIONS, selectedQuality, setSelectedQuality, 'Quality')}
                         {renderChips(IMAGE_FORMATS, selectedFormat, setSelectedFormat, 'Output Format')}
                         {renderProcessBtn()}
                     </>
@@ -217,6 +286,7 @@ const styles = StyleSheet.create({
     filePickerTitle: { fontSize: 16, fontWeight: '600', marginBottom: 4 },
     filePickerSub: { fontSize: 13 },
     fileName: { fontSize: 14, fontWeight: '600' },
+    fileSize: { fontSize: 12, marginTop: 2 },
     optionBlock: { marginBottom: 20 },
     optionLabel: { fontSize: 12, fontWeight: '600', marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.5 },
     chipScroll: { gap: 8 },
@@ -224,6 +294,7 @@ const styles = StyleSheet.create({
     chipText: { fontSize: 13, fontWeight: '600' },
     processBtn: { borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 8 },
     processBtnText: { color: '#FFF', fontSize: 15, fontWeight: '700' },
+    processingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
     infoCard: { borderRadius: 12, padding: 14, borderWidth: 1, marginBottom: 20 },
     infoText: { fontSize: 13, lineHeight: 19 },
     resizeRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },

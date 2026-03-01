@@ -64,31 +64,43 @@ export async function getSubjects(
 }
 
 /**
+ * Normalize a subject code to ensure a space between the letter prefix and numeric suffix.
+ * e.g., "CST201" → "CST 201", "MAT101" → "MAT 101", "CST 201" stays "CST 201"
+ */
+function normalizeSubjectCode(code: string): string {
+    // If there's already a space, return as-is
+    if (/[A-Za-z]\s+\d/.test(code)) return code.trim();
+    // Insert space between letters and digits: "CST201" → "CST 201"
+    return code.replace(/([A-Za-z])(\d)/, '$1 $2').trim();
+}
+
+/**
  * Get detailed syllabus for a specific subject (cached 24h)
  * Backend: GET /api/v1/syllabus/subject/{subjectCode}
  *
- * @param subjectCode - Subject code (e.g., 'CSE201')
+ * @param subjectCode - Subject code (e.g., 'CST 201')
  * @returns Detailed syllabus with modules, outcomes, etc.
  */
 export async function getSubjectSyllabus(
     subjectCode: string
 ): Promise<SubjectSyllabus> {
+    const normalized = normalizeSubjectCode(subjectCode);
     // Cache-first
-    const cached = await getCachedSubjectSyllabus(subjectCode);
+    const cached = await getCachedSubjectSyllabus(normalized);
     if (cached) {
-        console.log('📖 Syllabus cache hit for', subjectCode);
+        console.log('📖 Syllabus cache hit for', normalized);
         return cached as SubjectSyllabus;
     }
 
-    const url = `${process.env.API_BASE_URL}/api/v1/syllabus/subject/${subjectCode}`;
-    console.log('📖 Fetching syllabus for', subjectCode);
+    const url = `${process.env.API_BASE_URL}/api/v1/syllabus/subject/${encodeURIComponent(normalized)}`;
+    console.log('📖 Fetching syllabus for', normalized);
 
     const data = await apiRequest<SubjectSyllabus>(url, {
         method: 'GET',
     });
 
     // Cache the result
-    await setCachedSubjectSyllabus(subjectCode, data);
+    await setCachedSubjectSyllabus(normalized, data);
     return data;
 }
 

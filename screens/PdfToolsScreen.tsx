@@ -5,13 +5,23 @@ import {
     TouchableOpacity,
     StyleSheet,
     ScrollView,
+    TextInput,
     Alert,
     StatusBar,
+    ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../contexts/ThemeContext';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../types/navigation';
+import {
+    pickSingleFile,
+    pickMultipleFiles,
+    processMedia,
+    shareFile,
+    formatFileSize,
+    PickedFile,
+} from '../services/mediaService';
 
 type Props = { navigation: StackNavigationProp<RootStackParamList, 'PdfTools'> };
 
@@ -28,29 +38,120 @@ const TABS: { key: TabKey; label: string; icon: string }[] = [
 
 const IMAGE_FORMATS = ['JPG', 'PNG', 'WEBP'];
 const QUALITY_OPTIONS = ['Screen (72 dpi)', 'Print (150 dpi)', 'High (300 dpi)', 'Max Quality'];
+const QUALITY_MAP: Record<string, string> = {
+    'Screen (72 dpi)': 'screen',
+    'Print (150 dpi)': 'print',
+    'High (300 dpi)': 'high',
+    'Max Quality': 'max',
+};
 
 const PdfToolsScreen: React.FC<Props> = ({ navigation }) => {
     const { theme, isDark } = useTheme();
     const [activeTab, setActiveTab] = useState<TabKey>('merge');
-    const [pdfFiles, setPdfFiles] = useState<string[]>([]);
-    const [imageFiles, setImageFiles] = useState<string[]>([]);
-    const [selectedFile, setSelectedFile] = useState<string | null>(null);
+    const [pdfFiles, setPdfFiles] = useState<PickedFile[]>([]);
+    const [imageFiles, setImageFiles] = useState<PickedFile[]>([]);
+    const [selectedFile, setSelectedFile] = useState<PickedFile | null>(null);
     const [selectedImgFormat, setSelectedImgFormat] = useState(IMAGE_FORMATS[0]);
     const [selectedQuality, setSelectedQuality] = useState(QUALITY_OPTIONS[1]);
+    const [splitRanges, setSplitRanges] = useState('');
+    const [processing, setProcessing] = useState(false);
 
-    const pickPdf = (multi = false) => {
-        Alert.alert('File Picker', 'Connect your backend to enable file selection & processing.');
-        if (multi) setPdfFiles(['document_1.pdf', 'document_2.pdf', 'report.pdf']);
-        else setSelectedFile('document.pdf');
+    const pickPdf = async (multi = false) => {
+        if (multi) {
+            const files = await pickMultipleFiles(['application/pdf']);
+            if (files.length) setPdfFiles(files);
+        } else {
+            const file = await pickSingleFile(['application/pdf']);
+            if (file) setSelectedFile(file);
+        }
     };
 
-    const pickImages = () => {
-        Alert.alert('File Picker', 'Connect your backend to enable file selection & processing.');
-        setImageFiles(['page_1.jpg', 'page_2.jpg', 'page_3.png']);
+    const pickImages = async () => {
+        const files = await pickMultipleFiles(['image/*']);
+        if (files.length) setImageFiles(files);
     };
 
-    const process = () =>
-        Alert.alert('Processing', 'Backend integration coming soon! The server will handle all PDF processing.');
+    const handleTabSwitch = (key: TabKey) => {
+        setActiveTab(key);
+        setSelectedFile(null);
+        setPdfFiles([]);
+        setImageFiles([]);
+        setSplitRanges('');
+        // Reset quality to valid default per tab
+        setSelectedQuality(QUALITY_OPTIONS[1]); // 'Print (150 dpi)'
+    };
+
+    const process = async () => {
+        // Validate before showing spinner
+        if (['split', 'compress', 'pdf2img'].includes(activeTab) && !selectedFile) {
+            Alert.alert('No file', 'Please select a PDF file first.');
+            return;
+        }
+        if (activeTab === 'merge' && pdfFiles.length < 2) {
+            Alert.alert('Not enough files', 'Select at least 2 PDFs to merge.');
+            return;
+        }
+        if (activeTab === 'split' && !splitRanges.trim()) {
+            Alert.alert('Missing ranges', 'Enter page ranges, e.g. "1-3, 4-7, 8-end".');
+            return;
+        }
+        if (activeTab === 'img2pdf' && imageFiles.length === 0) {
+            Alert.alert('No images', 'Select images to convert to PDF.');
+            return;
+        }
+
+        setProcessing(true);
+        try {
+            let endpoint = '';
+            const fields: Record<string, string> = {};
+            let files: { fieldName: string; file: PickedFile }[] = [];
+
+            switch (activeTab) {
+                case 'merge':
+                    endpoint = '/pdf/merge';
+                    files = pdfFiles.map((f) => ({ fieldName: 'files', file: f }));
+                    break;
+
+                case 'split':
+                    endpoint = '/pdf/split';
+                    fields.ranges = splitRanges;
+                    files = [{ fieldName: 'file', file: selectedFile! }];
+                    break;
+
+                case 'compress':
+                    endpoint = '/pdf/compress';
+                    fields.quality = QUALITY_MAP[selectedQuality] || 'print';
+                    files = [{ fieldName: 'file', file: selectedFile! }];
+                    break;
+
+                case 'img2pdf':
+                    endpoint = '/pdf/images-to-pdf';
+                    files = imageFiles.map((f) => ({ fieldName: 'files', file: f }));
+                    break;
+
+                case 'pdf2img': {
+                    endpoint = '/pdf/pdf-to-images';
+                    fields.output_format = selectedImgFormat.toLowerCase();
+                    // pdf2img only accepts screen|print|high — not 'max'
+                    const q = QUALITY_MAP[selectedQuality];
+                    fields.quality = (q === 'max') ? 'print' : (q || 'print');
+                    files = [{ fieldName: 'file', file: selectedFile! }];
+                    break;
+                }
+            }
+
+            const result = await processMedia(endpoint, files, fields);
+
+            Alert.alert('Success ✅', `File processed: ${result.filename}`, [
+                { text: 'Share / Save', onPress: () => shareFile(result.localUri) },
+                { text: 'OK' },
+            ]);
+        } catch (err: any) {
+            Alert.alert('Processing Failed', err?.message || 'Something went wrong.');
+        } finally {
+            setProcessing(false);
+        }
+    };
 
     const renderSinglePicker = (label: string, sub: string) => (
         <TouchableOpacity
@@ -60,7 +161,12 @@ const PdfToolsScreen: React.FC<Props> = ({ navigation }) => {
         >
             <Text style={[styles.fileIcon, { color: ACCENT }]}>📄</Text>
             {selectedFile ? (
-                <Text style={[styles.fileName, { color: theme.text }]}>{selectedFile}</Text>
+                <View style={{ alignItems: 'center' }}>
+                    <Text style={[styles.fileName, { color: theme.text }]}>{selectedFile.name}</Text>
+                    {selectedFile.size ? (
+                        <Text style={[styles.fileSize, { color: theme.textSecondary }]}>{formatFileSize(selectedFile.size)}</Text>
+                    ) : null}
+                </View>
             ) : (
                 <>
                     <Text style={[styles.filePickerTitle, { color: theme.text }]}>{label}</Text>
@@ -88,8 +194,20 @@ const PdfToolsScreen: React.FC<Props> = ({ navigation }) => {
     );
 
     const renderProcessBtn = (label = 'Process PDF') => (
-        <TouchableOpacity style={[styles.processBtn, { backgroundColor: ACCENT }]} onPress={process} activeOpacity={0.8}>
-            <Text style={styles.processBtnText}>{label}</Text>
+        <TouchableOpacity
+            style={[styles.processBtn, { backgroundColor: ACCENT, opacity: processing ? 0.7 : 1 }]}
+            onPress={process}
+            activeOpacity={0.8}
+            disabled={processing}
+        >
+            {processing ? (
+                <View style={styles.processingRow}>
+                    <ActivityIndicator color="#FFF" size="small" />
+                    <Text style={[styles.processBtnText, { marginLeft: 8 }]}>Processing…</Text>
+                </View>
+            ) : (
+                <Text style={styles.processBtnText}>{label}</Text>
+            )}
         </TouchableOpacity>
     );
 
@@ -115,7 +233,7 @@ const PdfToolsScreen: React.FC<Props> = ({ navigation }) => {
                     <TouchableOpacity
                         key={tab.key}
                         style={[styles.tab, activeTab === tab.key && { backgroundColor: ACCENT + '1A', borderBottomColor: ACCENT }]}
-                        onPress={() => setActiveTab(tab.key)}
+                        onPress={() => handleTabSwitch(tab.key)}
                     >
                         <Text style={[styles.tabIcon, { color: activeTab === tab.key ? ACCENT : theme.textSecondary }]}>{tab.icon}</Text>
                         <Text style={[styles.tabLabel, { color: activeTab === tab.key ? ACCENT : theme.textSecondary }]}>{tab.label}</Text>
@@ -141,8 +259,8 @@ const PdfToolsScreen: React.FC<Props> = ({ navigation }) => {
                                 {pdfFiles.map((f, i) => (
                                     <View key={i} style={[styles.fileRow, { backgroundColor: theme.backgroundSecondary, borderColor: theme.border }]}>
                                         <Text style={[styles.fileRowNum, { color: ACCENT }]}>{i + 1}</Text>
-                                        <Text style={[styles.fileRowName, { color: theme.text }]}>{f}</Text>
-                                        <Text style={[styles.fileRowMeta, { color: theme.textSecondary }]}>PDF</Text>
+                                        <Text style={[styles.fileRowName, { color: theme.text }]}>{f.name}</Text>
+                                        <Text style={[styles.fileRowMeta, { color: theme.textSecondary }]}>{formatFileSize(f.size)}</Text>
                                     </View>
                                 ))}
                             </View>
@@ -154,9 +272,19 @@ const PdfToolsScreen: React.FC<Props> = ({ navigation }) => {
                 {activeTab === 'split' && (
                     <>
                         {renderSinglePicker('Select PDF File', 'Choose the PDF to split')}
+                        <View style={styles.optionBlock}>
+                            <Text style={[styles.optionLabel, { color: theme.textSecondary }]}>Page Ranges</Text>
+                            <TextInput
+                                style={[styles.rangeInput, { backgroundColor: theme.backgroundSecondary, borderColor: theme.border, color: theme.text }]}
+                                value={splitRanges}
+                                onChangeText={setSplitRanges}
+                                placeholder='e.g. "1-3, 4-7, 8-end"'
+                                placeholderTextColor={theme.textTertiary}
+                            />
+                        </View>
                         <View style={[styles.infoCard, { backgroundColor: theme.backgroundSecondary, borderColor: theme.border }]}>
                             <Text style={[styles.infoText, { color: theme.textSecondary }]}>
-                                📑 After selecting a file, you'll be able to specify page ranges to split into separate documents. Example: "1-3, 4-7, 8-end"
+                                📑 Each range becomes a separate PDF. Use "end" for the last page.
                             </Text>
                         </View>
                         {renderProcessBtn('Split PDF')}
@@ -199,7 +327,7 @@ const PdfToolsScreen: React.FC<Props> = ({ navigation }) => {
                                 {imageFiles.map((f, i) => (
                                     <View key={i} style={[styles.fileRow, { backgroundColor: theme.backgroundSecondary, borderColor: theme.border }]}>
                                         <Text style={[styles.fileRowNum, { color: ACCENT }]}>{i + 1}</Text>
-                                        <Text style={[styles.fileRowName, { color: theme.text }]}>{f}</Text>
+                                        <Text style={[styles.fileRowName, { color: theme.text }]}>{f.name}</Text>
                                     </View>
                                 ))}
                             </View>
@@ -242,6 +370,7 @@ const styles = StyleSheet.create({
     filePickerTitle: { fontSize: 16, fontWeight: '600', marginBottom: 4 },
     filePickerSub: { fontSize: 13, textAlign: 'center', paddingHorizontal: 20 },
     fileName: { fontSize: 14, fontWeight: '600' },
+    fileSize: { fontSize: 12, marginTop: 2 },
     optionBlock: { marginBottom: 20 },
     optionLabel: { fontSize: 12, fontWeight: '600', marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.5 },
     chipScroll: { gap: 8 },
@@ -249,12 +378,14 @@ const styles = StyleSheet.create({
     chipText: { fontSize: 12, fontWeight: '600' },
     processBtn: { borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 8 },
     processBtnText: { color: '#FFF', fontSize: 15, fontWeight: '700' },
+    processingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
     infoCard: { borderRadius: 12, padding: 14, borderWidth: 1, marginBottom: 20 },
     infoText: { fontSize: 13, lineHeight: 19 },
     fileRow: { flexDirection: 'row', alignItems: 'center', borderRadius: 10, borderWidth: 1, padding: 12, marginBottom: 8 },
     fileRowNum: { width: 24, fontSize: 14, fontWeight: '700' },
     fileRowName: { flex: 1, fontSize: 14, fontWeight: '500' },
     fileRowMeta: { fontSize: 12, fontWeight: '600' },
+    rangeInput: { borderRadius: 12, borderWidth: 1, padding: 14, fontSize: 16, fontWeight: '600' },
 });
 
 export default PdfToolsScreen;

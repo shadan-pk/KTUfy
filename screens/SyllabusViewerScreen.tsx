@@ -15,7 +15,7 @@ import { SyllabusViewerScreenNavigationProp } from '../types/navigation';
 import { useTheme } from '../contexts/ThemeContext';
 import { ArrowLeft, Download, ChevronDown, ChevronRight, BookOpen } from 'lucide-react-native';
 import { getSubjectSyllabus, syllabusToText, SubjectSyllabus } from '../services/syllabusService';
-import * as FileSystem from 'expo-file-system';
+import { File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 
 // KTU Branches
@@ -42,7 +42,7 @@ const SUBJECTS_DATA: { [key: string]: { [key: string]: Array<{ name: string; cod
       { name: 'Engineering Chemistry', code: 'CHE100', credits: 3 },
       { name: 'Engineering Graphics', code: 'GE100', credits: 4 },
       { name: 'Basic Electrical Engineering', code: 'EE100', credits: 3 },
-      { name: 'Programming in C', code: 'CSE101', credits: 3 },
+      { name: 'Programming in C', code: 'CST101', credits: 3 },
     ],
     'S2': [
       { name: 'Linear Algebra', code: 'MAT102', credits: 4 },
@@ -50,53 +50,53 @@ const SUBJECTS_DATA: { [key: string]: { [key: string]: Array<{ name: string; cod
       { name: 'Chemistry Lab', code: 'CHE110', credits: 1 },
       { name: 'Engineering Mechanics', code: 'CE100', credits: 4 },
       { name: 'Basic Electronics', code: 'EC100', credits: 3 },
-      { name: 'C Programming Lab', code: 'CSE110', credits: 2 },
+      { name: 'C Programming Lab', code: 'CST110', credits: 2 },
     ],
     'S3': [
-      { name: 'Data Structures', code: 'CSE201', credits: 4 },
+      { name: 'Data Structures', code: 'CST201', credits: 4 },
       { name: 'Discrete Mathematics', code: 'MAT201', credits: 4 },
-      { name: 'Digital Electronics', code: 'CSE203', credits: 3 },
-      { name: 'Computer Organization', code: 'CSE205', credits: 3 },
-      { name: 'Object Oriented Programming', code: 'CSE207', credits: 3 },
-      { name: 'Data Structures Lab', code: 'CSE231', credits: 2 },
+      { name: 'Digital Electronics', code: 'CST203', credits: 3 },
+      { name: 'Computer Organization', code: 'CST205', credits: 3 },
+      { name: 'Object Oriented Programming', code: 'CST207', credits: 3 },
+      { name: 'Data Structures Lab', code: 'CST231', credits: 2 },
     ],
     'S4': [
-      { name: 'Database Management Systems', code: 'CSE202', credits: 4 },
-      { name: 'Operating Systems', code: 'CSE204', credits: 4 },
-      { name: 'Microprocessors & Microcontrollers', code: 'CSE206', credits: 3 },
-      { name: 'Computer Networks', code: 'CSE208', credits: 3 },
-      { name: 'Design & Analysis of Algorithms', code: 'CSE302', credits: 4 },
-      { name: 'DBMS Lab', code: 'CSE232', credits: 2 },
+      { name: 'Database Management Systems', code: 'CST202', credits: 4 },
+      { name: 'Operating Systems', code: 'CST204', credits: 4 },
+      { name: 'Microprocessors & Microcontrollers', code: 'CST206', credits: 3 },
+      { name: 'Computer Networks', code: 'CST208', credits: 3 },
+      { name: 'Design & Analysis of Algorithms', code: 'CST302', credits: 4 },
+      { name: 'DBMS Lab', code: 'CST232', credits: 2 },
     ],
     'S5': [
-      { name: 'Software Engineering', code: 'CSE301', credits: 3 },
-      { name: 'Theory of Computation', code: 'CSE305', credits: 4 },
-      { name: 'Compiler Design', code: 'CSE307', credits: 4 },
-      { name: 'Web Programming', code: 'CSE309', credits: 3 },
-      { name: 'Elective I', code: 'CSE3XX', credits: 3 },
-      { name: 'Mini Project', code: 'CSE333', credits: 2 },
+      { name: 'Software Engineering', code: 'CST301', credits: 3 },
+      { name: 'Theory of Computation', code: 'CST305', credits: 4 },
+      { name: 'Compiler Design', code: 'CST307', credits: 4 },
+      { name: 'Web Programming', code: 'CST309', credits: 3 },
+      { name: 'Elective I', code: 'CST3XX', credits: 3 },
+      { name: 'Mini Project', code: 'CST333', credits: 2 },
     ],
     'S6': [
-      { name: 'Machine Learning', code: 'CSE304', credits: 3 },
-      { name: 'Computer Graphics', code: 'CSE306', credits: 3 },
-      { name: 'Artificial Intelligence', code: 'CSE308', credits: 4 },
-      { name: 'Mobile App Development', code: 'CSE310', credits: 3 },
-      { name: 'Elective II', code: 'CSE3XX', credits: 3 },
-      { name: 'Project Phase I', code: 'CSE334', credits: 3 },
+      { name: 'Machine Learning', code: 'CST304', credits: 3 },
+      { name: 'Computer Graphics', code: 'CST306', credits: 3 },
+      { name: 'Artificial Intelligence', code: 'CST308', credits: 4 },
+      { name: 'Mobile App Development', code: 'CST310', credits: 3 },
+      { name: 'Elective II', code: 'CST3XX', credits: 3 },
+      { name: 'Project Phase I', code: 'CST334', credits: 3 },
     ],
     'S7': [
-      { name: 'Big Data Analytics', code: 'CSE401', credits: 3 },
-      { name: 'Cloud Computing', code: 'CSE403', credits: 3 },
-      { name: 'Cyber Security', code: 'CSE405', credits: 3 },
-      { name: 'Elective III', code: 'CSE4XX', credits: 3 },
-      { name: 'Elective IV', code: 'CSE4XX', credits: 3 },
-      { name: 'Project Phase II', code: 'CSE432', credits: 4 },
+      { name: 'Big Data Analytics', code: 'CST401', credits: 3 },
+      { name: 'Cloud Computing', code: 'CST403', credits: 3 },
+      { name: 'Cyber Security', code: 'CST405', credits: 3 },
+      { name: 'Elective III', code: 'CST4XX', credits: 3 },
+      { name: 'Elective IV', code: 'CST4XX', credits: 3 },
+      { name: 'Project Phase II', code: 'CST432', credits: 4 },
     ],
     'S8': [
-      { name: 'Industrial Training', code: 'CSE498', credits: 2 },
-      { name: 'Seminar', code: 'CSE499', credits: 2 },
-      { name: 'Project', code: 'CSE434', credits: 10 },
-      { name: 'Comprehensive Exam', code: 'CSE497', credits: 2 },
+      { name: 'Industrial Training', code: 'CST498', credits: 2 },
+      { name: 'Seminar', code: 'CST499', credits: 2 },
+      { name: 'Project', code: 'CST434', credits: 10 },
+      { name: 'Comprehensive Exam', code: 'CST497', credits: 2 },
     ],
   },
   'ECE': {
@@ -106,7 +106,7 @@ const SUBJECTS_DATA: { [key: string]: { [key: string]: Array<{ name: string; cod
       { name: 'Engineering Chemistry', code: 'CHE100', credits: 3 },
       { name: 'Engineering Graphics', code: 'GE100', credits: 4 },
       { name: 'Basic Electrical Engineering', code: 'EE100', credits: 3 },
-      { name: 'Programming in C', code: 'CSE101', credits: 3 },
+      { name: 'Programming in C', code: 'CST101', credits: 3 },
     ],
   },
 };
@@ -196,10 +196,9 @@ export default function SyllabusViewerScreen() {
     } else {
       // Native: write to file and share
       try {
-        const fileUri = `${FileSystem.cacheDirectory}${fileName}`;
-        await FileSystem.writeAsStringAsync(fileUri, text, {
-          encoding: FileSystem.EncodingType.UTF8,
-        });
+        const file = new File(Paths.cache, fileName);
+        file.write(text);
+        const fileUri = file.uri;
 
         if (await Sharing.isAvailableAsync()) {
           await Sharing.shareAsync(fileUri, {
