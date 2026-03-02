@@ -13,7 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { GPACalculatorScreenNavigationProp } from '../types/navigation';
 import { useTheme } from '../contexts/ThemeContext';
-import { ArrowLeft, X, RotateCcw, BookmarkCheck, ChevronDown, Check } from 'lucide-react-native';
+import { ArrowLeft, X, RotateCcw, BookmarkCheck, ChevronDown, Check, Plus, Trash2 } from 'lucide-react-native';
 
 // Grade point mapping
 const GRADE_POINTS: { [key: string]: number } = {
@@ -21,6 +21,19 @@ const GRADE_POINTS: { [key: string]: number } = {
 };
 
 const GRADES = ['O', 'A+', 'A', 'B+', 'B', 'C', 'P', 'F'];
+
+const BRANCHES = [
+  { id: 'CSE', name: 'Computer Science & Engg.' },
+  { id: 'IT', name: 'Information Technology' },
+  { id: 'ECE', name: 'Electronics & Communication' },
+  { id: 'EEE', name: 'Electrical & Electronics' },
+  { id: 'ME', name: 'Mechanical Engineering' },
+  { id: 'CE', name: 'Civil Engineering' },
+  { id: 'AEI', name: 'Applied Electronics & Instrumentation' },
+  { id: 'OTHER', name: 'Other (Custom)' },
+];
+
+const COMMON_SEMESTERS = ['S1', 'S2'];
 
 const SEMESTER_SUBJECTS: { [key: string]: Array<{ name: string; credit: number }> } = {
   'S1': [
@@ -70,7 +83,7 @@ const SEMESTER_CREDITS: { [key: string]: number } = {
 };
 
 interface SubjectGrade { name: string; credit: number; grade: string; }
-interface SemesterSGPA { semester: string; sgpa: string; }
+interface SemesterSGPA { semester: string; sgpa: string; credits: string; }
 type TabType = 'SGPA' | 'CGPA';
 
 export default function GPACalculatorScreen() {
@@ -85,8 +98,11 @@ export default function GPACalculatorScreen() {
   const [showGradePicker, setShowGradePicker] = useState(false);
   const [selectedSubjectIndex, setSelectedSubjectIndex] = useState<number>(0);
 
+  const [selectedBranch, setSelectedBranch] = useState<string>('CSE');
+  const [showBranchPicker, setShowBranchPicker] = useState(false);
+
   const [selectedSemesters, setSelectedSemesters] = useState<number>(1);
-  const [semesterSGPAs, setSemesterSGPAs] = useState<SemesterSGPA[]>([{ semester: 'S1', sgpa: '' }]);
+  const [semesterSGPAs, setSemesterSGPAs] = useState<SemesterSGPA[]>([{ semester: 'S1', sgpa: '', credits: '20' }]);
   const [calculatedCGPA, setCalculatedCGPA] = useState<number | null>(null);
   const [showSemesterCountPicker, setShowSemesterCountPicker] = useState(false);
 
@@ -94,22 +110,40 @@ export default function GPACalculatorScreen() {
   const [resultValue, setResultValue] = useState<number | null>(null);
   const [resultType, setResultType] = useState<'SGPA' | 'CGPA'>('SGPA');
 
+  const isCustomMode = !COMMON_SEMESTERS.includes(selectedSemester) && selectedBranch !== 'CSE';
+
   useEffect(() => {
-    const subjects = SEMESTER_SUBJECTS[selectedSemester].map(s => ({ ...s, grade: '' }));
-    setSubjectGrades(subjects);
+    if (COMMON_SEMESTERS.includes(selectedSemester) || selectedBranch === 'CSE') {
+      const subjects = SEMESTER_SUBJECTS[selectedSemester].map(s => ({ ...s, grade: '' }));
+      setSubjectGrades(subjects);
+    } else {
+      setSubjectGrades([]);
+    }
     setCalculatedSGPA(null);
-  }, [selectedSemester]);
+  }, [selectedSemester, selectedBranch]);
 
   useEffect(() => {
     const semesters: SemesterSGPA[] = [];
-    for (let i = 1; i <= selectedSemesters; i++) semesters.push({ semester: `S${i}`, sgpa: '' });
+    for (let i = 1; i <= selectedSemesters; i++) {
+      const sem = `S${i}`;
+      const defaultCredits = selectedBranch === 'CSE' ? String(SEMESTER_CREDITS[sem] || '') : '';
+      semesters.push({ semester: sem, sgpa: '', credits: defaultCredits });
+    }
     setSemesterSGPAs(semesters);
     setCalculatedCGPA(null);
-  }, [selectedSemesters]);
+  }, [selectedSemesters, selectedBranch]);
 
   const calculateSGPA = () => {
+    if (subjectGrades.length === 0) {
+      Alert.alert('No Subjects', 'Please add at least one subject.');
+      return;
+    }
     if (!subjectGrades.every(s => s.grade !== '')) {
       Alert.alert('Incomplete', 'Please select grades for all subjects.');
+      return;
+    }
+    if (!subjectGrades.every(s => s.credit > 0)) {
+      Alert.alert('Invalid Credits', 'All subjects must have credits greater than 0.');
       return;
     }
     let totalGP = 0, totalCr = 0;
@@ -119,15 +153,20 @@ export default function GPACalculatorScreen() {
   };
 
   const calculateCGPA = () => {
-    if (!semesterSGPAs.every(s => s.sgpa !== '')) {
-      Alert.alert('Incomplete', 'Please enter SGPA for all selected semesters.');
+    if (!semesterSGPAs.every(s => s.sgpa !== '' && s.credits !== '')) {
+      Alert.alert('Incomplete', 'Please enter SGPA and credits for all selected semesters.');
       return;
     }
     let totalW = 0, totalCr = 0;
     semesterSGPAs.forEach(s => {
-      totalW += parseFloat(s.sgpa) * SEMESTER_CREDITS[s.semester];
-      totalCr += SEMESTER_CREDITS[s.semester];
+      const cr = parseFloat(s.credits);
+      totalW += parseFloat(s.sgpa) * cr;
+      totalCr += cr;
     });
+    if (totalCr === 0) {
+      Alert.alert('Invalid', 'Total credits cannot be zero.');
+      return;
+    }
     const cgpa = parseFloat((totalW / totalCr).toFixed(2));
     setCalculatedCGPA(cgpa); setResultValue(cgpa); setResultType('CGPA'); setShowResultModal(true);
   };
@@ -148,7 +187,10 @@ export default function GPACalculatorScreen() {
   };
 
   const resetCGPA = () => {
-    setSemesterSGPAs(Array.from({ length: selectedSemesters }, (_, i) => ({ semester: `S${i + 1}`, sgpa: '' })));
+    setSemesterSGPAs(Array.from({ length: selectedSemesters }, (_, i) => {
+      const sem = `S${i + 1}`;
+      return { semester: sem, sgpa: '', credits: selectedBranch === 'CSE' ? String(SEMESTER_CREDITS[sem] || '') : '' };
+    }));
     setCalculatedCGPA(null); setShowResultModal(false);
   };
 
@@ -164,6 +206,33 @@ export default function GPACalculatorScreen() {
     updated[index].sgpa = sgpa;
     setSemesterSGPAs(updated);
     setCalculatedCGPA(null);
+  };
+
+  const updateSemesterCredits = (index: number, credits: string) => {
+    const updated = [...semesterSGPAs];
+    updated[index].credits = credits;
+    setSemesterSGPAs(updated);
+    setCalculatedCGPA(null);
+  };
+
+  const addCustomSubject = () => {
+    setSubjectGrades([...subjectGrades, { name: `Subject ${subjectGrades.length + 1}`, credit: 3, grade: '' }]);
+  };
+
+  const removeCustomSubject = (index: number) => {
+    setSubjectGrades(subjectGrades.filter((_, i) => i !== index));
+  };
+
+  const updateSubjectName = (index: number, name: string) => {
+    const updated = [...subjectGrades];
+    updated[index].name = name;
+    setSubjectGrades(updated);
+  };
+
+  const updateSubjectCredit = (index: number, creditStr: string) => {
+    const updated = [...subjectGrades];
+    updated[index].credit = parseInt(creditStr) || 0;
+    setSubjectGrades(updated);
   };
 
   const iconColor = theme.text;
@@ -198,6 +267,20 @@ export default function GPACalculatorScreen() {
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
         {activeTab === 'SGPA' ? (
           <View>
+            {/* Branch selector */}
+            <TouchableOpacity
+              style={[styles.dropdownRow, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}
+              onPress={() => setShowBranchPicker(true)}
+            >
+              <Text style={[styles.dropdownLabel, { color: theme.textSecondary }]}>Branch</Text>
+              <View style={styles.dropdownRight}>
+                <Text style={[styles.dropdownValue, { color: theme.text }]}>
+                  {BRANCHES.find(b => b.id === selectedBranch)?.name || selectedBranch}
+                </Text>
+                <ChevronDown size={16} color={theme.textSecondary} strokeWidth={2} />
+              </View>
+            </TouchableOpacity>
+
             {/* Semester selector */}
             <TouchableOpacity
               style={[styles.dropdownRow, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}
@@ -211,29 +294,91 @@ export default function GPACalculatorScreen() {
             </TouchableOpacity>
 
             {/* Subjects */}
-            <View style={[styles.subjectsCard, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
-              <Text style={[styles.cardLabel, { color: theme.textSecondary }]}>SUBJECTS & GRADES</Text>
-              {subjectGrades.map((subject, index) => (
-                <View key={index} style={[styles.subjectRow, { borderBottomColor: theme.divider }]}>
-                  <View style={styles.subjectInfo}>
-                    <Text style={[styles.subjectName, { color: theme.text }]}>{subject.name}</Text>
-                    <Text style={[styles.subjectCredit, { color: theme.textTertiary }]}>{subject.credit} cr</Text>
-                  </View>
-                  <TouchableOpacity
-                    style={[
-                      styles.gradeBtn,
-                      { borderColor: subject.grade ? theme.gpaCalculator : theme.border },
-                      subject.grade ? { backgroundColor: theme.gpaCalculator + '18' } : { backgroundColor: theme.backgroundSecondary },
-                    ]}
-                    onPress={() => { setSelectedSubjectIndex(index); setShowGradePicker(true); }}
-                  >
-                    <Text style={[styles.gradeBtnText, { color: subject.grade ? theme.gpaCalculator : theme.textTertiary }]}>
-                      {subject.grade || '—'}
+            {isCustomMode ? (
+              <View style={[styles.subjectsCard, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
+                <Text style={[styles.cardLabel, { color: theme.textSecondary }]}>CUSTOM SUBJECTS & GRADES</Text>
+                {subjectGrades.length === 0 && (
+                  <View style={{ padding: 20, alignItems: 'center' }}>
+                    <Text style={{ color: theme.textTertiary, fontSize: 13, textAlign: 'center' }}>
+                      Add your subjects for this semester using the button below
                     </Text>
-                  </TouchableOpacity>
-                </View>
-              ))}
-            </View>
+                  </View>
+                )}
+                {subjectGrades.map((subject, index) => (
+                  <View key={index} style={[styles.subjectRow, { borderBottomColor: theme.divider, alignItems: 'flex-start', paddingVertical: 10 }]}>
+                    <View style={{ flex: 1, marginRight: 8 }}>
+                      <TextInput
+                        style={[styles.customNameInput, { color: theme.text, borderColor: theme.border, backgroundColor: theme.backgroundSecondary }]}
+                        value={subject.name}
+                        onChangeText={(t) => updateSubjectName(index, t)}
+                        placeholder="Subject name"
+                        placeholderTextColor={theme.textTertiary}
+                      />
+                      <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 6, gap: 6 }}>
+                        <TextInput
+                          style={[styles.customCreditInput, { color: theme.text, borderColor: theme.border, backgroundColor: theme.backgroundSecondary }]}
+                          value={String(subject.credit)}
+                          onChangeText={(t) => updateSubjectCredit(index, t)}
+                          placeholder="0"
+                          placeholderTextColor={theme.textTertiary}
+                          keyboardType="number-pad"
+                          maxLength={2}
+                        />
+                        <Text style={{ color: theme.textTertiary, fontSize: 11 }}>credits</Text>
+                      </View>
+                    </View>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingTop: 2 }}>
+                      <TouchableOpacity
+                        style={[
+                          styles.gradeBtn,
+                          { borderColor: subject.grade ? theme.gpaCalculator : theme.border },
+                          subject.grade ? { backgroundColor: theme.gpaCalculator + '18' } : { backgroundColor: theme.backgroundSecondary },
+                        ]}
+                        onPress={() => { setSelectedSubjectIndex(index); setShowGradePicker(true); }}
+                      >
+                        <Text style={[styles.gradeBtnText, { color: subject.grade ? theme.gpaCalculator : theme.textTertiary }]}>
+                          {subject.grade || '—'}
+                        </Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity onPress={() => removeCustomSubject(index)} style={{ padding: 6 }}>
+                        <Trash2 size={16} color={theme.error} strokeWidth={2} />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                ))}
+                <TouchableOpacity
+                  style={[styles.addSubjectBtn, { borderColor: theme.gpaCalculator }]}
+                  onPress={addCustomSubject}
+                >
+                  <Plus size={16} color={theme.gpaCalculator} strokeWidth={2} />
+                  <Text style={[styles.addSubjectText, { color: theme.gpaCalculator }]}>Add Subject</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <View style={[styles.subjectsCard, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
+                <Text style={[styles.cardLabel, { color: theme.textSecondary }]}>SUBJECTS & GRADES</Text>
+                {subjectGrades.map((subject, index) => (
+                  <View key={index} style={[styles.subjectRow, { borderBottomColor: theme.divider }]}>
+                    <View style={styles.subjectInfo}>
+                      <Text style={[styles.subjectName, { color: theme.text }]}>{subject.name}</Text>
+                      <Text style={[styles.subjectCredit, { color: theme.textTertiary }]}>{subject.credit} cr</Text>
+                    </View>
+                    <TouchableOpacity
+                      style={[
+                        styles.gradeBtn,
+                        { borderColor: subject.grade ? theme.gpaCalculator : theme.border },
+                        subject.grade ? { backgroundColor: theme.gpaCalculator + '18' } : { backgroundColor: theme.backgroundSecondary },
+                      ]}
+                      onPress={() => { setSelectedSubjectIndex(index); setShowGradePicker(true); }}
+                    >
+                      <Text style={[styles.gradeBtnText, { color: subject.grade ? theme.gpaCalculator : theme.textTertiary }]}>
+                        {subject.grade || '—'}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </View>
+            )}
 
             <TouchableOpacity style={[styles.calcBtn, { backgroundColor: theme.gpaCalculator }]} onPress={calculateSGPA}>
               <Text style={styles.calcBtnText}>Calculate SGPA</Text>
@@ -241,6 +386,20 @@ export default function GPACalculatorScreen() {
           </View>
         ) : (
           <View>
+            {/* Branch selector */}
+            <TouchableOpacity
+              style={[styles.dropdownRow, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}
+              onPress={() => setShowBranchPicker(true)}
+            >
+              <Text style={[styles.dropdownLabel, { color: theme.textSecondary }]}>Branch</Text>
+              <View style={styles.dropdownRight}>
+                <Text style={[styles.dropdownValue, { color: theme.text }]}>
+                  {BRANCHES.find(b => b.id === selectedBranch)?.name || selectedBranch}
+                </Text>
+                <ChevronDown size={16} color={theme.textSecondary} strokeWidth={2} />
+              </View>
+            </TouchableOpacity>
+
             {/* Semester count selector */}
             <TouchableOpacity
               style={[styles.dropdownRow, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}
@@ -255,28 +414,43 @@ export default function GPACalculatorScreen() {
               </View>
             </TouchableOpacity>
 
-            {/* SGPA inputs */}
+            {/* SGPA & Credits inputs */}
             <View style={[styles.subjectsCard, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
-              <Text style={[styles.cardLabel, { color: theme.textSecondary }]}>SGPA PER SEMESTER</Text>
+              <Text style={[styles.cardLabel, { color: theme.textSecondary }]}>SGPA & CREDITS PER SEMESTER</Text>
               {semesterSGPAs.map((sem, index) => (
                 <View key={index} style={[styles.subjectRow, { borderBottomColor: theme.divider }]}>
                   <View style={styles.subjectInfo}>
                     <Text style={[styles.subjectName, { color: theme.text }]}>{sem.semester}</Text>
-                    <Text style={[styles.subjectCredit, { color: theme.textTertiary }]}>{SEMESTER_CREDITS[sem.semester]} credits</Text>
                   </View>
-                  <TextInput
-                    style={[styles.sgpaInput, {
-                      backgroundColor: theme.backgroundSecondary,
-                      color: theme.text,
-                      borderColor: theme.border,
-                    }]}
-                    placeholder="—"
-                    placeholderTextColor={theme.textTertiary}
-                    keyboardType="decimal-pad"
-                    value={sem.sgpa}
-                    onChangeText={(t) => updateSemesterSGPA(index, t)}
-                    maxLength={5}
-                  />
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <TextInput
+                      style={[styles.sgpaInput, {
+                        backgroundColor: theme.backgroundSecondary,
+                        color: theme.text,
+                        borderColor: theme.border,
+                        minWidth: 55,
+                      }]}
+                      placeholder="Cr"
+                      placeholderTextColor={theme.textTertiary}
+                      keyboardType="number-pad"
+                      value={sem.credits}
+                      onChangeText={(t) => updateSemesterCredits(index, t)}
+                      maxLength={3}
+                    />
+                    <TextInput
+                      style={[styles.sgpaInput, {
+                        backgroundColor: theme.backgroundSecondary,
+                        color: theme.text,
+                        borderColor: theme.border,
+                      }]}
+                      placeholder="SGPA"
+                      placeholderTextColor={theme.textTertiary}
+                      keyboardType="decimal-pad"
+                      value={sem.sgpa}
+                      onChangeText={(t) => updateSemesterSGPA(index, t)}
+                      maxLength={5}
+                    />
+                  </View>
                 </View>
               ))}
             </View>
@@ -415,6 +589,29 @@ export default function GPACalculatorScreen() {
           </View>
         </TouchableOpacity>
       </Modal>
+
+      {/* ── Branch Picker ── */}
+      <Modal visible={showBranchPicker} transparent animationType="fade" onRequestClose={() => setShowBranchPicker(false)}>
+        <TouchableOpacity style={styles.pickerOverlay} activeOpacity={1} onPress={() => setShowBranchPicker(false)}>
+          <View style={[styles.pickerSheet, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
+            <Text style={[styles.pickerTitle, { color: theme.text }]}>Select Branch</Text>
+            <ScrollView style={{ maxHeight: 350 }}>
+              {BRANCHES.map((branch) => (
+                <TouchableOpacity
+                  key={branch.id}
+                  style={[styles.pickerItem, { borderBottomColor: theme.divider }]}
+                  onPress={() => { setSelectedBranch(branch.id); setShowBranchPicker(false); }}
+                >
+                  <Text style={[styles.pickerItemText, { color: selectedBranch === branch.id ? theme.gpaCalculator : theme.text, fontWeight: selectedBranch === branch.id ? '700' : '400' }]}>
+                    {branch.name}
+                  </Text>
+                  {selectedBranch === branch.id && <Check size={16} color={theme.gpaCalculator} strokeWidth={2.5} />}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -519,4 +716,18 @@ const styles = StyleSheet.create({
   },
   pickerItemText: { fontSize: 14, flex: 1 },
   gradePointText: { fontSize: 12, marginRight: 10 },
+  customNameInput: {
+    borderRadius: 8, paddingHorizontal: 10, paddingVertical: 7,
+    fontSize: 13, fontWeight: '600', borderWidth: 1,
+  },
+  customCreditInput: {
+    borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5,
+    fontSize: 13, fontWeight: '700', width: 50, textAlign: 'center', borderWidth: 1,
+  },
+  addSubjectBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 6, paddingVertical: 12, margin: 12, borderRadius: 10,
+    borderWidth: 1.5, borderStyle: 'dashed',
+  },
+  addSubjectText: { fontSize: 13, fontWeight: '700' },
 });
