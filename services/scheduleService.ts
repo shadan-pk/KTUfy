@@ -22,6 +22,11 @@ export interface ExamEvent {
     branch?: string;
 }
 
+function sanitizeFilterToken(value?: string): string {
+    if (!value) return '';
+    return value.trim().replace(/[^A-Za-z0-9_-]/g, '');
+}
+
 /**
  * Fetch exam schedule directly from Supabase, optionally filtered by semester & branch.
  * Uses per-semester caching (24h TTL).
@@ -29,8 +34,8 @@ export interface ExamEvent {
 export async function getExamSchedule(
     filters?: { semester?: string; branch?: string; forceRefresh?: boolean }
 ): Promise<ExamEvent[]> {
-    const sem = filters?.semester ?? '';
-    const branch = filters?.branch ?? '';
+    const sem = sanitizeFilterToken(filters?.semester);
+    const branch = sanitizeFilterToken(filters?.branch);
     const force = filters?.forceRefresh ?? false;
 
     // Cache-first strategy (skip if forceRefresh)

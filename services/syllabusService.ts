@@ -57,7 +57,7 @@ export async function getSubjects(
     const cached = await getCachedSyllabus(branch, semester);
     if (cached) return cached as SyllabusSubject[];
 
-    const url = `${process.env.API_BASE_URL}/api/v1/syllabus/subjects?branch=${branch}&semester=${semester}`;
+    const url = `${process.env.API_BASE_URL}/api/v1/syllabus/subjects?branch=${encodeURIComponent(branch)}&semester=${encodeURIComponent(semester)}`;
     const data = await apiRequest<SyllabusSubject[]>(url, { method: 'GET' });
     await setCachedSyllabus(branch, semester, data);
     return data;
