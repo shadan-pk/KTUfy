@@ -10,7 +10,7 @@ import { ChatbotScreenNavigationProp, RootStackParamList } from '../types/naviga
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../auth/AuthProvider';
 import { getUserProfile } from '../supabaseConfig';
-import { Menu, Plus, Paperclip, ArrowRight, Mic, X, Pencil, Trash2, Edit, BookOpen, Settings, Bell, Calculator, Zap, FileText, Calendar } from 'lucide-react-native';
+import { Menu, Plus, Paperclip, ArrowRight, Mic, X, Pencil, Trash2, Edit, BookOpen, Settings, Bell, Calculator, Zap, FileText, Calendar, CheckSquare, Code, Gamepad2, Library } from 'lucide-react-native';
 import {
   sendChatMessage, getChatSessions, getChatSession, updateChatSession, deleteChatSession,
   ChatMessage as BackendChatMessage, ChatSession
@@ -408,9 +408,9 @@ const ChatbotScreen: React.FC<{ navigation: ChatbotScreenNavigationProp }> = ({ 
 
       {/* FAB Menu Overlay */}
       {isFabOpen && (
-        <TouchableOpacity style={StyleSheet.absoluteFillObject} activeOpacity={1} onPress={toggleFab} />
+        <TouchableOpacity style={[StyleSheet.absoluteFillObject, { zIndex: 40 }]} activeOpacity={1} onPress={toggleFab} />
       )}
-      <View style={styles.fabContainer}>
+      <View style={styles.fabContainer} pointerEvents="box-none">
         {fabItems.map((item, index) => {
           const translateY = fabAnim.interpolate({
             inputRange: [0, 1],
@@ -421,7 +421,7 @@ const ChatbotScreen: React.FC<{ navigation: ChatbotScreenNavigationProp }> = ({ 
             outputRange: [0, 0.5, 1]
           });
           return (
-            <Animated.View key={index} style={[styles.fabItemWrap, { transform: [{ translateY }, { scale }], opacity: fabAnim }]}>
+            <Animated.View key={index} pointerEvents={isFabOpen ? 'auto' : 'none'} style={[styles.fabItemWrap, { transform: [{ translateY }, { scale }], opacity: fabAnim }]}>
               <View style={[styles.fabLabelWrap, { backgroundColor: theme.backgroundSecondary }]}>
                 <Text style={[styles.fabLabel, { color: theme.text }]}>{item.label}</Text>
               </View>
@@ -454,7 +454,7 @@ const ChatbotScreen: React.FC<{ navigation: ChatbotScreenNavigationProp }> = ({ 
           <Animated.View style={[styles.sidebar, { transform: [{ translateX: sidebarAnim }], backgroundColor: theme.backgroundSecondary }]}>
             <SafeAreaView style={{ flex: 1 }} edges={['top', 'bottom']}>
               <View style={styles.sbHeader}>
-                <View style={styles.sbProfile}>
+                <TouchableOpacity style={styles.sbProfile} onPress={() => { closeSidebar(); navigation.navigate('Profile'); }}>
                   <View style={styles.sbAvatar}>
                     <Text style={{color:'#fff', fontWeight:'bold'}}>{userData?.name?.[0] || 'A'}</Text>
                     <View style={styles.onlineDot} />
@@ -463,7 +463,7 @@ const ChatbotScreen: React.FC<{ navigation: ChatbotScreenNavigationProp }> = ({ 
                     <Text style={[styles.sbName, { color: theme.text }]}>{userData?.name || 'Student'}</Text>
                     <Text style={[styles.sbCourse, { color: theme.textSecondary }]}>{userData?.semester || 'S4'} · {userData?.branch || 'CSE'} · KTU</Text>
                   </View>
-                </View>
+                </TouchableOpacity>
                 <TouchableOpacity onPress={closeSidebar}><X size={24} color={theme.textSecondary} /></TouchableOpacity>
               </View>
 
@@ -500,21 +500,42 @@ const ChatbotScreen: React.FC<{ navigation: ChatbotScreenNavigationProp }> = ({ 
                     <Zap size={20} color={'#F59E0B'} />
                     <Text style={[styles.sbToolText, { color: theme.text }]}>Flashcard Generator</Text>
                   </TouchableOpacity>
+                  <TouchableOpacity style={styles.sbToolItem} onPress={() => { closeSidebar(); navigation.navigate('Ticklist'); }}>
+                    <CheckSquare size={20} color={'#FB923C'} />
+                    <Text style={[styles.sbToolText, { color: theme.text }]}>Study Checklist</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.sbToolItem} onPress={() => { closeSidebar(); navigation.navigate('CodingHub'); }}>
+                    <Code size={20} color={'#34D399'} />
+                    <Text style={[styles.sbToolText, { color: theme.text }]}>Coding Hub</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.sbToolItem} onPress={() => { closeSidebar(); navigation.navigate('LearningZone'); }}>
+                    <Gamepad2 size={20} color={'#F472B6'} />
+                    <Text style={[styles.sbToolText, { color: theme.text }]}>Learning Zone</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.sbToolItem} onPress={() => { closeSidebar(); navigation.navigate('Library'); }}>
+                    <Library size={20} color={'#38BDF8'} />
+                    <Text style={[styles.sbToolText, { color: theme.text }]}>Library</Text>
+                  </TouchableOpacity>
                 </View>
 
                 {/* Recent Chats */}
                 <View style={styles.sbSection}>
                   <Text style={[styles.sbSectionTitle, { color: theme.textTertiary }]}>RECENT</Text>
-                  {Object.entries(groupedSessions).map(([group, gSessions]) => (
-                    <React.Fragment key={group}>
-                      {gSessions.map(s => (
-                        <TouchableOpacity key={s.id} style={styles.sbChatItem} onPress={() => loadChatSession(s.id)}>
-                          <FileText size={16} color={theme.textTertiary} />
-                          <Text style={[styles.sbChatText, { color: theme.text }]} numberOfLines={1}>{s.title}</Text>
-                        </TouchableOpacity>
-                      ))}
-                    </React.Fragment>
-                  ))}
+                  {Object.entries(groupedSessions).length === 0 ? (
+                    <Text style={{ color: theme.textTertiary, paddingHorizontal: 12, fontSize: 13 }}>No recent chats.</Text>
+                  ) : (
+                    Object.entries(groupedSessions).map(([group, gSessions]) => (
+                      <React.Fragment key={group}>
+                        <Text style={[styles.sbGroupTitle, { color: theme.textTertiary, marginTop: 8 }]}>{group}</Text>
+                        {gSessions.map(s => (
+                          <TouchableOpacity key={s.id} style={styles.sbChatItem} onPress={() => loadChatSession(s.id)}>
+                            <FileText size={16} color={theme.textTertiary} />
+                            <Text style={[styles.sbChatText, { color: theme.text }]} numberOfLines={1}>{s.title}</Text>
+                          </TouchableOpacity>
+                        ))}
+                      </React.Fragment>
+                    ))
+                  )}
                 </View>
               </ScrollView>
 
@@ -597,6 +618,7 @@ const styles = StyleSheet.create({
   sbToolText: { fontSize: 15, fontWeight: '600', marginLeft: 16 },
   sbChatItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 8 },
   sbChatText: { fontSize: 14, marginLeft: 12 },
+  sbGroupTitle: { fontSize: 12, fontWeight: '700', paddingHorizontal: 8, marginBottom: 4, letterSpacing: 0.5 },
   sbExamItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 8 },
   sbExamText: { fontSize: 14, marginLeft: 12 },
   sbFooter: { padding: 20, borderTopWidth: 1 },
