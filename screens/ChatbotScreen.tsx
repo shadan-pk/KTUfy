@@ -1,16 +1,15 @@
-import React, { useState, useEffect, useRef } from 'react';
-import {
-  View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView,
-  KeyboardAvoidingView, Platform, Alert, Dimensions, StatusBar, Animated
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView,
+  KeyboardAvoidingView, Keyboard, Platform, Modal, Dimensions, StatusBar, Animated
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRoute, RouteProp } from '@react-navigation/native';
+import { useRoute, RouteProp, useFocusEffect } from '@react-navigation/native';
 import { ChatbotScreenNavigationProp, RootStackParamList } from '../types/navigation';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../auth/AuthProvider';
 import { getUserProfile } from '../supabaseConfig';
-import { Menu, Plus, Paperclip, ArrowRight, Mic, X, Pencil, Trash2, Edit, BookOpen, Settings, Bell, Calculator, Zap, FileText, Calendar, CheckSquare, Code, Gamepad2, Library } from 'lucide-react-native';
+import { Menu, Plus, Paperclip, ArrowRight, Mic, X, Pencil, Trash2, Edit, BookOpen, Settings, Bell, Calculator, Zap, FileText, Calendar, CheckSquare, Code, Gamepad2, Library, MoreVertical } from 'lucide-react-native';
 import {
   sendChatMessage, getChatSessions, getChatSession, updateChatSession, deleteChatSession,
   ChatMessage as BackendChatMessage, ChatSession
@@ -27,6 +26,7 @@ interface Message { id: string; text: string; isUser: boolean; timestamp: Date; 
 
 const ChatbotScreen: React.FC<{ navigation: ChatbotScreenNavigationProp }> = ({ navigation }) => {
   const { theme, isDark } = useTheme();
+  const insets = useSafeAreaInsets();
   const route = useRoute<RouteProp<RootStackParamList, 'Chatbot'>>();
   const initialPrompt = route.params?.initialPrompt;
   const { user: authUser } = useAuth();
@@ -47,6 +47,9 @@ const ChatbotScreen: React.FC<{ navigation: ChatbotScreenNavigationProp }> = ({ 
   const [initialPromptSent, setInitialPromptSent] = useState(false);
   const [streamingMsgId, setStreamingMsgId] = useState<string | null>(null);
   const [streamingText, setStreamingText] = useState('');
+  const [menuSessionId, setMenuSessionId] = useState<string | null>(null);
+  const [deleteSessionId, setDeleteSessionId] = useState<string | null>(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
   
   // FAB state
   const [isFabOpen, setIsFabOpen] = useState(false);
@@ -59,6 +62,9 @@ const ChatbotScreen: React.FC<{ navigation: ChatbotScreenNavigationProp }> = ({ 
   // Sidebar animation
   const sidebarAnim = useRef(new Animated.Value(-width * 0.85)).current;
   const backdropOpacity = useRef(new Animated.Value(0)).current;
+
+  const [inputAreaHeight, setInputAreaHeight] = useState(90);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
 
   // Load user profile & upcoming exams
   useEffect(() => {
@@ -100,7 +106,10 @@ const ChatbotScreen: React.FC<{ navigation: ChatbotScreenNavigationProp }> = ({ 
     Animated.parallel([
       Animated.timing(sidebarAnim, { toValue: -width * 0.85, duration: 250, useNativeDriver: true }),
       Animated.timing(backdropOpacity, { toValue: 0, duration: 250, useNativeDriver: true }),
-    ]).start(() => setShowSidebar(false));
+    ]).start(() => {
+      setShowSidebar(false);
+      setMenuSessionId(null);
+    });
   };
 
   const toggleFab = () => {
@@ -111,7 +120,17 @@ const ChatbotScreen: React.FC<{ navigation: ChatbotScreenNavigationProp }> = ({ 
     }).start();
   };
 
-  useEffect(() => { loadChatSessions(); }, []);
+  useFocusEffect(
+    useCallback(() => {
+      loadChatSessions();
+    }, [])
+  );
+
+  useEffect(() => {
+    if (serverOnline) {
+      refreshSessionList();
+    }
+  }, [serverOnline]);
 
   useEffect(() => {
     if (initialPrompt && !initialPromptSent && !isLoading) {
@@ -126,17 +145,27 @@ const ChatbotScreen: React.FC<{ navigation: ChatbotScreenNavigationProp }> = ({ 
     }
   }, [isTyping, messages]);
 
+  useEffect(() => {
+    const show = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      e => setKeyboardHeight(e.endCoordinates.height)
+    );
+    const hide = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => setKeyboardHeight(0)
+    );
+    return () => { show.remove(); hide.remove(); };
+  }, []);
+
   const loadChatSessions = async () => {
     try {
       setIsLoading(true);
       const cached = await getCachedChatSessions();
       if (cached && cached.length > 0) setSessions(cached);
       try {
-        if (serverOnline) {
-          const sessionList = await getChatSessions();
-          setSessions(sessionList);
-          await setCachedChatSessions(sessionList);
-        }
+        const sessionList = await getChatSessions();
+        setSessions(sessionList);
+        await setCachedChatSessions(sessionList);
       } catch (e) {}
       setIsLoading(false);
     } catch (err) {
@@ -146,6 +175,7 @@ const ChatbotScreen: React.FC<{ navigation: ChatbotScreenNavigationProp }> = ({ 
 
   const loadChatSession = async (sessionId: string) => {
     try {
+      setMenuSessionId(null);
       setIsLoading(true);
       setError(null);
       const cachedMsgs = await getCachedChatHistory(sessionId);
@@ -171,16 +201,15 @@ const ChatbotScreen: React.FC<{ navigation: ChatbotScreenNavigationProp }> = ({ 
   const handleNewChat = () => {
     setCurrentSessionId(null);
     setMessages([]);
+    setMenuSessionId(null);
     closeSidebar();
   };
 
   const refreshSessionList = async () => {
     try {
-      if (serverOnline) {
-        const sessionList = await getChatSessions();
-        setSessions(sessionList);
-        await setCachedChatSessions(sessionList);
-      }
+      const sessionList = await getChatSessions();
+      setSessions(sessionList);
+      await setCachedChatSessions(sessionList);
     } catch (err) {}
   };
 
@@ -250,16 +279,20 @@ const ChatbotScreen: React.FC<{ navigation: ChatbotScreenNavigationProp }> = ({ 
   };
 
   const handleDeleteSession = (sessionId: string) => {
-    Alert.alert('Delete Chat', 'Delete this chat?', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: async () => {
-          try {
-            await deleteChatSession(sessionId);
-            if (currentSessionId === sessionId) handleNewChat();
-            await loadChatSessions();
-          } catch {}
-      }}
-    ]);
+    setDeleteSessionId(sessionId);
+    setShowDeleteModal(true);
+  };
+
+  const confirmDeleteSession = async () => {
+    const sessionId = deleteSessionId;
+    if (!sessionId) return;
+    try {
+      await deleteChatSession(sessionId);
+      if (currentSessionId === sessionId) handleNewChat();
+      await loadChatSessions();
+    } catch {}
+    setShowDeleteModal(false);
+    setDeleteSessionId(null);
   };
 
   const formatSessionDate = (ds: string) => {
@@ -297,6 +330,7 @@ const ChatbotScreen: React.FC<{ navigation: ChatbotScreenNavigationProp }> = ({ 
     { icon: Zap, label: 'Flashcards', route: 'Flashcards', color: '#F59E0B' },
     { icon: FileText, label: 'PDF Tools', route: 'PdfTools', color: '#10B981' },
   ];
+   const fabItemSpacing = Math.min(80, height * 0.1);
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
@@ -318,7 +352,10 @@ const ChatbotScreen: React.FC<{ navigation: ChatbotScreenNavigationProp }> = ({ 
         </View>
       </SafeAreaView>
 
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.mainArea}>
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+      style={styles.mainArea}>
         {messages.length === 0 ? (
           /* Greeting State */
           <ScrollView contentContainerStyle={styles.greetingScroll} showsVerticalScrollIndicator={false}>
@@ -340,8 +377,8 @@ const ChatbotScreen: React.FC<{ navigation: ChatbotScreenNavigationProp }> = ({ 
             </View>
 
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipsScroll}>
-              {['📖 S4 CSE syllabus', '⚡ Generate flashcards', '📅 Upcoming exams'].map((chip, i) => (
-                <TouchableOpacity key={i} style={[styles.chipCard, { backgroundColor: theme.backgroundSecondary }]} onPress={() => sendMessage(chip.substring(3))}>
+              {['S4 CSE syllabus', 'Generate flashcards', 'Upcoming exams'].map((chip, i) => (
+                <TouchableOpacity key={i} style={[styles.chipCard, { backgroundColor: theme.backgroundSecondary }]} onPress={() => sendMessage(chip)}>
                   <Text style={[styles.chipText, { color: theme.textSecondary }]}>{chip}</Text>
                 </TouchableOpacity>
               ))}
@@ -380,10 +417,12 @@ const ChatbotScreen: React.FC<{ navigation: ChatbotScreenNavigationProp }> = ({ 
         )}
 
         {/* Bottom Input */}
-        <View style={[styles.inputArea, { backgroundColor: theme.background }]}>
+          <View
+            onLayout={e => setInputAreaHeight(e.nativeEvent.layout.height)}
+            style={[styles.inputArea, { backgroundColor: theme.background }]}>
           <View style={[styles.inputWrap, { backgroundColor: theme.backgroundSecondary }]}>
             <TouchableOpacity style={styles.attachBtn}>
-              <Paperclip size={20} color={theme.textSecondary} />
+              {/* <Paperclip size={20} color={theme.textSecondary} /> */}
             </TouchableOpacity>
             <TextInput
               style={[styles.input, { color: theme.text }]} placeholder="Ask KTUfy anything..."
@@ -408,13 +447,42 @@ const ChatbotScreen: React.FC<{ navigation: ChatbotScreenNavigationProp }> = ({ 
 
       {/* FAB Menu Overlay */}
       {isFabOpen && (
-        <TouchableOpacity style={[StyleSheet.absoluteFillObject, { zIndex: 40 }]} activeOpacity={1} onPress={toggleFab} />
+        <Animated.View 
+          style={[
+            StyleSheet.absoluteFillObject, 
+            { 
+              backgroundColor: 'rgba(0,0,0,0.8)', 
+              zIndex: 40,
+              opacity: fabAnim,  // fades in/out with the FAB animation
+            }
+          ]}
+          pointerEvents="none"  // let touches pass through to the TouchableOpacity below
+        />
       )}
-      <View style={styles.fabContainer} pointerEvents="box-none">
+      {isFabOpen && (
+        <TouchableOpacity 
+          style={[StyleSheet.absoluteFillObject, { zIndex: 41 }]} 
+          activeOpacity={1} 
+          onPress={toggleFab} 
+        />
+      )}
+      <View
+          style={[
+            styles.fabContainer,
+            {
+                  bottom: (keyboardHeight > 0
+                            ? keyboardHeight        // keyboard open: sit above it
+                            : insets.bottom         // keyboard closed: respect safe area
+                          ) + inputAreaHeight + 8,
+              right: insets.right + 16,
+              pointerEvents: 'box-none',
+            },
+          ]}
+        >
         {fabItems.map((item, index) => {
           const translateY = fabAnim.interpolate({
             inputRange: [0, 1],
-            outputRange: [0, -60 * (index + 1)]
+            outputRange: [0, -fabItemSpacing * (index + 1)]
           });
           const scale = fabAnim.interpolate({
             inputRange: [0, 0.5, 1],
@@ -423,7 +491,7 @@ const ChatbotScreen: React.FC<{ navigation: ChatbotScreenNavigationProp }> = ({ 
           return (
             <Animated.View key={index} pointerEvents={isFabOpen ? 'auto' : 'none'} style={[styles.fabItemWrap, { transform: [{ translateY }, { scale }], opacity: fabAnim }]}>
               <View style={[styles.fabLabelWrap, { backgroundColor: theme.backgroundSecondary }]}>
-                <Text style={[styles.fabLabel, { color: theme.text }]}>{item.label}</Text>
+                <Text numberOfLines={1} ellipsizeMode="tail" style={[styles.fabLabel, { color: theme.text }]}>{item.label}</Text>
               </View>
               <TouchableOpacity style={[styles.fabItem, { backgroundColor: theme.backgroundSecondary }]} onPress={() => { toggleFab(); navigation.navigate(item.route as any); }}>
                 <item.icon size={20} color={theme.text} />
@@ -446,7 +514,7 @@ const ChatbotScreen: React.FC<{ navigation: ChatbotScreenNavigationProp }> = ({ 
 
       {/* Sidebar Overlay */}
       {showSidebar && (
-        <View style={StyleSheet.absoluteFillObject} pointerEvents="box-none" zIndex={100}>
+         <View style={[StyleSheet.absoluteFillObject, { zIndex: 100, pointerEvents: 'box-none' }]}>
           <Animated.View style={[styles.backdrop, { opacity: backdropOpacity }]}>
             <TouchableOpacity style={StyleSheet.absoluteFillObject} activeOpacity={1} onPress={closeSidebar} />
           </Animated.View>
@@ -528,10 +596,34 @@ const ChatbotScreen: React.FC<{ navigation: ChatbotScreenNavigationProp }> = ({ 
                       <React.Fragment key={group}>
                         <Text style={[styles.sbGroupTitle, { color: theme.textTertiary, marginTop: 8 }]}>{group}</Text>
                         {gSessions.map(s => (
-                          <TouchableOpacity key={s.id} style={styles.sbChatItem} onPress={() => loadChatSession(s.id)}>
-                            <FileText size={16} color={theme.textTertiary} />
-                            <Text style={[styles.sbChatText, { color: theme.text }]} numberOfLines={1}>{s.title}</Text>
-                          </TouchableOpacity>
+                          <View key={s.id} style={styles.sbChatRow}>
+                            <TouchableOpacity style={styles.sbChatItem} onPress={() => loadChatSession(s.id)}>
+                              <FileText size={16} color={theme.textTertiary} />
+                              <Text style={[styles.sbChatText, { color: theme.text }]} numberOfLines={1}>{s.title}</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              style={[styles.sbMenuBtn, { backgroundColor: theme.backgroundTertiary }]}
+                              onPress={() => setMenuSessionId(prev => (prev === s.id ? null : s.id))}
+                            >
+                              <MoreVertical size={16} color={theme.textSecondary} />
+                            </TouchableOpacity>
+                            {menuSessionId === s.id && (
+                              <View style={[styles.sbMenu, { backgroundColor: theme.backgroundSecondary, borderColor: theme.backgroundTertiary }]}
+                                pointerEvents="box-none"
+                              >
+                                <TouchableOpacity
+                                  style={styles.sbMenuItem}
+                                  onPress={() => {
+                                    setMenuSessionId(null);
+                                    handleDeleteSession(s.id);
+                                  }}
+                                >
+                                  <Trash2 size={16} color={theme.error} />
+                                  <Text style={[styles.sbMenuText, { color: theme.error }]}>Delete</Text>
+                                </TouchableOpacity>
+                              </View>
+                            )}
+                          </View>
                         ))}
                       </React.Fragment>
                     ))
@@ -549,6 +641,25 @@ const ChatbotScreen: React.FC<{ navigation: ChatbotScreenNavigationProp }> = ({ 
           </Animated.View>
         </View>
       )}
+
+      {/* Delete Modal */}
+      <Modal visible={showDeleteModal} transparent animationType="fade" onRequestClose={() => setShowDeleteModal(false)}>
+        <View style={styles.modalBackdrop}>
+          <View style={[styles.modalCard, { backgroundColor: theme.backgroundSecondary, borderColor: theme.backgroundTertiary }]}
+            >
+            <Text style={[styles.modalTitle, { color: theme.text }]}>Delete chat</Text>
+            <Text style={[styles.modalBody, { color: theme.textSecondary }]}>This will permanently remove the chat history.</Text>
+            <View style={styles.modalActions}>
+              <TouchableOpacity style={[styles.modalBtn, styles.modalBtnGhost, { borderColor: theme.backgroundTertiary }]} onPress={() => setShowDeleteModal(false)}>
+                <Text style={[styles.modalBtnText, { color: theme.textSecondary }]}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.modalBtn, styles.modalBtnDanger]} onPress={confirmDeleteSession}>
+                <Text style={styles.modalBtnTextDanger}>Delete</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -570,8 +681,17 @@ const styles = StyleSheet.create({
   greetHeadline: { fontSize: FONT.display - 5, fontWeight: '800', textAlign: 'center', marginBottom: 12, lineHeight: 40 },
   greetSub: { fontSize: FONT.body, textAlign: 'center', lineHeight: 22 },
   chipsScroll: { paddingHorizontal: 20, gap: 12 },
-  chipCard: { width: 140, height: 180, borderRadius: 20, padding: 16, justifyContent: 'flex-end', borderWidth: 1, borderColor: '#1A1A24' },
-  chipText: { fontSize: FONT.body, fontWeight: '600' },
+  chipCard: {
+    minWidth: 150,
+    height: 46,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#252533'
+  },
+  chipText: { fontSize: FONT.body, fontWeight: '600', letterSpacing: 0.2 },
   msgList: { flex: 1 },
   msgContent: { padding: 16, paddingBottom: 100 },
   msgRow: { flexDirection: 'row', marginBottom: 20 },
@@ -585,20 +705,46 @@ const styles = StyleSheet.create({
   msgText: { fontSize: FONT.body, lineHeight: 24 },
   inputArea: { paddingHorizontal: 16, paddingBottom: Platform.OS === 'ios' ? 30 : 16, paddingTop: 10 },
   inputWrap: { flexDirection: 'row', alignItems: 'flex-end', borderRadius: 24, paddingHorizontal: 12, paddingVertical: 8, minHeight: 56 },
-  attachBtn: { width: 36, height: 36, justifyContent: 'center', alignItems: 'center' },
+  attachBtn: { width: 10, height: 10, justifyContent: 'center', alignItems: 'center' },
   input: { flex: 1, maxHeight: 120, minHeight: 40, fontSize: FONT.body, paddingTop: 10, paddingBottom: 10 },
   micBtn: { width: 36, height: 36, justifyContent: 'center', alignItems: 'center' },
   sendBtnGradient: { width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center', marginLeft: 8 },
   disclaimer: { textAlign: 'center', fontSize: FONT.micro, marginTop: 10 },
   
   // FAB
-  fabContainer: { position: 'absolute', bottom: Platform.OS === 'ios' ? 110 : 90, right: 20, alignItems: 'flex-end', zIndex: 50 },
-  mainFabWrap: { zIndex: 2 },
-  mainFab: { width: 56, height: 56, borderRadius: 28, justifyContent: 'center', alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 8 },
-  fabItemWrap: { position: 'absolute', bottom: 8, right: 8, flexDirection: 'row', alignItems: 'center' },
-  fabItem: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 4, elevation: 4 },
-  fabLabelWrap: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, marginRight: 12 },
-  fabLabel: { fontSize: 13, fontWeight: '600' },
+// In StyleSheet.create:
+fabContainer: { 
+  position: 'absolute', 
+  alignItems: 'flex-end', 
+  zIndex: 50,
+  width: width * 0.75,
+},
+mainFabWrap: { zIndex: 2 },
+mainFab: { 
+  width: 56, height: 56, borderRadius: 28, 
+  justifyContent: 'center', alignItems: 'center', 
+  shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, 
+  shadowOpacity: 0.3, shadowRadius: 8, elevation: 8 
+},
+fabItemWrap: { 
+  position: 'absolute', 
+  bottom: 8, 
+  right: 0,           // anchors to right edge of container
+  flexDirection: 'row', 
+  alignItems: 'center',
+},
+fabItem: { 
+  width: 44, height: 44, borderRadius: 22, 
+  justifyContent: 'center', alignItems: 'center', 
+  shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, 
+  shadowOpacity: 0.2, shadowRadius: 4, elevation: 4 
+},
+fabLabelWrap: { 
+  paddingHorizontal: 12, paddingVertical: 6, 
+  borderRadius: 8, marginRight: 10,
+  maxWidth: width - 100,   // ← key fix: never wider than screen minus icon+margin
+},
+fabLabel: { fontSize: 13, fontWeight: '600' },
 
   // Sidebar
   backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.6)' },
@@ -616,14 +762,45 @@ const styles = StyleSheet.create({
   sbSectionTitle: { fontSize: 11, fontWeight: '800', letterSpacing: 1, marginBottom: 12 },
   sbToolItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 12, borderRadius: 12, marginBottom: 4 },
   sbToolText: { fontSize: 15, fontWeight: '600', marginLeft: 16 },
-  sbChatItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 8 },
+  sbChatRow: { position: 'relative', flexDirection: 'row', alignItems: 'center' },
+  sbChatItem: { flex: 1, flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 8 },
   sbChatText: { fontSize: 14, marginLeft: 12 },
+  sbMenuBtn: { width: 28, height: 28, borderRadius: 8, alignItems: 'center', justifyContent: 'center', marginLeft: 'auto' },
+  sbMenu: {
+    position: 'absolute',
+    right: 0,
+    top: 36,
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingVertical: 6,
+    paddingHorizontal: 6,
+    minWidth: 120,
+    zIndex: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+    elevation: 10
+  },
+  sbMenuItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 10, borderRadius: 8 },
+  sbMenuText: { fontSize: 14, fontWeight: '600', marginLeft: 10 },
   sbGroupTitle: { fontSize: 12, fontWeight: '700', paddingHorizontal: 8, marginBottom: 4, letterSpacing: 0.5 },
   sbExamItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 8 },
   sbExamText: { fontSize: 14, marginLeft: 12 },
   sbFooter: { padding: 20, borderTopWidth: 1 },
   sbFooterBtn: { flexDirection: 'row', alignItems: 'center' },
-  sbFooterText: { fontSize: 15, fontWeight: '600', marginLeft: 12 }
+  sbFooterText: { fontSize: 15, fontWeight: '600', marginLeft: 12 },
+
+  modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'center', padding: 24 },
+  modalCard: { borderRadius: 16, padding: 18, borderWidth: 1 },
+  modalTitle: { fontSize: 18, fontWeight: '700', marginBottom: 6 },
+  modalBody: { fontSize: 14, lineHeight: 20 },
+  modalActions: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: 16, gap: 10 },
+  modalBtn: { paddingVertical: 10, paddingHorizontal: 16, borderRadius: 10 },
+  modalBtnGhost: { borderWidth: 1 },
+  modalBtnDanger: { backgroundColor: '#EF4444' },
+  modalBtnText: { fontSize: 14, fontWeight: '600' },
+  modalBtnTextDanger: { fontSize: 14, fontWeight: '700', color: '#FFF' }
 });
 
 export default ChatbotScreen;
