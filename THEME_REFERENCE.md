@@ -4,20 +4,14 @@
 
 ## Color Palette
 
-### Primary Brand Colors (Blue)
+### Primary Brand Colors
 | Token | Hex | Usage |
 |-------|-----|-------|
-| `brand-900` | `#050816` | Deepest background (base) |
-| `brand-850` | `#070B1E` | Secondary background |
-| `brand-800` | `#0A1128` | Card/surface dark |
-| `brand-700` | `#0F1A3E` | Card/surface light |
-| `brand-600` | `#152154` | Elevated surfaces |
-| `brand-500` | `#1E3A8A` | Strong blue accent |
-| `brand-400` | `#2563EB` | Primary action (buttons, links) |
-| `brand-300` | `#3B82F6` | Hover / active states |
-| `brand-200` | `#60A5FA` | Light accent text |
-| `brand-100` | `#93C5FD` | Badges, subtle highlights |
-| `brand-50`  | `#DBEAFE` | Very light accents |
+| `brand-900` | `#050507` | Deepest background (base dark mode) |
+| `brand-800` | `#121218` | Card/surface dark |
+| `brand-700` | `#1A1A24` | Elevated surfaces |
+| `accent-blue` | `#3B82F6` | Primary accent (Blue) |
+| `accent-green`| `#10B981` | Secondary accent (Green) |
 
 ### Text Colors
 | Token | Hex | Usage |
@@ -30,16 +24,16 @@
 ### Status Colors
 | Token | Hex | Usage |
 |-------|-----|-------|
-| `success` | `#34D399` | Positive states |
+| `success` | `#10B981` | Positive states |
 | `warning` | `#FBBF24` | Caution/streak |
-| `error` | `#F87171` | Errors, destructive |
+| `error` | `#EF4444` | Errors, destructive |
 | `info` | `#3B82F6` | Informational |
 
 ### Border / Divider
 | Token | Hex | Usage |
 |-------|-----|-------|
 | `border-subtle` | `rgba(71, 85, 105, 0.25)` | Card borders |
-| `border-accent` | `rgba(37, 99, 235, 0.3)` | Accent borders |
+| `border-accent` | `rgba(59, 130, 246, 0.3)` | Accent borders |
 | `divider` | `rgba(71, 85, 105, 0.15)` | Section dividers |
 
 ## Typography — Golden Ratio Scale
@@ -60,17 +54,11 @@ Base size: **15px**, ratio: **1.618** (φ)
 
 ## Gradient Background
 ```
-Colors: ['#050816', '#0A1128', '#0F1A3E', '#050816']
-Animation: 6s cycle, continuous loop
-Orb glow: rgba(37, 99, 235, 0.08)
+Colors: ['#050507', '#121218', '#050507']
+Accent Gradient: Blue (#3B82F6) to Green (#10B981)
+Orb glow: soft blue top + green bottom gradients for premium depth
 ```
-
-## Nav Bar
-- Background: `rgba(5, 8, 22, 0.95)`
-- Border: `rgba(71, 85, 105, 0.3)`
-- Active icon: `#2563EB`, inactive: `#484F58`
-- No emoji icons — use text symbols or leave text-only
 
 ## Apply This Theme
 Import these as constants from a shared file or use inline in StyleSheet.
-All screens must use dark backgrounds (`brand-900` or `brand-850`), never white.
+All screens must use dark backgrounds (`brand-900` or `brand-800`), never white.

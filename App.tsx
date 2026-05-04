@@ -40,42 +40,11 @@ import ImageToolsScreen from './screens/ImageToolsScreen';
 import PdfToolsScreen from './screens/PdfToolsScreen';
 
 // Import custom tab bar
-import BottomNavBar from './components/BottomNavBar';
+// import BottomNavBar from './components/BottomNavBar';
 
 import { RootStackParamList } from './types/navigation';
 
 const Stack = createStackNavigator<RootStackParamList>();
-const Tab = createBottomTabNavigator();
-
-// ─── Dark background for smooth transitions ───────────────────────
-const DARK_BG = '#0D1117';
-
-/**
- * Main Tabs — Home, Chatbot, Library, Profile
- * These 4 screens share a persistent BottomNavBar via the Tab Navigator.
- */
-function MainTabs() {
-  return (
-    <View style={{
-      flex: 1,
-      // paddingTop: Platform.OS === 'android' ? RNStatusBar.currentHeight : 0,
-      backgroundColor: '#0D1117',
-    }}>
-      <Tab.Navigator
-        tabBar={(props) => <BottomNavBar {...props} />}
-        screenOptions={{
-          headerShown: false,
-        }}
-      >
-        <Tab.Screen name="Home" component={HomeScreen} />
-        <Tab.Screen name="Chatbot" component={ChatbotScreen} />
-        <Tab.Screen name="Library" component={LibraryScreen} />
-        <Tab.Screen name="Profile" component={ProfileScreen} />
-      </Tab.Navigator>
-    </View>
-  );
-}
-
 // ─── App Content ──────────────────────────────────────────────────
 function AppContent() {
   const { user } = useAuth();
@@ -99,8 +68,11 @@ function AppContent() {
         {user ? (
           // Authenticated stack
           <>
-            {/* Main tabs (Home, Chatbot, Library, Profile with fixed nav bar) */}
-            <Stack.Screen name="MainTabs" component={MainTabs} />
+            {/* Main screen mapped to unified Chatbot interface */}
+            <Stack.Screen name="Home" component={ChatbotScreen} />
+            <Stack.Screen name="Chatbot" component={ChatbotScreen} />
+            <Stack.Screen name="Library" component={LibraryScreen} />
+            <Stack.Screen name="Profile" component={ProfileScreen} />
 
             {/* Secondary screens (push on top of tabs, no tab bar) */}
             <Stack.Screen name="Ticklist" component={TicklistScreen} />

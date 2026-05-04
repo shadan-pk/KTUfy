@@ -88,14 +88,14 @@ const lightTheme: Theme = {
 
 const darkTheme: Theme = {
   // Background colors
-  background: '#0D1117',
-  backgroundSecondary: '#161B22',
-  backgroundTertiary: '#21262D',
+  background: '#050507',
+  backgroundSecondary: '#121218',
+  backgroundTertiary: '#1A1A24',
 
   // Card colors
-  card: '#161B22',
-  cardSecondary: '#21262D',
-  cardBorder: 'rgba(48, 54, 61, 0.8)',
+  card: '#121218',
+  cardSecondary: '#1A1A24',
+  cardBorder: 'rgba(255, 255, 255, 0.08)',
 
   // Text colors
   text: '#E6EDF3',
@@ -103,14 +103,14 @@ const darkTheme: Theme = {
   textTertiary: '#484F58',
 
   // Primary colors
-  primary: '#2563EB',
-  primaryLight: '#3B82F6',
+  primary: '#3B82F6',
+  primaryLight: '#60A5FA',
   primaryDark: '#1E3A8A',
 
   // Status colors
-  success: '#34D399',
+  success: '#10B981',
   warning: '#FBBF24',
-  error: '#F87171',
+  error: '#EF4444',
   info: '#3B82F6',
 
   // UI element colors

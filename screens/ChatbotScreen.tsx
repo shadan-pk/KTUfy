@@ -1,199 +1,145 @@
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  TextInput,
-  TouchableOpacity,
-  ScrollView,
-  KeyboardAvoidingView,
-  Platform,
-  Alert,
-  ActivityIndicator,
-  Modal,
-  Dimensions,
-  StatusBar,
-  Animated,
+  View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView,
+  KeyboardAvoidingView, Platform, Alert, Dimensions, StatusBar, Animated
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useRoute, RouteProp } from '@react-navigation/native';
 import { ChatbotScreenNavigationProp, RootStackParamList } from '../types/navigation';
 import { useTheme } from '../contexts/ThemeContext';
-import { ArrowLeft, Menu, Plus, Paperclip, ArrowRight, X, Pencil, Trash2 } from 'lucide-react-native';
+import { useAuth } from '../auth/AuthProvider';
+import { getUserProfile } from '../supabaseConfig';
+import { Menu, Plus, Paperclip, ArrowRight, Mic, X, Pencil, Trash2, Edit, BookOpen, Settings, Bell, Calculator, Zap, FileText, Calendar } from 'lucide-react-native';
 import {
-  sendChatMessage,
-  getChatSessions,
-  getChatSession,
-  createChatSession,
-  updateChatSession,
-  deleteChatSession,
-  ChatMessage as BackendChatMessage,
-  ChatSession,
+  sendChatMessage, getChatSessions, getChatSession, updateChatSession, deleteChatSession,
+  ChatMessage as BackendChatMessage, ChatSession
 } from '../services/chatService';
-import {
-  getCachedChatSessions,
-  setCachedChatSessions,
-  getCachedChatHistory,
-  setCachedChatHistory,
-} from '../services/cacheService';
+import { getCachedChatSessions, setCachedChatSessions, getCachedChatHistory, setCachedChatHistory } from '../services/cacheService';
 import { useServerStatus } from '../hooks/useServerStatus';
+import { getExamSchedule, ExamEvent } from '../services/scheduleService';
 
-const { width } = Dimensions.get('window');
+const { width, height } = Dimensions.get('window');
 
-// ─── Blue Theme removed - using ThemeProvider ───────────────────
-
-// ─── Golden Ratio Typography ─────────────────────────────────────
 const FONT = { display: 39, h1: 24, h2: 20, body: 15, caption: 12, micro: 10 };
 
-interface Message {
-  id: string;
-  text: string;
-  isUser: boolean;
-  timestamp: Date;
-}
+interface Message { id: string; text: string; isUser: boolean; timestamp: Date; }
 
-interface ChatbotScreenProps {
-  navigation: ChatbotScreenNavigationProp;
-}
-
-const ChatbotScreen: React.FC<ChatbotScreenProps> = ({ navigation }) => {
+const ChatbotScreen: React.FC<{ navigation: ChatbotScreenNavigationProp }> = ({ navigation }) => {
   const { theme, isDark } = useTheme();
   const route = useRoute<RouteProp<RootStackParamList, 'Chatbot'>>();
   const initialPrompt = route.params?.initialPrompt;
+  const { user: authUser } = useAuth();
+  
+  const [userData, setUserData] = useState<any>(null);
+  const [upcomingExams, setUpcomingExams] = useState<ExamEvent[]>([]);
+  
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [inputText, setInputText] = useState('');
+  const [isTyping, setIsTyping] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
+  const [sessions, setSessions] = useState<ChatSession[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [showSidebar, setShowSidebar] = useState(false);
+  const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
+  const [editingTitle, setEditingTitle] = useState('');
+  const [initialPromptSent, setInitialPromptSent] = useState(false);
+  const [streamingMsgId, setStreamingMsgId] = useState<string | null>(null);
+  const [streamingText, setStreamingText] = useState('');
+  
+  // FAB state
+  const [isFabOpen, setIsFabOpen] = useState(false);
+  const fabAnim = useRef(new Animated.Value(0)).current;
 
-  const [messages, setMessages] = React.useState<Message[]>([]);
-  const [inputText, setInputText] = React.useState('');
-  const [isTyping, setIsTyping] = React.useState(false);
-  const [isLoading, setIsLoading] = React.useState(false);
-  const [currentSessionId, setCurrentSessionId] = React.useState<string | null>(null);
-  const [sessions, setSessions] = React.useState<ChatSession[]>([]);
-  const [error, setError] = React.useState<string | null>(null);
-  const [showSidebar, setShowSidebar] = React.useState(false);
-  const [editingSessionId, setEditingSessionId] = React.useState<string | null>(null);
-  const [editingTitle, setEditingTitle] = React.useState('');
-  const [initialPromptSent, setInitialPromptSent] = React.useState(false);
-  const [streamingMsgId, setStreamingMsgId] = React.useState<string | null>(null);
-  const [streamingText, setStreamingText] = React.useState('');
-  const streamingRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
-  const scrollViewRef = React.useRef<ScrollView>(null);
-
+  const streamingRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scrollViewRef = useRef<ScrollView>(null);
   const { serverOnline } = useServerStatus();
 
-  // Sidebar slide animation (left to right)
-  const sidebarAnim = React.useRef(new Animated.Value(-width * 0.78)).current;
-  const backdropOpacity = React.useRef(new Animated.Value(0)).current;
+  // Sidebar animation
+  const sidebarAnim = useRef(new Animated.Value(-width * 0.85)).current;
+  const backdropOpacity = useRef(new Animated.Value(0)).current;
+
+  // Load user profile & upcoming exams
+  useEffect(() => {
+    (async () => {
+      if (authUser) {
+        const profile = await getUserProfile(authUser.id);
+        setUserData(profile);
+      }
+    })();
+  }, [authUser]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const sem = userData?.semester || undefined;
+        const branch = userData?.branch || undefined;
+        const data = await getExamSchedule({ semester: sem, branch, forceRefresh: true });
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const upcoming = data.filter((e: ExamEvent) => {
+            const d = new Date(e.date + 'T00:00:00');
+            d.setHours(0, 0, 0, 0);
+            return d >= today && e.type === 'exam';
+        }).sort((a: ExamEvent, b: ExamEvent) => new Date(a.date).getTime() - new Date(b.date).getTime());
+        setUpcomingExams(upcoming.slice(0, 3));
+      } catch (e) {}
+    })();
+  }, [userData]);
 
   const openSidebar = () => {
     setShowSidebar(true);
     Animated.parallel([
-      Animated.timing(sidebarAnim, {
-        toValue: 0,
-        duration: 280,
-        useNativeDriver: true,
-      }),
-      Animated.timing(backdropOpacity, {
-        toValue: 1,
-        duration: 280,
-        useNativeDriver: true,
-      }),
+      Animated.timing(sidebarAnim, { toValue: 0, duration: 280, useNativeDriver: true }),
+      Animated.timing(backdropOpacity, { toValue: 1, duration: 280, useNativeDriver: true }),
     ]).start();
   };
 
   const closeSidebar = () => {
     Animated.parallel([
-      Animated.timing(sidebarAnim, {
-        toValue: -width * 0.78,
-        duration: 250,
-        useNativeDriver: true,
-      }),
-      Animated.timing(backdropOpacity, {
-        toValue: 0,
-        duration: 250,
-        useNativeDriver: true,
-      }),
+      Animated.timing(sidebarAnim, { toValue: -width * 0.85, duration: 250, useNativeDriver: true }),
+      Animated.timing(backdropOpacity, { toValue: 0, duration: 250, useNativeDriver: true }),
     ]).start(() => setShowSidebar(false));
   };
 
-  // Load chat sessions on mount (cache first)
-  React.useEffect(() => {
-    loadChatSessions();
-  }, []);
+  const toggleFab = () => {
+    const toValue = isFabOpen ? 0 : 1;
+    setIsFabOpen(!isFabOpen);
+    Animated.spring(fabAnim, {
+      toValue, friction: 5, tension: 40, useNativeDriver: true
+    }).start();
+  };
 
-  // Handle initial prompt from HomeScreen
-  React.useEffect(() => {
+  useEffect(() => { loadChatSessions(); }, []);
+
+  useEffect(() => {
     if (initialPrompt && !initialPromptSent && !isLoading) {
       setInitialPromptSent(true);
       setTimeout(() => sendMessage(initialPrompt), 500);
     }
   }, [initialPrompt, initialPromptSent, isLoading]);
 
-  // Auto-scroll only when user sends a message (to show typing indicator)
-  React.useEffect(() => {
+  useEffect(() => {
     if (scrollViewRef.current && isTyping) {
       setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
     }
-  }, [isTyping]);
-
-  const showWelcomeMessage = () => {
-    const offline = !(process.env.API_BASE_URL && process.env.API_BASE_URL !== 'undefined');
-    setMessages([{
-      id: 'welcome',
-      text: `Hello! 👋 I'm your AI Study Assistant${offline ? ' (offline mode)' : ''}.\n\nI can help you with:\n\n📚 Study guidance and tips\n❓ Explaining academic concepts\n📝 Creating study plans\n💡 Answering educational questions\n🎯 Exam preparation strategies\n💻 Programming and technical topics\n📊 KTU university guidance\n\nWhat would you like to learn about today?`,
-      isUser: false,
-      timestamp: new Date(),
-    }]);
-  };
+  }, [isTyping, messages]);
 
   const loadChatSessions = async () => {
     try {
       setIsLoading(true);
-      // Try cache first — show immediately
       const cached = await getCachedChatSessions();
-      if (cached && cached.length > 0) {
-        setSessions(cached);
-        // Show cached last session if no initial prompt
-        if (!initialPrompt) {
-          const cachedMsgs = await getCachedChatHistory(cached[0].id);
-          if (cachedMsgs && cachedMsgs.length > 0) {
-            setCurrentSessionId(cached[0].id);
-            setMessages(cachedMsgs.map((m: any) => ({
-              ...m, timestamp: new Date(m.timestamp),
-            })));
-            setIsLoading(false);
-          } else {
-            showWelcomeMessage();
-            setIsLoading(false);
-          }
-        } else {
-          showWelcomeMessage();
-          setIsLoading(false);
-        }
-      } else {
-        // No cache — show welcome immediately
-        showWelcomeMessage();
-        setIsLoading(false);
-      }
-
-      // Background refresh from network (won't block UI)
+      if (cached && cached.length > 0) setSessions(cached);
       try {
-        if (process.env.API_BASE_URL && process.env.API_BASE_URL !== 'undefined') {
+        if (serverOnline) {
           const sessionList = await getChatSessions();
           setSessions(sessionList);
           await setCachedChatSessions(sessionList);
-
-          // Only auto-load latest session if we didn't already show cached data
-          // and there's no initial prompt
-          if (sessionList.length > 0 && !initialPrompt && (!cached || cached.length === 0)) {
-            await loadChatSession(sessionList[0].id);
-          }
         }
-      } catch (networkErr: any) {
-        console.log('[Chat] Network unavailable, using cached data:', networkErr.message);
-        // Already showing cached data or welcome — no need to block
-      }
-    } catch (err: any) {
-      console.error('Error loading chat sessions:', err);
-      showWelcomeMessage();
+      } catch (e) {}
+      setIsLoading(false);
+    } catch (err) {
       setIsLoading(false);
     }
   };
@@ -202,99 +148,48 @@ const ChatbotScreen: React.FC<ChatbotScreenProps> = ({ navigation }) => {
     try {
       setIsLoading(true);
       setError(null);
-
-      // Try cache first
       const cachedMsgs = await getCachedChatHistory(sessionId);
       if (cachedMsgs && cachedMsgs.length > 0) {
         setCurrentSessionId(sessionId);
-        setMessages(cachedMsgs.map((m: any) => ({
-          ...m,
-          timestamp: new Date(m.timestamp),
-        })));
+        setMessages(cachedMsgs.map((m: any) => ({ ...m, timestamp: new Date(m.timestamp) })));
       }
-
       const session = await getChatSession(sessionId);
       setCurrentSessionId(sessionId);
-      const converted: Message[] = session.messages.map((msg) => ({
-        id: msg.id,
-        text: msg.content,
-        isUser: msg.role === 'user',
-        timestamp: new Date(msg.created_at),
+      const converted: Message[] = session.messages.map((msg: any) => ({
+        id: msg.id, text: msg.content, isUser: msg.role === 'user', timestamp: new Date(msg.created_at)
       }));
       setMessages(converted.length > 0 ? converted : []);
-      // Cache the loaded messages
       await setCachedChatHistory(sessionId, converted);
       closeSidebar();
-    } catch (err: any) {
-      console.error('Error loading chat session:', err);
+    } catch (err) {
       setError('Failed to load chat session');
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Render text with **bold** markdown support
-  const renderFormattedText = (text: string, color: string) => {
-    const parts = text.split(/(\*\*.*?\*\*)/g);
-    return parts.map((part, i) => {
-      if (part.startsWith('**') && part.endsWith('**')) {
-        return (
-          <Text key={i} style={{ fontWeight: '700', color }}>
-            {part.slice(2, -2)}
-          </Text>
-        );
-      }
-      return <Text key={i}>{part}</Text>;
-    });
-  };
-
-  const handleNewChat = async () => {
+  const handleNewChat = () => {
     setCurrentSessionId(null);
     setMessages([]);
-    showWelcomeMessage();
     closeSidebar();
   };
 
-  // Lightweight refresh — only updates sidebar session list, never switches active chat
   const refreshSessionList = async () => {
     try {
-      if (process.env.API_BASE_URL && process.env.API_BASE_URL !== 'undefined') {
+      if (serverOnline) {
         const sessionList = await getChatSessions();
         setSessions(sessionList);
         await setCachedChatSessions(sessionList);
       }
-    } catch (err: any) {
-      console.log('[Chat] Could not refresh session list:', err.message);
-    }
+    } catch (err) {}
   };
 
-  const generateLocalResponse = (userMessage: string): string => {
-    if (!serverOnline) {
-      return "⚠️ Our server is currently offline.\n\nPlease check your internet connection or try again later when the server is back online.";
-    }
-    const lm = userMessage.toLowerCase();
-    if (lm.includes('hello') || lm.includes('hi'))
-      return "Hello! 👋 I'm your AI Study Assistant (offline mode). What would you like to learn about?";
-    if (lm.includes('ktu') || lm.includes('university'))
-      return "I can help with KTU queries! Syllabus, exam patterns, study materials, and guidance. What topic?";
-    if (lm.includes('exam') || lm.includes('test'))
-      return "📝 Exam prep tips:\n\n• Review syllabus thoroughly\n• Practice previous year questions\n• Create summary notes\n• Form study groups\n• Take breaks\n\nWhat subject?";
-    if (lm.includes('study') || lm.includes('learn'))
-      return "📚 Study techniques:\n\n• Active recall\n• Spaced repetition\n• Pomodoro technique (25min)\n• Mind mapping\n• Teach others\n\nWhich interests you?";
-    if (lm.includes('programming') || lm.includes('coding'))
-      return "💻 Programming tips:\n\n• Practice daily\n• Understand concepts first\n• Build projects\n• Debug systematically\n• Read others' code\n\nWhat language?";
-    return `I understand you're asking about "${userMessage}". I'm offline, but here's general guidance:\n\n• Break topics into smaller parts\n• Use multiple resources\n• Practice regularly\n• Ask specific questions\n\nCould you provide more details?`;
-  };
-
-  // Typewriter helper — streams text char-by-char into a message
   const typewriteMessage = (msgId: string, fullText: string, onDone?: () => void) => {
-    // Clear any previous streaming
     if (streamingRef.current) clearTimeout(streamingRef.current);
     let idx = 0;
     const step = () => {
       if (idx < fullText.length) {
-        const chunk = Math.min(3, fullText.length - idx);
-        idx += chunk;
+        idx += Math.min(3, fullText.length - idx);
         setStreamingText(fullText.slice(0, idx));
         streamingRef.current = setTimeout(step, 18);
       } else {
@@ -310,66 +205,41 @@ const ChatbotScreen: React.FC<ChatbotScreenProps> = ({ navigation }) => {
   const sendMessage = async (messageText: string) => {
     if (!messageText.trim() || isTyping) return;
     setError(null);
-    const userMsg: Message = {
-      id: `user-${Date.now()}`, text: messageText.trim(),
-      isUser: true, timestamp: new Date(),
-    };
+    const userMsg: Message = { id: `user-${Date.now()}`, text: messageText.trim(), isUser: true, timestamp: new Date() };
     setMessages(prev => [...prev, userMsg]);
     setIsTyping(true);
 
     try {
-      if (!serverOnline) {
-        throw new Error('Backend not available');
+      if (!serverOnline) throw new Error('Offline');
+      const response = await sendChatMessage(messageText, currentSessionId || undefined);
+      if (!currentSessionId && response.session_id) {
+        setCurrentSessionId(response.session_id);
+        refreshSessionList();
       }
-
-      if (process.env.API_BASE_URL && process.env.API_BASE_URL !== 'undefined') {
-        const response = await sendChatMessage(messageText, currentSessionId || undefined);
-        if (!currentSessionId && response.session_id) {
-          setCurrentSessionId(response.session_id);
-          // Only refresh session list, don't auto-load any session
-          refreshSessionList();
-        }
-        const aiMsg: Message = {
-          id: response.assistant_message.id,
-          text: response.assistant_message.content,
-          isUser: false,
-          timestamp: new Date(response.assistant_message.created_at),
-        };
-        // Set streaming state BEFORE adding message to avoid empty flash
-        const aiMsgEmpty = { ...aiMsg, text: '' };
-        setStreamingMsgId(aiMsg.id);
-        setStreamingText('');
-        setMessages(prev => [...prev, aiMsgEmpty]);
-        setIsTyping(false);
-        typewriteMessage(aiMsg.id, aiMsg.text, () => {
-          setMessages(prev => {
-            const updated = prev.map(m => m.id === aiMsg.id ? aiMsg : m);
-            if (currentSessionId) setCachedChatHistory(currentSessionId, updated);
-            return updated;
-          });
+      const aiMsg: Message = { id: response.assistant_message.id, text: response.assistant_message.content, isUser: false, timestamp: new Date(response.assistant_message.created_at) };
+      setStreamingMsgId(aiMsg.id);
+      setStreamingText('');
+      setMessages(prev => [...prev, { ...aiMsg, text: '' }]);
+      setIsTyping(false);
+      typewriteMessage(aiMsg.id, aiMsg.text, () => {
+        setMessages(prev => {
+          const updated = prev.map(m => m.id === aiMsg.id ? aiMsg : m);
+          if (currentSessionId) setCachedChatHistory(currentSessionId, updated);
+          return updated;
         });
-      } else {
-        throw new Error('Backend not available');
-      }
+      });
     } catch {
       setTimeout(() => {
-        const aiMsg: Message = {
-          id: `ai-${Date.now()}`,
-          text: generateLocalResponse(messageText),
-          isUser: false, timestamp: new Date(),
-        };
-        const aiMsgEmpty = { ...aiMsg, text: '' };
+        const aiMsg: Message = { id: `ai-${Date.now()}`, text: "⚠️ I am offline right now. Please check your connection.", isUser: false, timestamp: new Date() };
         setStreamingMsgId(aiMsg.id);
         setStreamingText('');
-        setMessages(prev => [...prev, aiMsgEmpty]);
+        setMessages(prev => [...prev, { ...aiMsg, text: '' }]);
         setIsTyping(false);
         typewriteMessage(aiMsg.id, aiMsg.text, () => {
           setMessages(prev => prev.map(m => m.id === aiMsg.id ? aiMsg : m));
         });
       }, 1000);
-      return;
     }
-    setIsTyping(false);
   };
 
   const handleSend = () => {
@@ -382,42 +252,22 @@ const ChatbotScreen: React.FC<ChatbotScreenProps> = ({ navigation }) => {
   const handleDeleteSession = (sessionId: string) => {
     Alert.alert('Delete Chat', 'Delete this chat?', [
       { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete', style: 'destructive', onPress: async () => {
+      { text: 'Delete', style: 'destructive', onPress: async () => {
           try {
             await deleteChatSession(sessionId);
             if (currentSessionId === sessionId) handleNewChat();
             await loadChatSessions();
-          } catch { Alert.alert('Error', 'Failed to delete'); }
-        },
-      },
+          } catch {}
+      }}
     ]);
   };
 
-  const startEditingTitle = (s: ChatSession) => {
-    setEditingSessionId(s.id);
-    setEditingTitle(s.title);
-  };
-
-  const saveSessionTitle = async (sid: string) => {
-    if (!editingTitle.trim()) { setEditingSessionId(null); return; }
-    try {
-      await updateChatSession(sid, editingTitle.trim());
-      setSessions(prev => prev.map(s => s.id === sid ? { ...s, title: editingTitle.trim() } : s));
-      setEditingSessionId(null);
-    } catch { Alert.alert('Error', 'Failed to update'); }
-  };
-
-  const formatTime = (d: Date) =>
-    `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
-
   const formatSessionDate = (ds: string) => {
-    const d = new Date(ds);
-    const diff = Math.floor(Math.abs(Date.now() - d.getTime()) / 86400000);
+    const diff = Math.floor(Math.abs(Date.now() - new Date(ds).getTime()) / 86400000);
     if (diff === 0) return 'Today';
     if (diff === 1) return 'Yesterday';
     if (diff < 7) return `${diff}d ago`;
-    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    return new Date(ds).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
 
   const groupedSessions = React.useMemo(() => {
@@ -430,311 +280,328 @@ const ChatbotScreen: React.FC<ChatbotScreenProps> = ({ navigation }) => {
     return g;
   }, [sessions]);
 
+  const renderFormattedText = (text: string, color: string) => {
+    const parts = text.split(/(\*\*.*?\*\*)/g);
+    return parts.map((part, i) => {
+      if (part.startsWith('**') && part.endsWith('**')) {
+        return <Text key={i} style={{ fontWeight: '700', color }}>{part.slice(2, -2)}</Text>;
+      }
+      return <Text key={i}>{part}</Text>;
+    });
+  };
+
+  // FAB items
+  const fabItems = [
+    { icon: BookOpen, label: 'Syllabus', route: 'SyllabusViewer', color: '#8B5CF6' },
+    { icon: Calendar, label: 'Exams', route: 'Schedule', color: '#F43F5E' },
+    { icon: Zap, label: 'Flashcards', route: 'Flashcards', color: '#F59E0B' },
+    { icon: FileText, label: 'PDF Tools', route: 'PdfTools', color: '#10B981' },
+  ];
+
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} backgroundColor={theme.background} />
+      <StatusBar barStyle="light-content" backgroundColor={theme.background} />
 
-      {/* Header */}
-      <SafeAreaView edges={['top']} style={[styles.headerSafe, { backgroundColor: isDark ? 'rgba(5, 8, 22, 0.95)' : theme.backgroundSecondary }]}>
-        <View style={[styles.header, { borderBottomColor: theme.divider }]}>
-          <TouchableOpacity style={styles.hBtn} onPress={() => navigation.goBack()}>
-            <ArrowLeft size={22} color={theme.text} strokeWidth={2} />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.hBtn} onPress={openSidebar}>
-            <Menu size={22} color={theme.text} strokeWidth={2} />
+      {/* Top App Bar */}
+      <SafeAreaView edges={['top']} style={{ backgroundColor: theme.background, zIndex: 10 }}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={openSidebar} style={styles.hBtn}>
+            <Menu size={24} color={theme.text} />
           </TouchableOpacity>
           <View style={styles.hTitleWrap}>
-            <Text style={[styles.hTitle, { color: theme.text }]}>KTUfy AI</Text>
-            <View style={[styles.statusDot, !serverOnline && { backgroundColor: theme.error }, serverOnline && { backgroundColor: theme.success }]} />
+            <View style={[styles.hBrandDot, { backgroundColor: '#3B82F6' }]} />
+            <Text style={[styles.hTitle, { color: theme.text }]}>KTUfy</Text>
           </View>
-          <TouchableOpacity style={styles.hBtn} onPress={handleNewChat}>
-            <Plus size={22} color={theme.text} strokeWidth={2} />
+          <TouchableOpacity onPress={handleNewChat} style={styles.hBtn}>
+            <Edit size={22} color={theme.text} />
           </TouchableOpacity>
         </View>
       </SafeAreaView>
 
-      {/* Error */}
-      {error && (
-        <View style={[styles.errorBanner, { backgroundColor: theme.error + '14', borderLeftColor: theme.error }]}>
-          <Text style={[styles.errorText, { color: theme.error }]}>⚠ {error}</Text>
-          <TouchableOpacity onPress={() => setError(null)}>
-            <Text style={[styles.errorClose, { color: theme.error }]}>✕</Text>
-          </TouchableOpacity>
-        </View>
-      )}
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.mainArea}>
+        {messages.length === 0 ? (
+          /* Greeting State */
+          <ScrollView contentContainerStyle={styles.greetingScroll} showsVerticalScrollIndicator={false}>
+            <View style={styles.greetingCenter}>
+              <View style={styles.avatarContainer}>
+                <LinearGradient colors={['#3B82F6', '#10B981']} style={styles.avatarRing}>
+                  <View style={styles.avatarInner}>
+                    <Text style={{fontSize: 30}}>🌍</Text>
+                  </View>
+                </LinearGradient>
+              </View>
+              <Text style={[styles.greetName, { color: theme.textSecondary }]}>Hi, {userData?.name?.split(' ')[0] || 'Student'}</Text>
+              <Text style={[styles.greetHeadline, { color: theme.text }]}>
+                What do you want to <Text style={{ color: '#10B981' }}>learn today?</Text>
+              </Text>
+              <Text style={[styles.greetSub, { color: theme.textTertiary }]}>
+                Ask anything from your KTU syllabus — I'll pull it up.
+              </Text>
+            </View>
 
-      {/* Chat */}
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={[styles.chatArea, { backgroundColor: theme.background }]}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
-      >
-        {isLoading && messages.length === 0 ? (
-          <View style={styles.loadWrap}>
-            <ActivityIndicator size="large" color={theme.primary} />
-            <Text style={[styles.loadText, { color: theme.textSecondary }]}>Loading chat...</Text>
-          </View>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipsScroll}>
+              {['📖 S4 CSE syllabus', '⚡ Generate flashcards', '📅 Upcoming exams'].map((chip, i) => (
+                <TouchableOpacity key={i} style={[styles.chipCard, { backgroundColor: theme.backgroundSecondary }]} onPress={() => sendMessage(chip.substring(3))}>
+                  <Text style={[styles.chipText, { color: theme.textSecondary }]}>{chip}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </ScrollView>
         ) : (
-          <ScrollView
-            ref={scrollViewRef} style={styles.msgList}
-            contentContainerStyle={styles.msgContent}
-            showsVerticalScrollIndicator={false}
-          >
+          /* Chat State */
+          <ScrollView ref={scrollViewRef} style={styles.msgList} contentContainerStyle={styles.msgContent}>
             {messages.map(m => (
               <View key={m.id} style={[styles.msgRow, m.isUser ? styles.userRow : styles.aiRow]}>
-                <View style={[
-                  styles.bubble,
-                  m.isUser ? [styles.userBubble, { backgroundColor: theme.primary, borderColor: theme.primaryLight + '40' }]
-                    : [styles.aiBubble, { backgroundColor: theme.backgroundSecondary, borderColor: theme.border }]
-                ]}>
-                  {!m.isUser && (
-                    <View style={styles.aiLabel}>
-                      <View style={[styles.aiDot, { backgroundColor: theme.primary }]} />
-                      <Text style={[styles.aiLabelText, { color: theme.primary }]}>KTUfy AI</Text>
-                    </View>
-                  )}
+                {!m.isUser && (
+                  <View style={styles.aiAvatarMsg}>
+                     <LinearGradient colors={['#3B82F6', '#10B981']} style={styles.aiAvatarMsgInner} />
+                  </View>
+                )}
+                <View style={[styles.bubble, m.isUser ? [styles.userBubble, { backgroundColor: theme.backgroundSecondary }] : [styles.aiBubble, { backgroundColor: 'transparent' }]]}>
                   {(() => {
                     const displayText = m.id === streamingMsgId ? streamingText : m.text;
-                    if (!displayText && !m.isUser) return null;
-                    const textColor = m.isUser ? '#FFFFFF' : theme.text;
-                    return (
-                      <Text style={[styles.msgText, { color: textColor }]}>
-                        {m.isUser ? displayText : renderFormattedText(displayText, textColor)}
-                      </Text>
-                    );
+                    const textColor = theme.text;
+                    return <Text style={[styles.msgText, { color: textColor }]}>{m.isUser ? displayText : renderFormattedText(displayText, textColor)}</Text>;
                   })()}
-                  <Text style={[styles.msgTime, { color: m.isUser ? 'rgba(255,255,255,0.6)' : theme.textTertiary }]}>
-                    {formatTime(m.timestamp)}
-                  </Text>
                 </View>
               </View>
             ))}
             {isTyping && (
-              <View style={[styles.msgRow, styles.aiRow]}>
-                <View style={[styles.bubble, styles.aiBubble, { backgroundColor: theme.backgroundSecondary, borderColor: theme.border }]}>
-                  <View style={styles.aiLabel}>
-                    <View style={[styles.aiDot, { backgroundColor: theme.primary }]} />
-                    <Text style={[styles.aiLabelText, { color: theme.primary }]}>KTUfy AI</Text>
-                  </View>
-                  <View style={styles.typing}>
-                    <View style={[styles.dot, { backgroundColor: theme.primary }]} />
-                    <View style={[styles.dot, { backgroundColor: theme.primary, opacity: 0.6 }]} />
-                    <View style={[styles.dot, { backgroundColor: theme.primary, opacity: 0.3 }]} />
-                  </View>
-                </View>
-              </View>
+               <View style={[styles.msgRow, styles.aiRow]}>
+                 <View style={styles.aiAvatarMsg}>
+                     <LinearGradient colors={['#3B82F6', '#10B981']} style={styles.aiAvatarMsgInner} />
+                 </View>
+                 <View style={[styles.bubble, styles.aiBubble, { backgroundColor: 'transparent' }]}>
+                   <Text style={{color: theme.textSecondary}}>Typing...</Text>
+                 </View>
+               </View>
             )}
           </ScrollView>
         )}
 
-        {/* Input */}
-        <View style={styles.inputArea}>
-          <View style={[styles.inputWrap, { backgroundColor: theme.backgroundSecondary, borderColor: theme.border }]}>
+        {/* Bottom Input */}
+        <View style={[styles.inputArea, { backgroundColor: theme.background }]}>
+          <View style={[styles.inputWrap, { backgroundColor: theme.backgroundSecondary }]}>
             <TouchableOpacity style={styles.attachBtn}>
-              <Paperclip size={20} color={theme.textTertiary} strokeWidth={1.8} />
+              <Paperclip size={20} color={theme.textSecondary} />
             </TouchableOpacity>
             <TextInput
-              style={[styles.input, { color: theme.text }]} placeholder="Message KTUfy AI..."
+              style={[styles.input, { color: theme.text }]} placeholder="Ask KTUfy anything..."
               placeholderTextColor={theme.textTertiary} value={inputText}
-              onChangeText={setInputText} multiline maxLength={2000} editable={!isTyping}
+              onChangeText={setInputText} multiline editable={!isTyping}
             />
-            <TouchableOpacity
-              style={[styles.sendBtn, { backgroundColor: theme.primary }, (!inputText.trim() || isTyping) && { backgroundColor: theme.primary + '40' }]}
-              onPress={handleSend} disabled={!inputText.trim() || isTyping}
-            >
-              <ArrowRight size={20} color="#FFFFFF" strokeWidth={2.5} />
-            </TouchableOpacity>
+            {inputText.trim().length > 0 ? (
+              <TouchableOpacity onPress={handleSend} disabled={isTyping}>
+                <LinearGradient colors={['#3B82F6', '#10B981']} style={styles.sendBtnGradient}>
+                  <ArrowRight size={18} color="#FFF" />
+                </LinearGradient>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity style={styles.micBtn}>
+                <Mic size={20} color={theme.textSecondary} />
+              </TouchableOpacity>
+            )}
           </View>
+          <Text style={[styles.disclaimer, { color: theme.textTertiary }]}>KTUfy can make mistakes. Verify important info.</Text>
         </View>
       </KeyboardAvoidingView>
 
-      {/* Sidebar — slide from left */}
-      {
-        showSidebar && (
-          <View style={StyleSheet.absoluteFillObject} pointerEvents="box-none">
-            <Animated.View
-              style={[styles.backdrop, { opacity: backdropOpacity }]}
-            >
-              <TouchableOpacity
-                style={StyleSheet.absoluteFillObject}
-                activeOpacity={1}
-                onPress={closeSidebar}
-              />
-            </Animated.View>
-
-            <Animated.View
-              style={[styles.sidebar, { transform: [{ translateX: sidebarAnim }], backgroundColor: theme.backgroundSecondary, borderRightColor: theme.border }]}
-            >
-              <View style={[styles.sbHeader, { borderBottomColor: theme.border }]}>
-                <Text style={[styles.sbTitle, { color: theme.text }]}>Chat History</Text>
-                <TouchableOpacity onPress={closeSidebar}>
-                  <X size={20} color={theme.textSecondary} strokeWidth={2} />
-                </TouchableOpacity>
+      {/* FAB Menu Overlay */}
+      {isFabOpen && (
+        <TouchableOpacity style={StyleSheet.absoluteFillObject} activeOpacity={1} onPress={toggleFab} />
+      )}
+      <View style={styles.fabContainer}>
+        {fabItems.map((item, index) => {
+          const translateY = fabAnim.interpolate({
+            inputRange: [0, 1],
+            outputRange: [0, -60 * (index + 1)]
+          });
+          const scale = fabAnim.interpolate({
+            inputRange: [0, 0.5, 1],
+            outputRange: [0, 0.5, 1]
+          });
+          return (
+            <Animated.View key={index} style={[styles.fabItemWrap, { transform: [{ translateY }, { scale }], opacity: fabAnim }]}>
+              <View style={[styles.fabLabelWrap, { backgroundColor: theme.backgroundSecondary }]}>
+                <Text style={[styles.fabLabel, { color: theme.text }]}>{item.label}</Text>
               </View>
-              <TouchableOpacity style={[styles.sbNew, { borderColor: theme.primaryLight + '4D', backgroundColor: theme.primary + '14' }]} onPress={handleNewChat}>
-                <Plus size={18} color={theme.primary} strokeWidth={2} />
-                <Text style={[styles.sbNewText, { color: theme.primary }]}>New Chat</Text>
+              <TouchableOpacity style={[styles.fabItem, { backgroundColor: theme.backgroundSecondary }]} onPress={() => { toggleFab(); navigation.navigate(item.route as any); }}>
+                <item.icon size={20} color={theme.text} />
               </TouchableOpacity>
-              <ScrollView style={styles.sbList} showsVerticalScrollIndicator={false}>
-                {Object.entries(groupedSessions).map(([group, gSessions]) => (
-                  <View key={group} style={styles.sbGroup}>
-                    <Text style={[styles.sbGroupTitle, { color: theme.textTertiary }]}>{group}</Text>
-                    {gSessions.map(s => (
-                      <View key={s.id} style={styles.sbItem}>
-                        {editingSessionId === s.id ? (
-                          <TextInput
-                            style={[styles.sbEditInput, { color: theme.text, backgroundColor: theme.backgroundTertiary, borderColor: theme.primaryLight + '4D' }]} value={editingTitle}
-                            onChangeText={setEditingTitle}
-                            onBlur={() => saveSessionTitle(s.id)}
-                            onSubmitEditing={() => saveSessionTitle(s.id)}
-                            autoFocus
-                          />
-                        ) : (
-                          <>
-                            <TouchableOpacity
-                              style={[styles.sbBtn, currentSessionId === s.id && { backgroundColor: theme.primary + '1A' }]}
-                              onPress={() => loadChatSession(s.id)}
-                            >
-                              <Text style={[styles.sbBtnTitle, { color: theme.text }, currentSessionId === s.id && { color: theme.primary }]} numberOfLines={1}>
-                                {s.title}
-                              </Text>
-                              <Text style={[styles.sbDate, { color: theme.textTertiary }]}>{formatSessionDate(s.created_at)}</Text>
-                            </TouchableOpacity>
-                            <View style={styles.sbActions}>
-                              <TouchableOpacity style={styles.sbActBtn} onPress={() => startEditingTitle(s)}>
-                                <Pencil size={14} color={theme.textTertiary} strokeWidth={1.8} />
-                              </TouchableOpacity>
-                              <TouchableOpacity style={styles.sbActBtn} onPress={() => handleDeleteSession(s.id)}>
-                                <Trash2 size={14} color={theme.error} strokeWidth={1.8} />
-                              </TouchableOpacity>
-                            </View>
-                          </>
-                        )}
+            </Animated.View>
+          );
+        })}
+        
+        {/* Main FAB */}
+        <Animated.View style={[styles.mainFabWrap, {
+          transform: [{ rotate: fabAnim.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '45deg'] }) }]
+        }]}>
+          <TouchableOpacity onPress={toggleFab} activeOpacity={0.8}>
+            <LinearGradient colors={['#3B82F6', '#10B981']} style={styles.mainFab}>
+              <Plus size={24} color="#FFF" />
+            </LinearGradient>
+          </TouchableOpacity>
+        </Animated.View>
+      </View>
+
+      {/* Sidebar Overlay */}
+      {showSidebar && (
+        <View style={StyleSheet.absoluteFillObject} pointerEvents="box-none" zIndex={100}>
+          <Animated.View style={[styles.backdrop, { opacity: backdropOpacity }]}>
+            <TouchableOpacity style={StyleSheet.absoluteFillObject} activeOpacity={1} onPress={closeSidebar} />
+          </Animated.View>
+
+          <Animated.View style={[styles.sidebar, { transform: [{ translateX: sidebarAnim }], backgroundColor: theme.backgroundSecondary }]}>
+            <SafeAreaView style={{ flex: 1 }} edges={['top', 'bottom']}>
+              <View style={styles.sbHeader}>
+                <View style={styles.sbProfile}>
+                  <View style={styles.sbAvatar}>
+                    <Text style={{color:'#fff', fontWeight:'bold'}}>{userData?.name?.[0] || 'A'}</Text>
+                    <View style={styles.onlineDot} />
+                  </View>
+                  <View style={styles.sbProfileText}>
+                    <Text style={[styles.sbName, { color: theme.text }]}>{userData?.name || 'Student'}</Text>
+                    <Text style={[styles.sbCourse, { color: theme.textSecondary }]}>{userData?.semester || 'S4'} · {userData?.branch || 'CSE'} · KTU</Text>
+                  </View>
+                </View>
+                <TouchableOpacity onPress={closeSidebar}><X size={24} color={theme.textSecondary} /></TouchableOpacity>
+              </View>
+
+              <View style={[styles.sbSearch, { backgroundColor: theme.backgroundTertiary }]}>
+                <Text style={{ color: theme.textTertiary }}>Search chats...</Text>
+              </View>
+
+              <ScrollView style={styles.sbScroll} showsVerticalScrollIndicator={false}>
+                {/* Notifications / Exams */}
+                {upcomingExams.length > 0 && (
+                  <View style={styles.sbSection}>
+                    <Text style={[styles.sbSectionTitle, { color: theme.textTertiary }]}>UPCOMING EXAMS</Text>
+                    {upcomingExams.map((ex, i) => (
+                      <View key={i} style={styles.sbExamItem}>
+                        <Bell size={16} color={theme.error} />
+                        <Text style={[styles.sbExamText, { color: theme.text }]} numberOfLines={1}>{ex.title}</Text>
                       </View>
                     ))}
                   </View>
-                ))}
-                {sessions.length === 0 && (
-                  <View style={styles.sbEmpty}>
-                    <Text style={[styles.sbEmptyText, { color: theme.textTertiary }]}>No history yet.{'\n'}Start a conversation!</Text>
-                  </View>
                 )}
+
+                {/* AI Tools */}
+                <View style={styles.sbSection}>
+                  <Text style={[styles.sbSectionTitle, { color: theme.textTertiary }]}>AI TOOLS</Text>
+                  <TouchableOpacity style={styles.sbToolItem} onPress={() => { closeSidebar(); navigation.navigate('SyllabusViewer'); }}>
+                    <BookOpen size={20} color={'#3B82F6'} />
+                    <Text style={[styles.sbToolText, { color: theme.text }]}>Syllabus Viewer</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.sbToolItem} onPress={() => { closeSidebar(); navigation.navigate('GPACalculator'); }}>
+                    <Calculator size={20} color={'#10B981'} />
+                    <Text style={[styles.sbToolText, { color: theme.text }]}>GPA Calculator</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.sbToolItem} onPress={() => { closeSidebar(); navigation.navigate('Flashcards'); }}>
+                    <Zap size={20} color={'#F59E0B'} />
+                    <Text style={[styles.sbToolText, { color: theme.text }]}>Flashcard Generator</Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Recent Chats */}
+                <View style={styles.sbSection}>
+                  <Text style={[styles.sbSectionTitle, { color: theme.textTertiary }]}>RECENT</Text>
+                  {Object.entries(groupedSessions).map(([group, gSessions]) => (
+                    <React.Fragment key={group}>
+                      {gSessions.map(s => (
+                        <TouchableOpacity key={s.id} style={styles.sbChatItem} onPress={() => loadChatSession(s.id)}>
+                          <FileText size={16} color={theme.textTertiary} />
+                          <Text style={[styles.sbChatText, { color: theme.text }]} numberOfLines={1}>{s.title}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </React.Fragment>
+                  ))}
+                </View>
               </ScrollView>
-            </Animated.View>
-          </View>
-        )
-      }
-    </View >
+
+              <View style={[styles.sbFooter, { borderTopColor: theme.backgroundTertiary }]}>
+                <TouchableOpacity style={styles.sbFooterBtn} onPress={() => { closeSidebar(); navigation.navigate('Settings'); }}>
+                  <Settings size={20} color={theme.textSecondary} />
+                  <Text style={[styles.sbFooterText, { color: theme.text }]}>Settings & Profile</Text>
+                </TouchableOpacity>
+              </View>
+            </SafeAreaView>
+          </Animated.View>
+        </View>
+      )}
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  // Header
-  headerSafe: {},
-  header: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 12, paddingVertical: 10,
-    borderBottomWidth: 1,
-  },
-  hBtn: { width: 40, height: 40, justifyContent: 'center', alignItems: 'center', borderRadius: 10 },
-  hTitleWrap: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
-  hTitle: { fontSize: FONT.body, fontWeight: '700', letterSpacing: 0.5 },
-  statusDot: { width: 7, height: 7, borderRadius: 4, marginLeft: 8 },
-  // Error
-  errorBanner: {
-    borderLeftWidth: 3,
-    paddingHorizontal: 16, paddingVertical: 10, flexDirection: 'row',
-    justifyContent: 'space-between', alignItems: 'center',
-  },
-  errorText: { fontSize: FONT.caption, flex: 1 },
-  errorClose: { fontSize: 16, fontWeight: 'bold', paddingLeft: 12 },
-  // Chat
-  chatArea: { flex: 1 },
-  loadWrap: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  loadText: { marginTop: 12, fontSize: FONT.caption },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12 },
+  hBtn: { padding: 8 },
+  hTitleWrap: { flexDirection: 'row', alignItems: 'center' },
+  hBrandDot: { width: 8, height: 8, borderRadius: 4, marginRight: 8 },
+  hTitle: { fontSize: 18, fontWeight: '800' },
+  mainArea: { flex: 1 },
+  greetingScroll: { flexGrow: 1, paddingBottom: 100 },
+  greetingCenter: { alignItems: 'center', marginTop: height * 0.1, paddingHorizontal: 24, marginBottom: 40 },
+  avatarContainer: { marginBottom: 20 },
+  avatarRing: { width: 80, height: 80, borderRadius: 40, padding: 3, justifyContent: 'center', alignItems: 'center' },
+  avatarInner: { width: '100%', height: '100%', borderRadius: 40, backgroundColor: '#121218', justifyContent: 'center', alignItems: 'center' },
+  greetName: { fontSize: FONT.h2, marginBottom: 8, fontWeight: '500' },
+  greetHeadline: { fontSize: FONT.display - 5, fontWeight: '800', textAlign: 'center', marginBottom: 12, lineHeight: 40 },
+  greetSub: { fontSize: FONT.body, textAlign: 'center', lineHeight: 22 },
+  chipsScroll: { paddingHorizontal: 20, gap: 12 },
+  chipCard: { width: 140, height: 180, borderRadius: 20, padding: 16, justifyContent: 'flex-end', borderWidth: 1, borderColor: '#1A1A24' },
+  chipText: { fontSize: FONT.body, fontWeight: '600' },
   msgList: { flex: 1 },
-  msgContent: { paddingVertical: 16, paddingHorizontal: 12 },
-  // Messages
-  msgRow: { marginBottom: 12 },
-  userRow: { alignItems: 'flex-end' },
-  aiRow: { alignItems: 'flex-start' },
-  bubble: { maxWidth: '85%', borderRadius: 18, paddingHorizontal: 16, paddingVertical: 12 },
-  userBubble: {
-    borderBottomRightRadius: 4,
-    borderWidth: 1,
-  },
-  aiBubble: {
-    borderBottomLeftRadius: 4,
-    borderWidth: 1,
-  },
-  aiLabel: { flexDirection: 'row', alignItems: 'center', marginBottom: 6 },
-  aiDot: { width: 6, height: 6, borderRadius: 3, marginRight: 6 },
-  aiLabelText: { fontSize: FONT.micro, fontWeight: '600', letterSpacing: 0.3 },
-  msgText: { fontSize: FONT.body, lineHeight: 22 },
-  msgTime: { fontSize: FONT.micro, marginTop: 6 },
-  // Typing
-  typing: { flexDirection: 'row', alignItems: 'center', paddingVertical: 4 },
-  dot: { width: 7, height: 7, borderRadius: 4, marginRight: 5 },
-  // Input
-  inputArea: {
-    paddingHorizontal: 12, paddingVertical: 10,
-  },
-  inputWrap: {
-    marginBottom: Platform.OS === 'android' ? 10 : 4,
-    flexDirection: 'row', alignItems: 'flex-end',
-    borderRadius: 22,
-    borderWidth: 1,
-    paddingHorizontal: 6, paddingVertical: 4, maxHeight: 120,
-  },
-  attachBtn: { width: 36, height: 36, justifyContent: 'center', alignItems: 'center', borderRadius: 18 },
-  input: { flex: 1, fontSize: FONT.body, maxHeight: 100, paddingVertical: 8, paddingHorizontal: 6 },
-  sendBtn: {
-    width: 34, height: 34, borderRadius: 17,
-    justifyContent: 'center', alignItems: 'center', marginLeft: 4,
-  },
-  // Sidebar (slides from left)
-  backdrop: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.55)',
-  },
-  sidebar: {
-    position: 'absolute', left: 0, top: 0, bottom: 0,
-    width: width * 0.78,
-    borderRightWidth: 1,
-    paddingTop: Platform.OS === 'ios' ? 50 : 20,
-  },
-  sbHeader: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingHorizontal: 20, paddingBottom: 16,
-    borderBottomWidth: 1, paddingTop: Platform.OS === 'android' ? 30 : 0,
-  },
-  sbTitle: { fontSize: FONT.h2, fontWeight: '700' },
-  sbNew: {
-    flexDirection: 'row', alignItems: 'center', margin: 16, padding: 12,
-    borderRadius: 12, borderWidth: 1,
-  },
-  sbNewText: { fontSize: FONT.body, fontWeight: '600' },
-  sbList: { flex: 1, paddingHorizontal: 12 },
-  sbGroup: { marginBottom: 16 },
-  sbGroupTitle: {
-    fontSize: FONT.micro, fontWeight: '700',
-    textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 6, marginLeft: 8,
-  },
-  sbItem: { flexDirection: 'row', alignItems: 'center' },
-  sbBtn: { flex: 1, padding: 12, borderRadius: 10 },
-  sbBtnTitle: { fontSize: FONT.caption, fontWeight: '500' },
-  sbDate: { fontSize: FONT.micro, marginTop: 2 },
-  sbActions: { flexDirection: 'row' },
-  sbActBtn: { width: 32, height: 32, justifyContent: 'center', alignItems: 'center', borderRadius: 8 },
-  sbEditInput: {
-    flex: 1, fontSize: FONT.caption,
-    borderRadius: 8,
-    paddingHorizontal: 12, paddingVertical: 8,
-    borderWidth: 1,
-  },
-  sbEmpty: { padding: 32, alignItems: 'center' },
-  sbEmptyText: { fontSize: FONT.caption, textAlign: 'center', lineHeight: 22 },
+  msgContent: { padding: 16, paddingBottom: 100 },
+  msgRow: { flexDirection: 'row', marginBottom: 20 },
+  userRow: { justifyContent: 'flex-end' },
+  aiRow: { justifyContent: 'flex-start' },
+  aiAvatarMsg: { width: 28, height: 28, borderRadius: 14, marginRight: 12, marginTop: 4 },
+  aiAvatarMsgInner: { width: '100%', height: '100%', borderRadius: 14 },
+  bubble: { maxWidth: '80%', borderRadius: 20, padding: 14 },
+  userBubble: { borderBottomRightRadius: 4 },
+  aiBubble: { paddingLeft: 0 },
+  msgText: { fontSize: FONT.body, lineHeight: 24 },
+  inputArea: { paddingHorizontal: 16, paddingBottom: Platform.OS === 'ios' ? 30 : 16, paddingTop: 10 },
+  inputWrap: { flexDirection: 'row', alignItems: 'flex-end', borderRadius: 24, paddingHorizontal: 12, paddingVertical: 8, minHeight: 56 },
+  attachBtn: { width: 36, height: 36, justifyContent: 'center', alignItems: 'center' },
+  input: { flex: 1, maxHeight: 120, minHeight: 40, fontSize: FONT.body, paddingTop: 10, paddingBottom: 10 },
+  micBtn: { width: 36, height: 36, justifyContent: 'center', alignItems: 'center' },
+  sendBtnGradient: { width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center', marginLeft: 8 },
+  disclaimer: { textAlign: 'center', fontSize: FONT.micro, marginTop: 10 },
+  
+  // FAB
+  fabContainer: { position: 'absolute', bottom: Platform.OS === 'ios' ? 110 : 90, right: 20, alignItems: 'flex-end', zIndex: 50 },
+  mainFabWrap: { zIndex: 2 },
+  mainFab: { width: 56, height: 56, borderRadius: 28, justifyContent: 'center', alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 8 },
+  fabItemWrap: { position: 'absolute', bottom: 8, right: 8, flexDirection: 'row', alignItems: 'center' },
+  fabItem: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 4, elevation: 4 },
+  fabLabelWrap: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, marginRight: 12 },
+  fabLabel: { fontSize: 13, fontWeight: '600' },
+
+  // Sidebar
+  backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.6)' },
+  sidebar: { position: 'absolute', top: 0, bottom: 0, left: 0, width: width * 0.85 },
+  sbHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 20 },
+  sbProfile: { flexDirection: 'row', alignItems: 'center' },
+  sbAvatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#3B82F6', justifyContent: 'center', alignItems: 'center' },
+  onlineDot: { position: 'absolute', bottom: 0, right: 0, width: 10, height: 10, borderRadius: 5, backgroundColor: '#10B981', borderWidth: 2, borderColor: '#121218' },
+  sbProfileText: { marginLeft: 12 },
+  sbName: { fontSize: 16, fontWeight: '700' },
+  sbCourse: { fontSize: 12, marginTop: 2 },
+  sbSearch: { marginHorizontal: 20, padding: 12, borderRadius: 12, marginBottom: 20 },
+  sbScroll: { flex: 1, paddingHorizontal: 20 },
+  sbSection: { marginBottom: 24 },
+  sbSectionTitle: { fontSize: 11, fontWeight: '800', letterSpacing: 1, marginBottom: 12 },
+  sbToolItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 12, borderRadius: 12, marginBottom: 4 },
+  sbToolText: { fontSize: 15, fontWeight: '600', marginLeft: 16 },
+  sbChatItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 8 },
+  sbChatText: { fontSize: 14, marginLeft: 12 },
+  sbExamItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 8 },
+  sbExamText: { fontSize: 14, marginLeft: 12 },
+  sbFooter: { padding: 20, borderTopWidth: 1 },
+  sbFooterBtn: { flexDirection: 'row', alignItems: 'center' },
+  sbFooterText: { fontSize: 15, fontWeight: '600', marginLeft: 12 }
 });
 
 export default ChatbotScreen;
