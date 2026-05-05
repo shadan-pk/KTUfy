@@ -61,7 +61,17 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) => {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.backgroundSecondary }]} edges={['bottom']}>
       <StatusBar barStyle={isDark ? "light-content" : "dark-content"} backgroundColor={theme.backgroundSecondary} />
-      <ScrollView style={styles.scrollView}>
+
+      {/* Fixed Header */}
+      <View style={styles.headerWrapper}>
+        <TouchableOpacity style={styles.headerBackBtn} onPress={() => navigation.goBack()}>
+          <Text style={styles.headerBackText}>{Platform.OS === 'ios' ? '‹' : '<'}</Text>
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Settings</Text>
+        <View style={{ width: 44 }} />
+      </View>
+
+      <ScrollView style={styles.scrollView} contentContainerStyle={{ paddingTop: 70 }}>
 
         {/* Server Status Section */}
         <View style={styles.section}>
@@ -263,7 +273,50 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    paddingTop: Platform.OS === 'android' ? 50 : 0,
+    // Remove paddingTop here, handled by headerWrapper
+  },
+  headerWrapper: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 60,
+    backgroundColor: '#1E3A8A',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 10,
+    zIndex: 10,
+    paddingTop: Platform.OS === 'ios' ? 20 : StatusBar.currentHeight || 0,
+    borderBottomLeftRadius: 18,
+    borderBottomRightRadius: 18,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  headerBackBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerBackText: {
+    color: '#FFF',
+    fontSize: 28,
+    fontWeight: '700',
+    marginLeft: 2,
+    marginTop: Platform.OS === 'ios' ? 2 : 0,
+  },
+  headerTitle: {
+    color: '#FFF',
+    fontSize: 20,
+    fontWeight: '800',
+    textAlign: 'center',
+    flex: 1,
   },
   scrollView: {
     flex: 1,
