@@ -46,7 +46,8 @@ export interface SendMessageResponse {
  */
 export async function sendChatMessage(
   message: string,
-  sessionId?: string
+  sessionId?: string,
+  signal?: AbortSignal
 ): Promise<SendMessageResponse> {
   const url = `${process.env.API_BASE_URL}/api/v1/chat/message`;
   console.log('💬 Sending chat message:', { message, sessionId });
@@ -59,6 +60,7 @@ export async function sendChatMessage(
   const response = await apiRequest<SendMessageResponse>(url, {
     method: 'POST',
     body: JSON.stringify(body),
+    signal
   });
   
   // Normalize response structure

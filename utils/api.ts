@@ -21,7 +21,7 @@ export async function apiFetch(input: RequestInfo, init?: RequestInit) {
       headers.set('Content-Type', 'application/json');
     }
 
-    const res = await fetch(input, { ...init, headers, signal: controller.signal });
+    const res = await fetch(input, { ...init, headers, signal: init?.signal || controller.signal });
     return res;
   };
 

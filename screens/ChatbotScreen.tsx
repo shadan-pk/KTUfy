@@ -9,7 +9,7 @@ import { ChatbotScreenNavigationProp, RootStackParamList } from '../types/naviga
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../auth/AuthProvider';
 import { getUserProfile } from '../supabaseConfig';
-import { Menu, Plus, Paperclip, ArrowRight, Mic, X, Pencil, Trash2, Edit, BookOpen, Settings, Bell, Calculator, Zap, FileText, Calendar, CheckSquare, Code, Gamepad2, Library, MoreVertical, Copy, Check, Layers, Brain, Link } from 'lucide-react-native';
+import { Menu, Plus, Paperclip, ArrowRight, Mic, X, Pencil, Trash2, Edit, BookOpen, Settings, Bell, Calculator, Zap, FileText, Calendar, CheckSquare, Code, Gamepad2, Library, MoreVertical, Copy, Check, Layers, Brain, Link, Square, ArrowDown } from 'lucide-react-native';
 import * as Clipboard from 'expo-clipboard';
 import {
   sendChatMessage, getChatSessions, getChatSession, updateChatSession, deleteChatSession,
@@ -69,6 +69,8 @@ const ChatbotScreen: React.FC<{ navigation: ChatbotScreenNavigationProp }> = ({ 
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  const [abortController, setAbortController] = useState<AbortController | null>(null);
+  const statusIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [sessions, setSessions] = useState<ChatSession[]>([]);
@@ -102,6 +104,7 @@ const ChatbotScreen: React.FC<{ navigation: ChatbotScreenNavigationProp }> = ({ 
 
   const [inputAreaHeight, setInputAreaHeight] = useState(90);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const [showScrollBottom, setShowScrollBottom] = useState(false);
 
   // Load user profile & upcoming exams
   useEffect(() => {
@@ -232,6 +235,8 @@ const ChatbotScreen: React.FC<{ navigation: ChatbotScreenNavigationProp }> = ({ 
       setError('Failed to load chat session');
     } finally {
       setIsLoading(false);
+      setIsTyping(false);
+      setAbortController(null);
     }
   };
 
@@ -240,6 +245,16 @@ const ChatbotScreen: React.FC<{ navigation: ChatbotScreenNavigationProp }> = ({ 
     setMessages([]);
     setMenuSessionId(null);
     closeSidebar();
+  };
+
+  const handleScroll = (event: any) => {
+    const { layoutMeasurement, contentOffset, contentSize } = event.nativeEvent;
+    const isCloseToBottom = layoutMeasurement.height + contentOffset.y >= contentSize.height - 150;
+    setShowScrollBottom(!isCloseToBottom);
+  };
+
+  const scrollToBottom = () => {
+    scrollViewRef.current?.scrollToEnd({ animated: true });
   };
 
   const refreshSessionList = async () => {
@@ -321,6 +336,39 @@ const ChatbotScreen: React.FC<{ navigation: ChatbotScreenNavigationProp }> = ({ 
     return null;
   };
 
+  const handleStop = () => {
+    if (abortController) {
+      abortController.abort();
+      setAbortController(null);
+    }
+    
+    if (statusIntervalRef.current) {
+      clearInterval(statusIntervalRef.current);
+      statusIntervalRef.current = null;
+    }
+    
+    if (streamingRef.current) {
+      clearTimeout(streamingRef.current);
+      streamingRef.current = null;
+      setStreamingMsgId(null);
+      
+      setMessages(prev => {
+        const lastMsg = prev[prev.length - 1];
+        if (lastMsg && !lastMsg.isUser && lastMsg.text === '') {
+          const finalMsg = { ...lastMsg, text: streamingText || "Generation stopped." };
+          const updated = [...prev];
+          updated[updated.length - 1] = finalMsg;
+          if (currentSessionId) setCachedChatHistory(currentSessionId, updated);
+          return updated;
+        }
+        return prev;
+      });
+      setStreamingText('');
+    }
+    
+    setIsTyping(false);
+  };
+
   const sendMessage = async (messageText: string) => {
     if (!messageText.trim() || isTyping) return;
     setError(null);
@@ -342,12 +390,14 @@ const ChatbotScreen: React.FC<{ navigation: ChatbotScreenNavigationProp }> = ({ 
     }
 
     setIsTyping(true);
+    const controller = new AbortController();
+    setAbortController(controller);
 
     try {
       if (!serverOnline) throw new Error('Offline');
       
       // Status message cycling
-      const statusInterval = setInterval(() => {
+      statusIntervalRef.current = setInterval(() => {
         setStatusMessage(prev => {
           if (prev.includes('Searching')) return '📊 Analyzing Knowledge Graph...';
           if (prev.includes('Analyzing')) return '📄 Reading Syllabus...';
@@ -357,8 +407,8 @@ const ChatbotScreen: React.FC<{ navigation: ChatbotScreenNavigationProp }> = ({ 
       }, 3000);
       setStatusMessage('🔍 Searching syllabus...');
 
-      const response = await sendChatMessage(messageText, currentSessionId || undefined);
-      clearInterval(statusInterval);
+      const response = await sendChatMessage(messageText, currentSessionId || undefined, controller.signal);
+      if (statusIntervalRef.current) clearInterval(statusIntervalRef.current);
 
       if (!currentSessionId && response.session_id) {
         setCurrentSessionId(response.session_id);
@@ -368,8 +418,11 @@ const ChatbotScreen: React.FC<{ navigation: ChatbotScreenNavigationProp }> = ({ 
       setStreamingMsgId(aiMsg.id);
       setStreamingText('');
       setMessages(prev => [...prev, { ...aiMsg, text: '' }]);
-      setIsTyping(false);
+      
+      // Wait to set isTyping(false) until typing completes
       typewriteMessage(aiMsg.id, aiMsg.text, () => {
+        setIsTyping(false);
+        setAbortController(null);
         setMessages(prev => {
           const updated = prev.map(m => m.id === aiMsg.id ? aiMsg : m);
           if (currentSessionId) setCachedChatHistory(currentSessionId, updated);
@@ -377,6 +430,9 @@ const ChatbotScreen: React.FC<{ navigation: ChatbotScreenNavigationProp }> = ({ 
         });
       });
     } catch (err: any) {
+      if (statusIntervalRef.current) clearInterval(statusIntervalRef.current);
+      if (err.name === 'AbortError') return; // Handled by handleStop
+      
       setTimeout(() => {
         let errorText = "⚠️ I am offline right now. Please check your connection.";
         if (err?.message && err.message !== 'Offline') {
@@ -586,7 +642,13 @@ const ChatbotScreen: React.FC<{ navigation: ChatbotScreenNavigationProp }> = ({ 
           </ScrollView>
         ) : (
           /* Chat State */
-          <ScrollView ref={scrollViewRef} style={styles.msgList} contentContainerStyle={styles.msgContent}>
+          <ScrollView 
+            ref={scrollViewRef} 
+            style={styles.msgList} 
+            contentContainerStyle={styles.msgContent}
+            onScroll={handleScroll}
+            scrollEventThrottle={16}
+          >
             {messages.map(m => (
               <View key={m.id} style={[styles.msgRow, m.isUser ? styles.userRow : styles.aiRow]}>
                 {!m.isUser && (
@@ -640,6 +702,15 @@ const ChatbotScreen: React.FC<{ navigation: ChatbotScreenNavigationProp }> = ({ 
                </View>
             )}
           </ScrollView>
+        )}
+
+        {/* Scroll To Bottom Button */}
+        {showScrollBottom && messages.length > 0 && (
+          <View style={[styles.scrollBottomContainer, { bottom: inputAreaHeight + 12 }]} pointerEvents="box-none">
+            <TouchableOpacity style={[styles.scrollBottomBtn, { backgroundColor: theme.backgroundSecondary, borderColor: theme.border }]} onPress={scrollToBottom}>
+              <ArrowDown size={18} color={theme.textSecondary} />
+            </TouchableOpacity>
+          </View>
         )}
 
         {/* Bottom Input */}
@@ -698,15 +769,17 @@ const ChatbotScreen: React.FC<{ navigation: ChatbotScreenNavigationProp }> = ({ 
                 )}
               </View>
 
-              {(inputText.trim().length > 0 || activeTool) ? (
-                <TouchableOpacity onPress={handleSend} disabled={isTyping || !inputText.trim()}>
-                  <View style={[styles.sendBtnSolid, { backgroundColor: inputText.trim() ? theme.text : theme.backgroundTertiary }]}>
-                    <ArrowRight size={18} color={inputText.trim() ? theme.background : theme.textSecondary} />
+              {isTyping ? (
+                <TouchableOpacity onPress={handleStop}>
+                  <View style={[styles.sendBtnSolid, { backgroundColor: theme.text }]}>
+                    <Square size={14} color={theme.background} fill={theme.background} />
                   </View>
                 </TouchableOpacity>
               ) : (
-                <TouchableOpacity style={styles.micBtn}>
-                  <Mic size={20} color={theme.textSecondary} />
+                <TouchableOpacity onPress={handleSend} disabled={!inputText.trim() && !activeTool}>
+                  <View style={[styles.sendBtnSolid, { backgroundColor: (inputText.trim() || activeTool) ? theme.text : theme.backgroundTertiary }]}>
+                    <ArrowRight size={18} color={(inputText.trim() || activeTool) ? theme.background : theme.textSecondary} />
+                  </View>
                 </TouchableOpacity>
               )}
             </View>
@@ -1039,6 +1112,28 @@ const styles = StyleSheet.create({
   toolChipText: {
     fontSize: 13,
     fontWeight: '600',
+  },
+  
+  // Scroll to bottom
+  scrollBottomContainer: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    zIndex: 10,
+  },
+  scrollBottomBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    borderWidth: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
   },
   
   // FAB
