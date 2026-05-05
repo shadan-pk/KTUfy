@@ -9,7 +9,8 @@ import { ChatbotScreenNavigationProp, RootStackParamList } from '../types/naviga
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../auth/AuthProvider';
 import { getUserProfile } from '../supabaseConfig';
-import { Menu, Plus, Paperclip, ArrowRight, Mic, X, Pencil, Trash2, Edit, BookOpen, Settings, Bell, Calculator, Zap, FileText, Calendar, CheckSquare, Code, Gamepad2, Library, MoreVertical } from 'lucide-react-native';
+import { Menu, Plus, Paperclip, ArrowRight, Mic, X, Pencil, Trash2, Edit, BookOpen, Settings, Bell, Calculator, Zap, FileText, Calendar, CheckSquare, Code, Gamepad2, Library, MoreVertical, Copy, Check } from 'lucide-react-native';
+import * as Clipboard from 'expo-clipboard';
 import {
   sendChatMessage, getChatSessions, getChatSession, updateChatSession, deleteChatSession,
   ChatMessage as BackendChatMessage, ChatSession
@@ -23,6 +24,29 @@ const { width, height } = Dimensions.get('window');
 const FONT = { display: 39, h1: 24, h2: 20, body: 15, caption: 12, micro: 10 };
 
 interface Message { id: string; text: string; isUser: boolean; timestamp: Date; }
+
+const CodeBlockComponent = ({ language, code }: { language: string, code: string }) => {
+  const [copied, setCopied] = useState(false);
+  const handleCopy = async () => {
+    await Clipboard.setStringAsync(code);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+  return (
+    <View style={styles.codeBlock}>
+      <View style={styles.codeHeader}>
+        <Text style={styles.codeLang}>{language || 'code'}</Text>
+        <TouchableOpacity onPress={handleCopy} style={styles.copyBtn}>
+          {copied ? <Check size={14} color="#10B981" /> : <Copy size={14} color="#888" />}
+          <Text style={[styles.copyText, copied && { color: '#10B981' }]}>{copied ? 'Copied' : 'Copy'}</Text>
+        </TouchableOpacity>
+      </View>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+        <Text style={styles.codeText}>{code}</Text>
+      </ScrollView>
+    </View>
+  );
+};
 
 const ChatbotScreen: React.FC<{ navigation: ChatbotScreenNavigationProp }> = ({ navigation }) => {
   const { theme, isDark } = useTheme();
@@ -333,6 +357,19 @@ const ChatbotScreen: React.FC<{ navigation: ChatbotScreenNavigationProp }> = ({ 
     return g;
   }, [sessions]);
 
+  const parseInline = (text: string, baseColor: string) => {
+    const parts = text.split(/(`[^`]+`|\*\*.*?\*\*)/g); 
+    return parts.map((part, pIdx) => {
+      if (part.startsWith('`') && part.endsWith('`')) {
+        return <Text key={`ic-${pIdx}`} style={styles.inlineCode}>{part.slice(1, -1)}</Text>;
+      } else if (part.startsWith('**') && part.endsWith('**')) {
+        return <Text key={`bd-${pIdx}`} style={{ fontWeight: '700', color: baseColor }}>{part.slice(2, -2)}</Text>;
+      } else {
+        return <Text key={`tx-${pIdx}`} style={{ color: baseColor }}>{part}</Text>;
+      }
+    });
+  };
+
   const parseMarkdown = (text: string, baseColor: string) => {
     const lines = text.split('\n');
     const elements: React.ReactNode[] = [];
@@ -349,12 +386,7 @@ const ChatbotScreen: React.FC<{ navigation: ChatbotScreenNavigationProp }> = ({ 
           i++;
         }
         elements.push(
-          <View key={`cb-${i}`} style={styles.codeBlock}>
-            {language ? <Text style={styles.codeLang}>{language}</Text> : null}
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              <Text style={styles.codeText}>{codeLines.join('\n')}</Text>
-            </ScrollView>
-          </View>
+          <CodeBlockComponent key={`cb-${i}`} language={language} code={codeLines.join('\n')} />
         );
         i++; // skip closing ```
         continue;
@@ -378,7 +410,7 @@ const ChatbotScreen: React.FC<{ navigation: ChatbotScreenNavigationProp }> = ({ 
                   <View key={`tr-${idx}`} style={styles.tableRow}>
                     {row.split('|').filter((cell, index, arr) => !(index === 0 && cell.trim() === '') && !(index === arr.length - 1 && cell.trim() === '')).map((cell, cIdx) => (
                       <Text key={`td-${cIdx}`} style={[styles.tableCell, isHeader && styles.tableHeaderCell, { color: baseColor }]}>
-                        {cell.trim()}
+                        {parseInline(cell.trim(), baseColor)}
                       </Text>
                     ))}
                   </View>
@@ -390,18 +422,8 @@ const ChatbotScreen: React.FC<{ navigation: ChatbotScreenNavigationProp }> = ({ 
         continue;
       }
       // Inline code and bold text detection
-      const parts = line.split(/(`[^`]+`|\*\*.*?\*\*)/g); 
-      const lineElements = parts.map((part, pIdx) => {
-        if (part.startsWith('`') && part.endsWith('`')) {
-          return <Text key={`ic-${pIdx}`} style={styles.inlineCode}>{part.slice(1, -1)}</Text>;
-        } else if (part.startsWith('**') && part.endsWith('**')) {
-          return <Text key={`bd-${pIdx}`} style={{ fontWeight: '700', color: baseColor }}>{part.slice(2, -2)}</Text>;
-        } else {
-          return <Text key={`tx-${pIdx}`} style={{ color: baseColor }}>{part}</Text>;
-        }
-      });
       elements.push(
-        <Text key={`p-${i}`} style={[styles.msgText, { color: baseColor }]}>{lineElements}</Text>
+        <Text key={`p-${i}`} style={[styles.msgText, { color: baseColor }]}>{parseInline(line, baseColor)}</Text>
       );
       i++;
     }
@@ -600,10 +622,9 @@ const ChatbotScreen: React.FC<{ navigation: ChatbotScreenNavigationProp }> = ({ 
       </View>
 
       {/* Sidebar Overlay */}
-      {showSidebar && (
-         <View style={[StyleSheet.absoluteFillObject, { zIndex: 100, pointerEvents: 'box-none' }]}>
-          <Animated.View style={[styles.backdrop, { opacity: backdropOpacity }]}>
-            <TouchableOpacity style={StyleSheet.absoluteFillObject} activeOpacity={1} onPress={closeSidebar} />
+      <View style={[StyleSheet.absoluteFillObject, { zIndex: 100, pointerEvents: showSidebar ? 'box-none' : 'none' }]}>
+        <Animated.View style={[styles.backdrop, { opacity: backdropOpacity }]}>
+          <TouchableOpacity style={StyleSheet.absoluteFillObject} activeOpacity={1} onPress={closeSidebar} disabled={!showSidebar} />
           </Animated.View>
 
           <Animated.View style={[styles.sidebar, { transform: [{ translateX: sidebarAnim }], backgroundColor: theme.backgroundSecondary }]}>
@@ -622,23 +643,25 @@ const ChatbotScreen: React.FC<{ navigation: ChatbotScreenNavigationProp }> = ({ 
                 <TouchableOpacity onPress={closeSidebar}><X size={24} color={theme.textSecondary} /></TouchableOpacity>
               </View>
 
-              <View style={[styles.sbSearch, { backgroundColor: theme.backgroundTertiary }]}>
-                <Text style={{ color: theme.textTertiary }}>Search chats...</Text>
+              <View style={{ marginHorizontal: 20, marginBottom: 20 }}>
+                {upcomingExams.length === 0 ? (
+                  <View style={[styles.sbSearch, { backgroundColor: 'transparent', borderWidth: 1, borderColor: theme.backgroundTertiary, borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center', marginHorizontal: 0, paddingVertical: 16 }]}>
+                    <Text style={{ color: theme.textTertiary, fontSize: 12 }}>No new notifications</Text>
+                  </View>
+                ) : (
+                  upcomingExams.map((ex, i) => (
+                    <View key={i} style={[styles.sbSearch, { backgroundColor: theme.backgroundTertiary, flexDirection: 'row', alignItems: 'center', marginHorizontal: 0, padding: 12, marginBottom: 8 }]}>
+                      <Bell size={16} color={theme.error} />
+                      <Text style={[styles.sbExamText, { color: theme.text, flex: 1 }]} numberOfLines={1}>{ex.title}</Text>
+                      <TouchableOpacity onPress={() => setUpcomingExams(prev => prev.filter((_, idx) => idx !== i))}>
+                        <X size={16} color={theme.textSecondary} />
+                      </TouchableOpacity>
+                    </View>
+                  ))
+                )}
               </View>
 
               <ScrollView style={styles.sbScroll} showsVerticalScrollIndicator={false}>
-                {/* Notifications / Exams */}
-                {upcomingExams.length > 0 && (
-                  <View style={styles.sbSection}>
-                    <Text style={[styles.sbSectionTitle, { color: theme.textTertiary }]}>UPCOMING EXAMS</Text>
-                    {upcomingExams.map((ex, i) => (
-                      <View key={i} style={styles.sbExamItem}>
-                        <Bell size={16} color={theme.error} />
-                        <Text style={[styles.sbExamText, { color: theme.text }]} numberOfLines={1}>{ex.title}</Text>
-                      </View>
-                    ))}
-                  </View>
-                )}
 
                 {/* AI Tools */}
                 <View style={styles.sbSection}>
@@ -726,8 +749,7 @@ const ChatbotScreen: React.FC<{ navigation: ChatbotScreenNavigationProp }> = ({ 
               </View>
             </SafeAreaView>
           </Animated.View>
-        </View>
-      )}
+      </View>
 
       {/* Delete Modal */}
       <Modal visible={showDeleteModal} transparent animationType="fade" onRequestClose={() => setShowDeleteModal(false)}>
@@ -780,24 +802,27 @@ const styles = StyleSheet.create({
   },
   chipText: { fontSize: FONT.body, fontWeight: '600', letterSpacing: 0.2 },
   msgList: { flex: 1 },
-  msgContent: { padding: 16, paddingBottom: 100 },
-  msgRow: { flexDirection: 'row', marginBottom: 12, marginHorizontal: 8 },
+  msgContent: { paddingHorizontal: 6, paddingTop: 16, paddingBottom: 100 },
+  msgRow: { flexDirection: 'row', marginBottom: 12, marginHorizontal: 4 },
   userRow: { justifyContent: 'flex-end' },
   aiRow: { justifyContent: 'flex-start' },
-  aiLine: { width: 4, height: 20, borderRadius: 2, marginRight: 12, marginTop: 14 },
-  bubble: { maxWidth: '85%', borderRadius: 20, padding: 12 },
+  aiLine: { width: 4, height: 20, borderRadius: 2, marginRight: 8, marginTop: 14 },
+  bubble: { maxWidth: '94%', borderRadius: 20, padding: 12 },
   userBubble: { borderBottomRightRadius: 4 },
   aiBubble: { paddingLeft: 0, paddingVertical: 4 },
   msgText: { fontSize: FONT.body, lineHeight: 24 },
   markdownContainer: { flexShrink: 1, gap: 4 },
-  codeBlock: { backgroundColor: '#1E1E1E', borderRadius: 8, padding: 12, marginVertical: 6, overflow: 'hidden' },
-  codeLang: { color: '#888', fontSize: FONT.micro, marginBottom: 4, textAlign: 'right' },
-  codeText: { fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace', fontSize: FONT.body - 2, color: '#D4D4D4' },
+  codeBlock: { backgroundColor: '#111111', borderRadius: 10, padding: 12, marginVertical: 8, borderWidth: 1, borderColor: '#333', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.5, shadowRadius: 4, elevation: 4 },
+  codeHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, borderBottomWidth: 1, borderBottomColor: '#333', paddingBottom: 6 },
+  codeLang: { color: '#AAA', fontSize: FONT.micro + 1, fontWeight: '600', textTransform: 'uppercase' },
+  copyBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 6, paddingVertical: 4, backgroundColor: '#222', borderRadius: 6 },
+  copyText: { color: '#888', fontSize: FONT.micro, fontWeight: '600' },
+  codeText: { fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace', fontSize: FONT.body - 2, color: '#E4E4E4' },
   inlineCode: { backgroundColor: '#2D2D2D', fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace', fontSize: FONT.body - 1, color: '#E06C75', paddingHorizontal: 4, borderRadius: 4 },
-  tableWrapper: { marginVertical: 6, borderRadius: 8, overflow: 'hidden', borderWidth: 1, borderColor: '#333' },
+  tableWrapper: { marginVertical: 6, borderRadius: 8, overflow: 'hidden', borderWidth: 1, borderColor: '#333', maxWidth: width - 50 },
   table: { minWidth: '100%' },
   tableRow: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: '#333' },
-  tableCell: { padding: 8, fontSize: FONT.body - 1, borderRightWidth: 1, borderRightColor: '#333', minWidth: 80 },
+  tableCell: { padding: 8, fontSize: FONT.body - 1, borderRightWidth: 1, borderRightColor: '#333', width: 140 },
   tableHeaderCell: { fontWeight: '700', backgroundColor: '#222' },
   inputArea: { paddingHorizontal: 16, paddingBottom: Platform.OS === 'ios' ? 30 : 16, paddingTop: 10 },
   inputWrap: { flexDirection: 'row', alignItems: 'flex-end', borderRadius: 24, paddingHorizontal: 12, paddingVertical: 8, minHeight: 56 },
