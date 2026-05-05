@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     View,
     Text,
@@ -34,6 +34,13 @@ const QuizGameScreen: React.FC<Props> = ({ navigation, route }) => {
     const [showResult, setShowResult] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [hasStarted, setHasStarted] = useState(false);
+
+    // Auto-generate when navigated with a topic (e.g., from chatbot)
+    useEffect(() => {
+        if (initialTopic) {
+            handleGenerate();
+        }
+    }, []);
     const [isFinished, setIsFinished] = useState(false);
 
     const handleGenerate = async () => {
