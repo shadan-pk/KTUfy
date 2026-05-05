@@ -9,7 +9,7 @@ import { ChatbotScreenNavigationProp, RootStackParamList } from '../types/naviga
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../auth/AuthProvider';
 import { getUserProfile } from '../supabaseConfig';
-import { Menu, Plus, Paperclip, ArrowRight, Mic, X, Pencil, Trash2, Edit, BookOpen, Settings, Bell, Calculator, Zap, FileText, Calendar, CheckSquare, Code, Gamepad2, Library, MoreVertical, Copy, Check, Layers, Brain } from 'lucide-react-native';
+import { Menu, Plus, Paperclip, ArrowRight, Mic, X, Pencil, Trash2, Edit, BookOpen, Settings, Bell, Calculator, Zap, FileText, Calendar, CheckSquare, Code, Gamepad2, Library, MoreVertical, Copy, Check, Layers, Brain, Link } from 'lucide-react-native';
 import * as Clipboard from 'expo-clipboard';
 import {
   sendChatMessage, getChatSessions, getChatSession, updateChatSession, deleteChatSession,
@@ -84,11 +84,9 @@ const ChatbotScreen: React.FC<{ navigation: ChatbotScreenNavigationProp }> = ({ 
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [statusMessage, setStatusMessage] = useState('Typing...');
   
-  // Tool picker state (+ button)
+  // Tool picker state (+ button → chip in input)
   const [showToolPicker, setShowToolPicker] = useState(false);
-  const [showToolTopicModal, setShowToolTopicModal] = useState(false);
-  const [selectedTool, setSelectedTool] = useState<{ type: string; screen: 'Flashcards' | 'QuizGame' | 'MatchGame'; emoji: string; label: string } | null>(null);
-  const [toolTopicInput, setToolTopicInput] = useState('');
+  const [activeTool, setActiveTool] = useState<{ type: string; screen: 'Flashcards' | 'QuizGame' | 'MatchGame'; label: string; icon: any } | null>(null);
   
   // FAB state
   const [isFabOpen, setIsFabOpen] = useState(false);
@@ -401,6 +399,19 @@ const ChatbotScreen: React.FC<{ navigation: ChatbotScreenNavigationProp }> = ({ 
     if (!inputText.trim() || isTyping) return;
     const text = inputText.trim();
     setInputText('');
+
+    // If a tool chip is active, navigate to that screen instead of sending to AI
+    if (activeTool) {
+      const tool = activeTool;
+      setActiveTool(null);
+      if (tool.screen === 'Flashcards') {
+        navigation.navigate('Flashcards', { topic: text });
+      } else {
+        navigation.navigate(tool.screen, { topic: text });
+      }
+      return;
+    }
+
     sendMessage(text);
   };
 
@@ -636,55 +647,69 @@ const ChatbotScreen: React.FC<{ navigation: ChatbotScreenNavigationProp }> = ({ 
             onLayout={e => setInputAreaHeight(e.nativeEvent.layout.height)}
             style={[styles.inputArea, { backgroundColor: theme.background }]}>
 
-          {/* Tool Picker Popover */}
+          {/* Tool Picker Menu */}
           {showToolPicker && (
             <View style={[styles.toolPickerPopover, { backgroundColor: theme.backgroundSecondary, borderColor: theme.border }]}>
               {[
-                { type: 'flashcard', screen: 'Flashcards' as const, emoji: '🎴', label: 'Flashcards', icon: Layers, color: '#8B5CF6' },
-                { type: 'quiz', screen: 'QuizGame' as const, emoji: '🧠', label: 'Topic Quiz', icon: Brain, color: '#F472B6' },
-                { type: 'match', screen: 'MatchGame' as const, emoji: '🔗', label: 'Match Game', icon: Gamepad2, color: '#10B981' },
-              ].map((tool) => (
+                { type: 'flashcard', screen: 'Flashcards' as const, label: 'Flashcards', icon: Layers },
+                { type: 'quiz', screen: 'QuizGame' as const, label: 'Quizzes', icon: Brain },
+                { type: 'match', screen: 'MatchGame' as const, label: 'Match Game', icon: Link },
+              ].map((tool, i, arr) => (
                 <TouchableOpacity
                   key={tool.type}
-                  style={[styles.toolPickerItem, { borderBottomColor: theme.border }]}
+                  style={[styles.toolPickerItem, i < arr.length - 1 && { borderBottomWidth: 1, borderBottomColor: theme.border }]}
                   onPress={() => {
-                    setSelectedTool(tool);
-                    setToolTopicInput('');
+                    setActiveTool(tool);
                     setShowToolPicker(false);
-                    setShowToolTopicModal(true);
                   }}
                   activeOpacity={0.7}
                 >
-                  <View style={[styles.toolPickerIcon, { backgroundColor: tool.color + '18' }]}>
-                    <tool.icon size={18} color={tool.color} />
-                  </View>
-                  <Text style={[styles.toolPickerLabel, { color: theme.text }]}>{tool.label}</Text>
+                  <tool.icon size={18} color={theme.textSecondary} style={styles.toolPickerEmoji} />
+                  <Text style={[styles.toolPickerLabel, { color: theme.textSecondary }]}>{tool.label}</Text>
                 </TouchableOpacity>
               ))}
             </View>
           )}
 
           <View style={[styles.inputWrap, { backgroundColor: theme.backgroundSecondary }]}>
-            <TouchableOpacity style={styles.plusBtn} onPress={() => setShowToolPicker(!showToolPicker)}>
-              <Plus size={20} color={showToolPicker ? theme.primary : theme.textSecondary} />
-            </TouchableOpacity>
             <TextInput
-              style={[styles.input, { color: theme.text }]} placeholder="Ask KTUfy anything..."
+              style={[styles.input, { color: theme.text }]}
+              placeholder={activeTool ? `Enter topic for ${activeTool.label}...` : 'Ask anything...'}
               placeholderTextColor={theme.textTertiary} value={inputText}
               onChangeText={setInputText} multiline editable={!isTyping}
               onFocus={() => setShowToolPicker(false)}
             />
-            {inputText.trim().length > 0 ? (
-              <TouchableOpacity onPress={handleSend} disabled={isTyping}>
-                <LinearGradient colors={['#3B82F6', '#10B981']} style={styles.sendBtnGradient}>
-                  <ArrowRight size={18} color="#FFF" />
-                </LinearGradient>
-              </TouchableOpacity>
-            ) : (
-              <TouchableOpacity style={styles.micBtn}>
-                <Mic size={20} color={theme.textSecondary} />
-              </TouchableOpacity>
-            )}
+            
+            <View style={styles.inputBottomRow}>
+              <View style={styles.inputBottomLeft}>
+                <TouchableOpacity style={styles.plusBtn} onPress={() => { setShowToolPicker(!showToolPicker); if (activeTool) { setActiveTool(null); setShowToolPicker(false); } }}>
+                  <Plus size={20} color={showToolPicker ? theme.primary : theme.textSecondary} />
+                </TouchableOpacity>
+
+                {/* Active tool chip */}
+                {activeTool && (
+                  <View style={[styles.toolChip, { backgroundColor: theme.backgroundTertiary, borderColor: theme.border }]}>
+                    <activeTool.icon size={14} color={theme.textSecondary} />
+                    <Text style={[styles.toolChipText, { color: theme.textSecondary }]}>{activeTool.label}</Text>
+                    <TouchableOpacity onPress={() => setActiveTool(null)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                      <X size={14} color={theme.textSecondary} />
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </View>
+
+              {(inputText.trim().length > 0 || activeTool) ? (
+                <TouchableOpacity onPress={handleSend} disabled={isTyping || !inputText.trim()}>
+                  <View style={[styles.sendBtnSolid, { backgroundColor: inputText.trim() ? theme.text : theme.backgroundTertiary }]}>
+                    <ArrowRight size={18} color={inputText.trim() ? theme.background : theme.textSecondary} />
+                  </View>
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity style={styles.micBtn}>
+                  <Mic size={20} color={theme.textSecondary} />
+                </TouchableOpacity>
+              )}
+            </View>
           </View>
           <Text style={[styles.disclaimer, { color: theme.textTertiary }]}>KTUfy can make mistakes. Verify important info.</Text>
         </View>
@@ -905,56 +930,6 @@ const ChatbotScreen: React.FC<{ navigation: ChatbotScreenNavigationProp }> = ({ 
           </View>
         </View>
       </Modal>
-
-      {/* Tool Topic Input Modal */}
-      <Modal visible={showToolTopicModal} transparent animationType="fade" onRequestClose={() => setShowToolTopicModal(false)}>
-        <TouchableOpacity style={styles.modalBackdrop} activeOpacity={1} onPress={() => setShowToolTopicModal(false)}>
-          <TouchableOpacity activeOpacity={1} style={[styles.modalCard, { backgroundColor: theme.backgroundSecondary, borderColor: theme.backgroundTertiary }]}>
-            <Text style={[styles.modalTitle, { color: theme.text }]}>{selectedTool?.emoji} {selectedTool?.label}</Text>
-            <Text style={[styles.modalBody, { color: theme.textSecondary }]}>Enter a topic to generate</Text>
-            <TextInput
-              style={[styles.toolTopicInput, { backgroundColor: theme.background, color: theme.text, borderColor: theme.border }]}
-              placeholder="e.g., Binary Trees, OSI Model..."
-              placeholderTextColor={theme.textTertiary}
-              value={toolTopicInput}
-              onChangeText={setToolTopicInput}
-              autoFocus
-              returnKeyType="go"
-              onSubmitEditing={() => {
-                if (toolTopicInput.trim() && selectedTool) {
-                  setShowToolTopicModal(false);
-                  if (selectedTool.screen === 'Flashcards') {
-                    navigation.navigate('Flashcards', { topic: toolTopicInput.trim() });
-                  } else {
-                    navigation.navigate(selectedTool.screen, { topic: toolTopicInput.trim() });
-                  }
-                }
-              }}
-            />
-            <View style={styles.modalActions}>
-              <TouchableOpacity style={[styles.modalBtn, styles.modalBtnGhost, { borderColor: theme.backgroundTertiary }]} onPress={() => setShowToolTopicModal(false)}>
-                <Text style={[styles.modalBtnText, { color: theme.textSecondary }]}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.modalBtn, { backgroundColor: theme.primary, opacity: toolTopicInput.trim() ? 1 : 0.5 }]}
-                disabled={!toolTopicInput.trim()}
-                onPress={() => {
-                  if (toolTopicInput.trim() && selectedTool) {
-                    setShowToolTopicModal(false);
-                    if (selectedTool.screen === 'Flashcards') {
-                      navigation.navigate('Flashcards', { topic: toolTopicInput.trim() });
-                    } else {
-                      navigation.navigate(selectedTool.screen, { topic: toolTopicInput.trim() });
-                    }
-                  }
-                }}
-              >
-                <Text style={[styles.modalBtnText, { color: '#FFF', fontWeight: '700' }]}>Generate</Text>
-              </TouchableOpacity>
-            </View>
-          </TouchableOpacity>
-        </TouchableOpacity>
-      </Modal>
     </View>
   );
 };
@@ -1010,47 +985,60 @@ const styles = StyleSheet.create({
   tableRow: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: '#333' },
   tableCell: { padding: 8, fontSize: FONT.body - 1, borderRightWidth: 1, borderRightColor: '#333', width: 140 },
   tableHeaderCell: { fontWeight: '700', backgroundColor: '#222' },
-  inputArea: { paddingHorizontal: 16, paddingBottom: Platform.OS === 'ios' ? 30 : 16, paddingTop: 10 },
-  inputWrap: { flexDirection: 'row', alignItems: 'flex-end', borderRadius: 24, paddingHorizontal: 12, paddingVertical: 8, minHeight: 56 },
+  inputArea: { paddingHorizontal: 16, paddingBottom: Platform.OS === 'ios' ? 30 : 16, paddingTop: 10, position: 'relative' },
+  inputWrap: { flexDirection: 'column', borderRadius: 24, paddingHorizontal: 6, paddingVertical: 6, minHeight: 56 },
   plusBtn: { width: 36, height: 36, justifyContent: 'center', alignItems: 'center' },
-  input: { flex: 1, maxHeight: 120, minHeight: 40, fontSize: FONT.body, paddingTop: 10, paddingBottom: 10 },
+  input: { maxHeight: 120, minHeight: 40, fontSize: FONT.body, paddingHorizontal: 10, paddingTop: 10, paddingBottom: 6 },
+  inputBottomRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  inputBottomLeft: { flexDirection: 'row', alignItems: 'center' },
   micBtn: { width: 36, height: 36, justifyContent: 'center', alignItems: 'center' },
-  sendBtnGradient: { width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center', marginLeft: 8 },
+  sendBtnGradient: { width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center' },
+  sendBtnSolid: { width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center' },
   disclaimer: { textAlign: 'center', fontSize: FONT.micro, marginTop: 10 },
   
-  // Tool Picker Popover
+  // Tool Picker & Chip
   toolPickerPopover: {
-    borderRadius: 16,
+    position: 'absolute',
+    bottom: '100%',
+    left: 16,
+    width: 220,
+    borderRadius: 14,
     borderWidth: 1,
     marginBottom: 8,
     overflow: 'hidden',
+    zIndex: 100,
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
   },
   toolPickerItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 14,
-    borderBottomWidth: 1,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
   },
-  toolPickerIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
+  toolPickerEmoji: {
     marginRight: 12,
   },
   toolPickerLabel: {
-    fontSize: 15,
-    fontWeight: '600',
+    fontSize: 14,
+    fontWeight: '500',
   },
-  toolTopicInput: {
-    height: 48,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    fontSize: 15,
+  toolChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 20,
     borderWidth: 1,
-    marginTop: 12,
-    marginBottom: 8,
+    marginLeft: 4,
+    gap: 6,
+  },
+  toolChipText: {
+    fontSize: 13,
+    fontWeight: '600',
   },
   
   // FAB
