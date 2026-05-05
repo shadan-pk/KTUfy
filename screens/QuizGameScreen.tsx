@@ -157,8 +157,8 @@ const QuizGameScreen: React.FC<Props> = ({ navigation, route }) => {
                         <Text style={[styles.resultMsg, { color: theme.textSecondary }]}>
                             {score === questions.length ? "Perfect score! You're a master." : "Good effort! Keep learning."}
                         </Text>
-                        <TouchableOpacity 
-                            style={[styles.retryBtn, { backgroundColor: theme.primary }]} 
+                        <TouchableOpacity
+                            style={[styles.retryBtn, { backgroundColor: theme.primary }]}
                             onPress={() => { setHasStarted(false); setIsFinished(false); }}
                         >
                             <Text style={styles.retryText}>Try New Topic</Text>
@@ -204,9 +204,9 @@ const QuizGameScreen: React.FC<Props> = ({ navigation, route }) => {
                                 }
 
                                 return (
-                                    <TouchableOpacity 
-                                        key={idx} 
-                                        style={[styles.optionBtn, { backgroundColor: bgColor, borderColor }]} 
+                                    <TouchableOpacity
+                                        key={idx}
+                                        style={[styles.optionBtn, { backgroundColor: bgColor, borderColor }]}
                                         onPress={() => handleAnswer(idx)}
                                         disabled={showResult}
                                     >
@@ -275,26 +275,103 @@ const styles = StyleSheet.create({
         color: 'rgba(255,255,255,0.8)',
     },
     scroll: { flex: 1 },
-    questionText: { fontSize: 16, fontWeight: '600', lineHeight: 24 },
-    optionBtn: {
-        flexDirection: 'row', alignItems: 'center', borderRadius: 12, padding: 14,
-        borderWidth: 1, marginBottom: 10, position: 'relative',
+    scrollContent: { padding: 20, marginTop: -20 },
+
+    // Input Card
+    inputCard: {
+        borderRadius: 20,
+        padding: 20,
+        borderWidth: 1,
+        marginBottom: 20,
+        marginTop: 20,
+        shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 10, elevation: 3,
     },
-    optionLabel: { fontSize: 14, fontWeight: '700', marginRight: 12, width: 20 },
-    optionText: { fontSize: 14, flex: 1 },
-    optionIcon: { fontSize: 16, fontWeight: '700', color: '#10B981', marginLeft: 8 },
-    explanationCard: { borderRadius: 12, padding: 14, borderWidth: 1, marginTop: 8, marginBottom: 16 },
-    explanationText: { fontSize: 13, lineHeight: 20 },
-    nextBtn: { borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 8 },
-    nextBtnText: { color: '#FFF', fontSize: 15, fontWeight: '700' },
-    resultsCard: { borderRadius: 16, padding: 28, borderWidth: 1, alignItems: 'center' },
-    resultsEmoji: { fontSize: 56, marginBottom: 12 },
-    resultsTitle: { fontSize: 22, fontWeight: '700', marginBottom: 8 },
-    resultsScore: { fontSize: 40, fontWeight: '800' },
-    resultsLabel: { fontSize: 14, marginBottom: 24 },
-    resultsActions: { flexDirection: 'row', gap: 12, width: '100%' },
-    retryBtn: { flex: 1, borderWidth: 1.5, borderRadius: 12, paddingVertical: 12, alignItems: 'center' },
-    retryBtnText: { fontSize: 14, fontWeight: '600' },
+    inputLabel: {
+        fontSize: 12,
+        fontWeight: '700',
+        textTransform: 'uppercase',
+        letterSpacing: 1,
+        marginBottom: 12,
+        marginLeft: 4,
+    },
+    inputRow: {
+        flexDirection: 'row',
+        borderRadius: 15,
+        borderWidth: 1.5,
+        overflow: 'hidden',
+        padding: 6,
+    },
+    input: {
+        flex: 1,
+        paddingHorizontal: 12,
+        fontSize: 15,
+        fontWeight: '500',
+    },
+    generateButton: {
+        backgroundColor: '#3B82F6',
+        paddingHorizontal: 16,
+        paddingVertical: 10,
+        borderRadius: 10,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    generateButtonDisabled: {
+        backgroundColor: '#94A3B8',
+    },
+
+    // Quiz Section
+    quizSection: { flex: 1 },
+    progressRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, marginTop: 20, paddingHorizontal: 4 },
+    progressText: { fontSize: 11, fontWeight: '800', letterSpacing: 0.5 },
+    scoreBadge: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10 },
+    scoreBadgeText: { fontSize: 12, fontWeight: '700' },
+    progressBar: { height: 6, borderRadius: 3, marginBottom: 25, overflow: 'hidden' },
+    progressFill: { height: '100%', borderRadius: 3 },
+
+    questionCard: {
+        borderRadius: 20,
+        padding: 24,
+        borderWidth: 1,
+        marginBottom: 20,
+        shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 10, elevation: 3,
+    },
+    questionText: { fontSize: 18, fontWeight: '700', lineHeight: 26, textAlign: 'center' },
+
+    optionsList: { gap: 12 },
+    optionBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: 20,
+        paddingVertical: 16,
+        borderRadius: 15,
+        borderWidth: 2,
+    },
+    optionText: { fontSize: 16, fontWeight: '600', flex: 1, marginRight: 10 },
+
+    nextBtn: {
+        marginTop: 30,
+        paddingVertical: 16,
+        borderRadius: 15,
+        alignItems: 'center',
+        shadowColor: '#3B82F6', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 5,
+    },
+    nextBtnText: { color: '#FFF', fontSize: 16, fontWeight: '700' },
+
+    // Result Card
+    resultCard: {
+        borderRadius: 24,
+        padding: 40,
+        borderWidth: 1,
+        alignItems: 'center',
+        marginTop: 20,
+    },
+    resultIconBox: { width: 80, height: 80, borderRadius: 40, justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
+    resultTitle: { fontSize: 24, fontWeight: '800', marginBottom: 8 },
+    resultScore: { fontSize: 40, fontWeight: '800', marginBottom: 12 },
+    resultMsg: { fontSize: 16, textAlign: 'center', marginBottom: 30, lineHeight: 24 },
+    retryBtn: { paddingVertical: 16, paddingHorizontal: 30, borderRadius: 15 },
+    retryText: { color: '#FFF', fontSize: 16, fontWeight: '700' },
 });
 
 export default QuizGameScreen;

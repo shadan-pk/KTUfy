@@ -13,7 +13,7 @@ import {
     Platform,
     StatusBar,
 } from 'react-native';
-import { ArrowLeft, Zap, Layers, RefreshCcw, ChevronLeft, ChevronRight } from 'lucide-react-native';
+import { ArrowLeft, Zap, Layers, RefreshCcw, ChevronLeft, ChevronRight, Clock } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StackNavigationProp } from '@react-navigation/stack';
@@ -276,34 +276,37 @@ const FlashcardScreen: React.FC<FlashcardScreenProps> = ({ navigation }) => {
                         {/* Navigation */}
                         <View style={styles.navRow}>
                             <TouchableOpacity
-                                style={[styles.navButton, { backgroundColor: theme.backgroundSecondary, borderColor: theme.border }]}
+                                style={[styles.navBtnCircle, { backgroundColor: theme.backgroundSecondary, borderColor: theme.border }, currentIndex === 0 && styles.navBtnDisabled]}
                                 onPress={() => goToCard('prev')}
+                                disabled={currentIndex === 0}
                             >
-                                <Text style={[styles.navButtonText, { color: theme.text }]}>← Previous</Text>
+                                <ChevronLeft size={24} color={currentIndex === 0 ? theme.textTertiary : theme.text} />
                             </TouchableOpacity>
 
                             <TouchableOpacity
-                                style={[styles.navButton, { backgroundColor: theme.backgroundSecondary, borderColor: theme.border }]}
-                                onPress={() => goToCard('next')}
+                                style={[styles.regenerateBtn, { backgroundColor: theme.primary + '1A', borderColor: theme.primary }]}
+                                onPress={() => handleGenerate(true)}
                             >
-                                <Text style={[styles.navButtonText, { color: theme.text }]}>Next →</Text>
+                                <RefreshCcw size={18} color={theme.primary} />
+                                <Text style={[styles.regenerateBtnText, { color: theme.primary }]}>REGENERATE</Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                style={[styles.navBtnCircle, { backgroundColor: theme.backgroundSecondary, borderColor: theme.border }, currentIndex === flashcards.length - 1 && styles.navBtnDisabled]}
+                                onPress={() => goToCard('next')}
+                                disabled={currentIndex === flashcards.length - 1}
+                            >
+                                <ChevronRight size={24} color={currentIndex === flashcards.length - 1 ? theme.textTertiary : theme.text} />
                             </TouchableOpacity>
                         </View>
 
                         {/* Cached indicator */}
                         {isCached && (
                             <View style={[styles.cachedBadge, { backgroundColor: theme.backgroundSecondary, borderColor: theme.border }]}>
-                                <Text style={[styles.cachedBadgeText, { color: theme.textSecondary }]}>📦 Loaded from db</Text>
+                                <Clock size={12} color={theme.textTertiary} style={{ marginRight: 6 }} />
+                                <Text style={[styles.cachedBadgeText, { color: theme.textTertiary }]}>Loaded from local archive</Text>
                             </View>
                         )}
-
-                        {/* Regenerate */}
-                        <TouchableOpacity
-                            style={[styles.regenerateButton, { borderColor: theme.primary }]}
-                            onPress={() => handleGenerate(true)}
-                        >
-                            <Text style={[styles.regenerateText, { color: theme.primary }]}>🔄 Regenerate Cards</Text>
-                        </TouchableOpacity>
                     </View>
                 )}
 
@@ -365,6 +368,7 @@ const styles = StyleSheet.create({
         padding: 20,
         borderWidth: 1,
         marginBottom: 20,
+        marginTop: 20,
         shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 10, elevation: 3,
     },
     inputLabel: {
@@ -455,24 +459,53 @@ const styles = StyleSheet.create({
         bottom: 30,
         fontWeight: '600',
     },
-    controls: {
+    // Nav
+    navRow: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
         marginTop: 30,
         paddingHorizontal: 10,
     },
-    navButton: {
-        fontWeight: '500',
-    },
-    regenerateButton: {
-        borderWidth: 1.5,
-        borderRadius: 12,
-        paddingVertical: 12,
+    navBtnCircle: {
+        width: 56,
+        height: 56,
+        borderRadius: 28,
+        justifyContent: 'center',
         alignItems: 'center',
+        borderWidth: 2,
+        shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 8, elevation: 4,
     },
-    regenerateText: {
-        fontSize: 14,
+    navBtnDisabled: {
+        opacity: 0.4,
+    },
+    regenerateBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 20,
+        paddingVertical: 14,
+        borderRadius: 15,
+        borderWidth: 1.5,
+        gap: 10,
+    },
+    regenerateBtnText: {
+        fontSize: 12,
+        fontWeight: '800',
+        letterSpacing: 1,
+    },
+    cachedBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        alignSelf: 'center',
+        marginTop: 25,
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 10,
+        borderWidth: 1,
+        borderStyle: 'dashed',
+    },
+    cachedBadgeText: {
+        fontSize: 11,
         fontWeight: '600',
     },
 });

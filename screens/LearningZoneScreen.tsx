@@ -6,15 +6,18 @@ import {
   ScrollView,
   TouchableOpacity,
   StatusBar,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../types/navigation';
 import { useTheme } from '../contexts/ThemeContext';
-import { ArrowLeft, Brain, Zap, Gamepad2, Layers, Trophy, Flame } from 'lucide-react-native';
+import { ArrowLeft, Brain, Zap, Gamepad2, Layers, Trophy, Flame, Clock, ChevronRight } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '../auth/AuthProvider';
 import supabase from '../supabaseClient';
+import { listFlashcardSets } from '../services/flashcardService';
+import { listLearningSets } from '../services/quizService';
 
 type LearningZoneScreenProps = {
   navigation: StackNavigationProp<RootStackParamList, 'LearningZone'>;
@@ -29,11 +32,16 @@ interface GameStats {
 const LearningZoneScreen: React.FC<LearningZoneScreenProps> = ({ navigation }) => {
   const { theme, isDark } = useTheme();
   const { user } = useAuth();
+  const [history, setHistory] = useState<any[]>([]);
+  const [isHistoryLoading, setIsHistoryLoading] = useState(false);
   const [stats, setStats] = useState<GameStats>({ totalPoints: 0, gamesPlayed: 0, dailyStreak: 0 });
 
   useEffect(() => {
-    loadStats();
-  }, []);
+    if (user) {
+      loadStats();
+      loadHistory();
+    }
+  }, [user]);
 
   const loadStats = async () => {
     if (!user) return;
@@ -53,6 +61,34 @@ const LearningZoneScreen: React.FC<LearningZoneScreenProps> = ({ navigation }) =
       }
     } catch (err) {
       // Table may not exist yet — silent fail
+    }
+  };
+
+  const loadHistory = async () => {
+    if (!user) return;
+    setIsHistoryLoading(true);
+    try {
+      // Fetch from the new generated_content table as requested
+      const { data, error } = await supabase
+        .from('generated_content')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(10);
+
+      if (error) throw error;
+
+      if (data) {
+        setHistory(data.map(item => ({
+          ...item,
+          topic: item.title || 'Untitled Topic',
+          type: item.content_type === 'qa' ? 'quiz' : item.content_type // Map qa to quiz for now or handle separately
+        })));
+      }
+    } catch (err) {
+      console.error('Error loading history:', err);
+    } finally {
+      setIsHistoryLoading(false);
     }
   };
 
@@ -173,40 +209,41 @@ const LearningZoneScreen: React.FC<LearningZoneScreenProps> = ({ navigation }) =
           </TouchableOpacity>
         ))}
 
-        {/* Suggested Topics */}
-        {/* <Text style={[styles.sectionTitle, { color: theme.text, marginTop: 24 }]}>Suggested Topics</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.topicsRow}>
-          {suggestedTopics.map((topic) => (
-            <TouchableOpacity
-              key={topic}
-              style={[styles.topicChip, { backgroundColor: theme.primary + '12', borderColor: theme.primary + '30' }]}
-              onPress={() => navigation.navigate('QuizGame', { topic })}
-            >
-              <Text style={[styles.topicChipText, { color: theme.primary }]}>{topic}</Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView> */}
-
-        {/* How it Works */}
-        {/* <View style={[styles.howItWorks, { backgroundColor: theme.backgroundSecondary, borderColor: theme.border }]}>
-          <Text style={[styles.howTitle, { color: theme.text }]}>How It Works</Text>
-          <View style={styles.howStep}>
-            <Text style={styles.howStepNum}>1</Text>
-            <Text style={[styles.howStepText, { color: theme.textSecondary }]}>Choose an activity from above</Text>
-          </View>
-          <View style={styles.howStep}>
-            <Text style={styles.howStepNum}>2</Text>
-            <Text style={[styles.howStepText, { color: theme.textSecondary }]}>Enter any topic you want to study</Text>
-          </View>
-          <View style={styles.howStep}>
-            <Text style={styles.howStepNum}>3</Text>
-            <Text style={[styles.howStepText, { color: theme.textSecondary }]}>AI generates personalized questions & pairs</Text>
-          </View>
-          <View style={styles.howStep}>
-            <Text style={styles.howStepNum}>4</Text>
-            <Text style={[styles.howStepText, { color: theme.textSecondary }]}>Play, learn, and earn points!</Text>
-          </View>
-        </View> */}
+        {/* Recent Activities (History) */}
+        <View style={styles.historySection}>
+          <Text style={[styles.sectionTitle, { color: theme.text }]}>Recent Activities</Text>
+          {isHistoryLoading ? (
+            <ActivityIndicator color={theme.primary} style={{ marginTop: 20 }} />
+          ) : history.length === 0 ? (
+            <View style={[styles.emptyHistory, { backgroundColor: theme.backgroundSecondary, borderColor: theme.border }]}>
+              <Clock size={32} color={theme.textTertiary} />
+              <Text style={[styles.emptyHistoryText, { color: theme.textTertiary }]}>No recent activities yet.</Text>
+            </View>
+          ) : (
+            history.map((item, i) => (
+              <TouchableOpacity 
+                key={i} 
+                style={[styles.historyCard, { backgroundColor: theme.backgroundSecondary, borderColor: theme.border }]}
+                onPress={() => {
+                  if (item.type === 'flashcard') navigation.navigate('Flashcards', { topic: item.topic });
+                  else if (item.type === 'quiz') navigation.navigate('QuizGame', { topic: item.topic });
+                  else navigation.navigate('MatchGame', { topic: item.topic });
+                }}
+              >
+                <View style={[styles.historyIcon, { backgroundColor: (item.type === 'flashcard' ? '#F59E0B' : item.type === 'quiz' ? '#3B82F6' : '#10B981') + '1A' }]}>
+                  {item.type === 'flashcard' ? <Zap size={18} color="#F59E0B" /> : 
+                   item.type === 'quiz' ? <Brain size={18} color="#3B82F6" /> : 
+                   <Layers size={18} color="#10B981" />}
+                </View>
+                <View style={styles.historyInfo}>
+                  <Text style={[styles.historyTopic, { color: theme.text }]} numberOfLines={1}>{item.topic}</Text>
+                  <Text style={[styles.historyType, { color: theme.textTertiary }]}>{item.type.toUpperCase()}</Text>
+                </View>
+                <ChevronRight size={16} color={theme.textTertiary} />
+              </TouchableOpacity>
+            ))
+          )}
+        </View>
 
         <View style={{ height: 40 }} />
       </ScrollView>
@@ -307,6 +344,19 @@ const styles = StyleSheet.create({
     marginRight: 12, overflow: 'hidden',
   },
   howStepText: { fontSize: 13, flex: 1, fontWeight: '500' },
+
+  // History
+  historySection: { marginTop: 30 },
+  historyCard: {
+    flexDirection: 'row', alignItems: 'center', borderRadius: 16, padding: 12,
+    borderWidth: 1, marginBottom: 10,
+  },
+  historyIcon: { width: 36, height: 36, borderRadius: 10, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
+  historyInfo: { flex: 1 },
+  historyTopic: { fontSize: 14, fontWeight: '700' },
+  historyType: { fontSize: 10, fontWeight: '800', letterSpacing: 0.5, marginTop: 2 },
+  emptyHistory: { borderRadius: 16, padding: 30, borderWidth: 1, borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center', gap: 10 },
+  emptyHistoryText: { fontSize: 13 },
 });
 
 export default LearningZoneScreen;
