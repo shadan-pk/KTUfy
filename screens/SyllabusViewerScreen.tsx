@@ -157,6 +157,16 @@ export default function SyllabusViewerScreen() {
     })();
   }, [authUser]);
 
+  // When returning to this screen (focus), ensure subjects are loaded for the selected branch/semester.
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', () => {
+      if (selectedBranch && selectedSemester && (subjects.length === 0 || subjectsError) && !loadingSubjects) {
+        fetchSubjectsFor(selectedBranch, selectedSemester);
+      }
+    });
+    return unsubscribe;
+  }, [navigation, selectedBranch, selectedSemester, subjects.length, subjectsError, loadingSubjects]);
+
   // Fetch subjects helper
   async function fetchSubjectsFor(branch: string, semester: string) {
     if (!branch || !semester) return;
