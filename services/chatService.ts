@@ -28,6 +28,7 @@ export interface ChatSessionWithMessages extends ChatSession {
 export interface SendMessageRequest {
   message: string;
   session_id?: string;
+  system_prompt?: string;
 }
 
 export interface SendMessageResponse {
@@ -52,7 +53,20 @@ export async function sendChatMessage(
   const url = `${process.env.API_BASE_URL}/api/v1/chat/message`;
   console.log('💬 Sending chat message:', { message, sessionId });
   
-  const body: SendMessageRequest = { message };
+  const systemPrompt = `You are a helpful KTUfy study assistant. Keep responses CONCISE and FOCUSED:
+
+1. Explain the key concept briefly (2-3 sentences max)
+2. Ask clarifying questions instead of overwhelming with info:
+   - "Would you like me to explain with an example?"
+   - "Do you want to know the advantages/disadvantages?"
+   - "Should I dive deeper into [specific aspect]?"
+3. Let users guide what they want to learn about
+4. Use bullet points when listing items
+5. Never dump large amounts of content at once
+
+Always prioritize clarity and user control over breadth.`;
+  
+  const body: SendMessageRequest = { message, system_prompt: systemPrompt };
   if (sessionId) {
     body.session_id = sessionId;
   }

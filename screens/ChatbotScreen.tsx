@@ -278,9 +278,9 @@ const ChatbotScreen: React.FC<{ navigation: ChatbotScreenNavigationProp }> = ({ 
     let idx = 0;
     const step = () => {
       if (idx < fullText.length) {
-        idx += Math.min(3, fullText.length - idx);
+        idx += Math.min(8, fullText.length - idx);
         setStreamingText(fullText.slice(0, idx));
-        streamingRef.current = setTimeout(step, 18);
+        streamingRef.current = setTimeout(step, 5);
       } else {
         setStreamingMsgId(null);
         setStreamingText('');
@@ -439,7 +439,7 @@ const ChatbotScreen: React.FC<{ navigation: ChatbotScreenNavigationProp }> = ({ 
       setMessages(prev => [...prev, { ...aiMsg, text: '' }]);
 
       typewriteMessage(aiMsg.id, aiMsg.text, () => {
-        if (showThinking) setIsTyping(false);
+        setIsTyping(false);
         setAbortController(null);
         setMessages(prev => {
           const updated = prev.map(m => m.id === aiMsg.id ? aiMsg : m);
