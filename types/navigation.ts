@@ -21,7 +21,7 @@ export type RootStackParamList = {
   SyllabusViewer: undefined;
   PYP: undefined;
   Explore: undefined;
-  Flashcards: undefined;
+  Flashcards: { topic?: string } | undefined;
   MatchGame: { topic: string };
   QuizGame: { topic: string };
   MediaTools: undefined;

@@ -16,6 +16,7 @@ import {
 import { ArrowLeft } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StackNavigationProp } from '@react-navigation/stack';
+import { RouteProp, useRoute } from '@react-navigation/native';
 import { RootStackParamList } from '../types/navigation';
 import { useTheme } from '../contexts/ThemeContext';
 import { generateFlashcards, Flashcard } from '../services/flashcardService';
@@ -29,7 +30,9 @@ const { width } = Dimensions.get('window');
 
 const FlashcardScreen: React.FC<FlashcardScreenProps> = ({ navigation }) => {
     const { theme, isDark } = useTheme();
-    const [topic, setTopic] = useState('');
+    const route = useRoute<RouteProp<RootStackParamList, 'Flashcards'>>();
+    const initialTopic = route.params?.topic || '';
+    const [topic, setTopic] = useState(initialTopic);
     const [flashcards, setFlashcards] = useState<Flashcard[]>([]);
     const [currentIndex, setCurrentIndex] = useState(0);
     const [isFlipped, setIsFlipped] = useState(false);
@@ -37,6 +40,13 @@ const FlashcardScreen: React.FC<FlashcardScreenProps> = ({ navigation }) => {
     const [hasGenerated, setHasGenerated] = useState(false);
     const [isCached, setIsCached] = useState(false);
     const flipAnim = useRef(new Animated.Value(0)).current;
+
+    // Auto-generate when navigated with a topic (e.g., from chatbot)
+    useEffect(() => {
+        if (initialTopic) {
+            handleGenerate();
+        }
+    }, []);
 
     const handleGenerate = async (forceRegenerate: boolean = false) => {
         const trimmed = topic.trim();

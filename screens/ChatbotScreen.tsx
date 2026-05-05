@@ -23,7 +23,15 @@ const { width, height } = Dimensions.get('window');
 
 const FONT = { display: 39, h1: 24, h2: 20, body: 15, caption: 12, micro: 10 };
 
-interface Message { id: string; text: string; isUser: boolean; timestamp: Date; }
+interface ToolAction {
+  type: 'flashcard' | 'quiz' | 'match';
+  topic: string;
+  label: string;
+  screen: 'Flashcards' | 'QuizGame' | 'MatchGame';
+  emoji: string;
+}
+
+interface Message { id: string; text: string; isUser: boolean; timestamp: Date; action?: ToolAction; }
 
 const CodeBlockComponent = ({ language, code }: { language: string, code: string }) => {
   const [copied, setCopied] = useState(false);
@@ -256,11 +264,79 @@ const ChatbotScreen: React.FC<{ navigation: ChatbotScreenNavigationProp }> = ({ 
     step();
   };
 
+  // Detect if the user message is asking for a tool (flashcard, quiz, match)
+  const detectToolIntent = (text: string): ToolAction | null => {
+    const lower = text.toLowerCase().trim();
+    // Flashcard patterns
+    const flashcardPatterns = [
+      /(?:create|generate|make|show|give)\s+(?:me\s+)?(?:a\s+)?flashcards?\s+(?:for|on|about)\s+(.+)/i,
+      /flashcards?\s+(?:for|on|about)\s+(.+)/i,
+      /flashcards?\s+(.+)/i,
+      /(.+?)\s+flashcards?/i,
+    ];
+    for (const pattern of flashcardPatterns) {
+      const match = lower.match(pattern);
+      if (match && match[1]) {
+        const topic = match[1].replace(/[.?!]+$/, '').trim();
+        if (topic.length > 1 && topic.length < 100) {
+          return { type: 'flashcard', topic, label: `${topic} Flashcards`, screen: 'Flashcards', emoji: '🎴' };
+        }
+      }
+    }
+    // Quiz patterns
+    const quizPatterns = [
+      /(?:create|generate|make|start|give)\s+(?:me\s+)?(?:a\s+)?quiz\s+(?:for|on|about)\s+(.+)/i,
+      /quiz\s+(?:for|on|about)\s+(.+)/i,
+      /quiz\s+(.+)/i,
+      /(.+?)\s+quiz/i,
+    ];
+    for (const pattern of quizPatterns) {
+      const match = lower.match(pattern);
+      if (match && match[1]) {
+        const topic = match[1].replace(/[.?!]+$/, '').trim();
+        if (topic.length > 1 && topic.length < 100) {
+          return { type: 'quiz', topic, label: `${topic} Quiz`, screen: 'QuizGame', emoji: '🧠' };
+        }
+      }
+    }
+    // Match game patterns
+    const matchPatterns = [
+      /(?:create|generate|make|start|give)\s+(?:me\s+)?(?:a\s+)?match\s+(?:the\s+following\s+)?(?:for|on|about)\s+(.+)/i,
+      /match\s+(?:the\s+following\s+)?(?:for|on|about)\s+(.+)/i,
+      /match\s+(?:the\s+following\s+)?(?:game\s+)?(.+)/i,
+    ];
+    for (const pattern of matchPatterns) {
+      const match = lower.match(pattern);
+      if (match && match[1]) {
+        const topic = match[1].replace(/[.?!]+$/, '').trim();
+        if (topic.length > 1 && topic.length < 100) {
+          return { type: 'match', topic, label: `${topic} Match Game`, screen: 'MatchGame', emoji: '🔗' };
+        }
+      }
+    }
+    return null;
+  };
+
   const sendMessage = async (messageText: string) => {
     if (!messageText.trim() || isTyping) return;
     setError(null);
     const userMsg: Message = { id: `user-${Date.now()}`, text: messageText.trim(), isUser: true, timestamp: new Date() };
     setMessages(prev => [...prev, userMsg]);
+
+    // Check for tool intent before hitting the backend
+    const toolAction = detectToolIntent(messageText);
+    if (toolAction) {
+      const aiMsg: Message = {
+        id: `ai-tool-${Date.now()}`,
+        text: `I can generate ${toolAction.type === 'flashcard' ? 'flashcards' : toolAction.type === 'quiz' ? 'a quiz' : 'a match game'} on "${toolAction.topic}" for you!`,
+        isUser: false,
+        timestamp: new Date(),
+        action: toolAction,
+      };
+      setMessages(prev => [...prev, aiMsg]);
+      return;
+    }
+
     setIsTyping(true);
 
     try {
@@ -508,6 +584,30 @@ const ChatbotScreen: React.FC<{ navigation: ChatbotScreenNavigationProp }> = ({ 
                     ) : (
                       <View style={styles.markdownContainer}>
                         {parseMarkdown(displayText, textColor)}
+                        {m.action && (
+                          <TouchableOpacity
+                            style={[styles.toolActionCard, { backgroundColor: theme.backgroundSecondary, borderColor: theme.primary + '40' }]}
+                            activeOpacity={0.7}
+                            onPress={() => {
+                              if (m.action!.screen === 'Flashcards') {
+                                navigation.navigate('Flashcards', { topic: m.action!.topic });
+                              } else {
+                                navigation.navigate(m.action!.screen, { topic: m.action!.topic });
+                              }
+                            }}
+                          >
+                            <View style={styles.toolActionLeft}>
+                              <Text style={styles.toolActionEmoji}>{m.action.emoji}</Text>
+                              <View>
+                                <Text style={[styles.toolActionTitle, { color: theme.text }]}>{m.action.label}</Text>
+                                <Text style={[styles.toolActionSub, { color: theme.textTertiary }]}>Tap to generate</Text>
+                              </View>
+                            </View>
+                            <View style={[styles.toolActionBtn, { backgroundColor: theme.primary }]}>
+                              <Text style={styles.toolActionBtnText}>Generate</Text>
+                            </View>
+                          </TouchableOpacity>
+                        )}
                       </View>
                     );
                   })()}
@@ -921,7 +1021,46 @@ fabLabel: { fontSize: 13, fontWeight: '600' },
   modalBtnGhost: { borderWidth: 1 },
   modalBtnDanger: { backgroundColor: '#EF4444' },
   modalBtnText: { fontSize: 14, fontWeight: '600' },
-  modalBtnTextDanger: { fontSize: 14, fontWeight: '700', color: '#FFF' }
+  modalBtnTextDanger: { fontSize: 14, fontWeight: '700', color: '#FFF' },
+
+  // Tool Action Cards (Flashcard/Quiz/Match in chat)
+  toolActionCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    marginTop: 12,
+  },
+  toolActionLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  toolActionEmoji: {
+    fontSize: 28,
+    marginRight: 12,
+  },
+  toolActionTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    marginBottom: 2,
+  },
+  toolActionSub: {
+    fontSize: 12,
+  },
+  toolActionBtn: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 10,
+    marginLeft: 10,
+  },
+  toolActionBtnText: {
+    color: '#FFF',
+    fontSize: 13,
+    fontWeight: '700',
+  },
 });
 
 export default ChatbotScreen;
