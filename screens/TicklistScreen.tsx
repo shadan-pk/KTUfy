@@ -10,6 +10,9 @@ import {
   TextInput,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
+  Animated,
+  Easing,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { TicklistScreenNavigationProp } from '../types/navigation';
@@ -19,7 +22,8 @@ import supabase from '../supabaseClient';
 import { getCachedTicklists, setCachedTicklists } from '../services/cacheService';
 import { TicklistScreenSkeleton } from '../components/SkeletonLoader';
 import { useTheme } from '../contexts/ThemeContext';
-import { Trash2, Plus, ArrowLeft } from 'lucide-react-native';
+import { Trash2, Plus, ArrowLeft, Sparkles, Wand2, Loader2, Info } from 'lucide-react-native';
+import { generateChecklist } from '../services/ticklistService';
 
 interface TicklistItem {
   id: string;
@@ -53,6 +57,13 @@ const TicklistScreen: React.FC<TicklistScreenProps> = ({ navigation }) => {
   const [showAddItemModal, setShowAddItemModal] = React.useState(false);
   const [selectedSubjectId, setSelectedSubjectId] = React.useState<string>('');
   const [deleteConfirmId, setDeleteConfirmId] = React.useState<string | null>(null);
+
+  // AI states
+  const [showAIMode, setShowAIMode] = React.useState(false);
+  const [aiModuleNumber, setAiModuleNumber] = React.useState('1');
+  const [isGenerating, setIsGenerating] = React.useState(false);
+  const [showSparkle, setShowSparkle] = React.useState(false);
+  const sparkleAnim = React.useRef(new Animated.Value(0)).current;
 
   // Form states
   const [subjectName, setSubjectName] = React.useState('');
@@ -162,7 +173,99 @@ const TicklistScreen: React.FC<TicklistScreenProps> = ({ navigation }) => {
     }
   };
 
+  const refreshSubjects = async () => {
+    if (!supabaseUser) return;
+    try {
+      const lists = await getTicklistsForUser(supabaseUser.id);
+      const loadedSubjects: Subject[] = (lists || []).map((r: any) => ({
+        id: r.id,
+        name: r.subject_name,
+        code: r.code,
+        color: r.color,
+        items: r.items || [],
+      }));
+      setSubjects(loadedSubjects);
+      await setCachedTicklists(loadedSubjects);
+    } catch (error) {
+      console.error('Error refreshing ticklist after AI generate:', error);
+    }
+  };
+
+  const handleAIGenerate = async () => {
+    const subject = subjects.find(s => s.id === selectedSubjectId);
+    if (!subject) return;
+
+    const modNum = parseInt(aiModuleNumber);
+    if (isNaN(modNum) || modNum < 1 || modNum > 10) {
+      Alert.alert('Invalid Module', 'Please enter a valid module number (1-10)');
+      return;
+    }
+
+    setIsGenerating(true);
+    try {
+      const topics = await generateChecklist(subject.code, subject.name, modNum);
+      
+      if (!topics || topics.length === 0) {
+        Alert.alert('No Topics Found', 'AI couldn\'t generate topics for this module. Try adding manually.');
+        return;
+      }
+
+      const newItems: TicklistItem[] = topics.map((t, idx) => ({
+        id: `${Date.now()}-${idx}`,
+        title: t,
+        completed: false
+      }));
+
+      const updatedItems = [...subject.items, ...newItems];
+      const updatedSubjects = subjects.map(s =>
+        s.id === selectedSubjectId ? { ...s, items: updatedItems } : s
+      );
+
+      setSubjects(updatedSubjects);
+      setCachedTicklists(updatedSubjects);
+
+      await upsertTicklist({
+        id: selectedSubjectId,
+        user_id: supabaseUser.id,
+        subject_name: subject.name,
+        code: subject.code,
+        color: subject.color,
+        items: updatedItems,
+      });
+
+      // Refresh subjects from backend to ensure UI consistency
+      await refreshSubjects();
+
+      setShowAddItemModal(false);
+      setShowAIMode(false);
+      setAiModuleNumber('1');
+      // Trigger sparkle animation
+      setShowSparkle(true);
+      Animated.timing(sparkleAnim, {
+        toValue: 1,
+        duration: 800,
+        easing: Easing.out(Easing.quad),
+        useNativeDriver: true,
+      }).start(() => {
+        setTimeout(() => {
+          setShowSparkle(false);
+          sparkleAnim.setValue(0);
+        }, 800);
+      });
+    } catch (err) {
+      console.error('AI Generation Error:', err);
+      Alert.alert('Generation Failed', 'Failed to generate checklist. Ensure backend is running or try again later.');
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
   const addItem = async () => {
+    if (showAIMode) {
+      await handleAIGenerate();
+      return;
+    }
+
     if (!itemTitle.trim()) {
       Alert.alert('Error', 'Please enter a module/topic title');
       return;
@@ -341,6 +444,11 @@ const TicklistScreen: React.FC<TicklistScreenProps> = ({ navigation }) => {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['bottom']}>
+        {showSparkle && (
+          <Animated.View style={[styles.sparkleContainer, { opacity: sparkleAnim, transform: [{ scale: sparkleAnim }] }]}> 
+            <Sparkles size={48} color={theme.primary} />
+          </Animated.View>
+        )}
       {/* Header */}
       <View style={[styles.screenHeader, { borderBottomColor: theme.border }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerBackBtn}>
@@ -411,7 +519,7 @@ const TicklistScreen: React.FC<TicklistScreenProps> = ({ navigation }) => {
       <ScrollView
         style={styles.subjectsList}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 20 }}
+        contentContainerStyle={{ paddingBottom: 100 }}
       >
         {subjects.length === 0 ? (
           <View style={styles.emptyState}>
@@ -517,19 +625,36 @@ const TicklistScreen: React.FC<TicklistScreenProps> = ({ navigation }) => {
                     ))
                   )}
 
-                  {/* Add Item Button */}
-                  <TouchableOpacity
-                    style={[styles.addItemButton, {
-                      backgroundColor: theme.backgroundSecondary,
-                      borderColor: theme.border,
-                    }]}
-                    onPress={() => {
-                      setSelectedSubjectId(subject.id);
-                      setShowAddItemModal(true);
-                    }}
-                  >
-                    <Text style={[styles.addItemButtonText, { color: theme.primary }]}>+ Add Module/Topic</Text>
-                  </TouchableOpacity>
+                  {/* Add Item Buttons */}
+                  <View style={styles.addItemActions}>
+                    <TouchableOpacity
+                      style={[styles.addItemButton, {
+                        backgroundColor: theme.backgroundSecondary,
+                        borderColor: theme.border,
+                      }]}
+                      onPress={() => {
+                        setSelectedSubjectId(subject.id);
+                        setShowAIMode(false);
+                        setShowAddItemModal(true);
+                      }}
+                    >
+                      <Text style={[styles.addItemButtonText, { color: theme.primary }]}>+ Add Module</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[styles.aiShortcutButton, {
+                        backgroundColor: theme.primary + '15',
+                        borderColor: theme.primary + '30',
+                      }]}
+                      onPress={() => {
+                        setSelectedSubjectId(subject.id);
+                        setShowAIMode(true);
+                        setShowAddItemModal(true);
+                      }}
+                    >
+                      <Sparkles size={18} color={theme.primary} strokeWidth={2.5} />
+                    </TouchableOpacity>
+                  </View>
                 </View>
 
                 {/* Delete Subject Button */}
@@ -667,7 +792,9 @@ const TicklistScreen: React.FC<TicklistScreenProps> = ({ navigation }) => {
         visible={showAddItemModal}
         animationType="slide"
         transparent={true}
-        onRequestClose={() => setShowAddItemModal(false)}
+        onRequestClose={() => {
+            if (!isGenerating) setShowAddItemModal(false);
+        }}
       >
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -679,46 +806,110 @@ const TicklistScreen: React.FC<TicklistScreenProps> = ({ navigation }) => {
           }]}>
             <View style={[styles.modalHandle, { backgroundColor: theme.border }]} />
             <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: theme.text }]}>Add Module/Topic</Text>
+              <View>
+                <Text style={[styles.modalTitle, { color: theme.text }]}>
+                    {showAIMode ? 'Smart Generate' : 'Add Module/Topic'}
+                </Text>
+                <Text style={[styles.inputLabel, { color: theme.textTertiary, marginTop: 2 }]}>
+                    {subjects.find(s => s.id === selectedSubjectId)?.name}
+                </Text>
+              </View>
               <TouchableOpacity
                 style={[styles.modalCloseBtn, { backgroundColor: theme.backgroundSecondary }]}
-                onPress={() => setShowAddItemModal(false)}
+                onPress={() => !isGenerating && setShowAddItemModal(false)}
               >
                 <Text style={[styles.modalClose, { color: theme.textSecondary }]}>✕</Text>
               </TouchableOpacity>
             </View>
 
-            <View style={styles.inputContainer}>
-              <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>Module/Topic Title</Text>
-              <TextInput
-                style={[styles.input, {
-                  backgroundColor: theme.backgroundSecondary,
-                  color: theme.text,
-                  borderColor: theme.border,
-                }]}
-                placeholder="e.g., Module 1: Introduction to Networks"
-                value={itemTitle}
-                onChangeText={setItemTitle}
-                placeholderTextColor={theme.textTertiary}
-                multiline
-              />
+            {/* Mode Switch */}
+            <View style={[styles.modeSwitchContainer, { backgroundColor: theme.backgroundSecondary }]}>
+                <TouchableOpacity 
+                    style={[styles.modeSwitch, !showAIMode && { backgroundColor: theme.card, borderColor: theme.border }]}
+                    onPress={() => setShowAIMode(false)}
+                >
+                    <Text style={[styles.modeSwitchText, { color: !showAIMode ? theme.text : theme.textSecondary }]}>Manual</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                    style={[styles.modeSwitch, showAIMode && { backgroundColor: theme.primary + '20', borderColor: theme.primary }]}
+                    onPress={() => setShowAIMode(true)}
+                >
+                    <Sparkles size={14} color={showAIMode ? theme.primary : theme.textSecondary} style={{ marginRight: 6 }} />
+                    <Text style={[styles.modeSwitchText, { color: showAIMode ? theme.primary : theme.textSecondary }]}>AI Smart</Text>
+                </TouchableOpacity>
             </View>
+
+            {!showAIMode ? (
+              <View style={styles.inputContainer}>
+                <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>Module/Topic Title</Text>
+                <TextInput
+                  style={[styles.input, {
+                    backgroundColor: theme.backgroundSecondary,
+                    color: theme.text,
+                    borderColor: theme.border,
+                  }]}
+                  placeholder="e.g., Module 1: Introduction to Networks"
+                  value={itemTitle}
+                  onChangeText={setItemTitle}
+                  placeholderTextColor={theme.textTertiary}
+                  multiline
+                />
+              </View>
+            ) : (
+              <View style={styles.aiInputContainer}>
+                <View style={[styles.aiInfoBox, { backgroundColor: theme.primary + '10', borderColor: theme.primary + '30' }]}>
+                    <Wand2 size={18} color={theme.primary} />
+                    <Text style={[styles.aiInfoText, { color: theme.text }]}>
+                        Enter the module number to automatically generate all topics from the syllabus.
+                    </Text>
+                </View>
+                
+                <View style={styles.inputContainer}>
+                  <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>Module Number</Text>
+                  <TextInput
+                    style={[styles.input, {
+                      backgroundColor: theme.backgroundSecondary,
+                      color: theme.text,
+                      borderColor: theme.border,
+                      textAlign: 'center',
+                      fontSize: 24,
+                      fontWeight: '800',
+                    }]}
+                    placeholder="1"
+                    value={aiModuleNumber}
+                    onChangeText={setAiModuleNumber}
+                    placeholderTextColor={theme.textTertiary}
+                    keyboardType="number-pad"
+                    maxLength={1}
+                  />
+                </View>
+              </View>
+            )}
 
             <View style={styles.modalButtons}>
               <TouchableOpacity
                 style={[styles.modalButtonCancel, { backgroundColor: theme.backgroundSecondary }]}
                 onPress={() => {
+                  if (isGenerating) return;
                   setShowAddItemModal(false);
                   setItemTitle('');
+                  setShowAIMode(false);
                 }}
               >
                 <Text style={[styles.modalButtonCancelText, { color: theme.textSecondary }]}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.modalButtonAdd, { backgroundColor: theme.primary }]}
+                style={[styles.modalButtonAdd, { backgroundColor: theme.primary, opacity: isGenerating ? 0.7 : 1 }]}
                 onPress={addItem}
+                disabled={isGenerating}
               >
-                <Text style={styles.modalButtonAddText}>Add Item</Text>
+                {isGenerating ? (
+                    <ActivityIndicator color="#FFF" size="small" />
+                ) : (
+                    <Text style={styles.modalButtonAddText}>
+                        {showAIMode ? 'Generate List' : 'Add Item'}
+                    </Text>
+                )}
               </TouchableOpacity>
             </View>
           </View>
@@ -950,13 +1141,27 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
   },
+  addItemActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+    gap: 8,
+  },
   addItemButton: {
+    flex: 1,
     padding: 12,
     borderRadius: 10,
     alignItems: 'center',
-    marginTop: 8,
     borderWidth: 1,
     borderStyle: 'dashed',
+  },
+  aiShortcutButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
   },
   addItemButtonText: {
     fontSize: 14,
@@ -1018,10 +1223,15 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 8,
   },
-  fabText: {
-    fontSize: 30,
-    color: '#FFFFFF',
-    fontWeight: '300',
+  sparkleContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    pointerEvents: 'none',
+    marginTop: 100,
   },
   modalOverlay: {
     flex: 1,
@@ -1113,6 +1323,44 @@ const styles = StyleSheet.create({
     fontSize: 13,
     textAlign: 'center',
     lineHeight: 20,
+  },
+  modeSwitchContainer: {
+    flexDirection: 'row',
+    padding: 4,
+    borderRadius: 12,
+    marginBottom: 20,
+  },
+  modeSwitch: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  modeSwitchText: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  aiInputContainer: {
+    marginBottom: 10,
+  },
+  aiInfoBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 10,
+    marginBottom: 15,
+    borderWidth: 1,
+    gap: 10,
+  },
+  aiInfoText: {
+    flex: 1,
+    fontSize: 12,
+    fontWeight: '500',
+    lineHeight: 18,
   },
 });
 
