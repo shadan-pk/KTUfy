@@ -1223,6 +1223,13 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 8,
   },
+  fabText: {
+    color: '#FFFFFF',
+    fontSize: 30,
+    fontWeight: '600',
+    lineHeight: 34,
+    marginTop: -2,
+  },
   sparkleContainer: {
     position: 'absolute',
     top: 0,
