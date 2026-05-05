@@ -457,6 +457,12 @@ const TicklistScreen: React.FC<TicklistScreenProps> = ({ navigation }) => {
         <Text style={[styles.screenHeaderTitle, { color: theme.text }]}>Study Checklist</Text>
         <View style={{ width: 40 }} />
       </View>
+      {/* Info card (matches MySyllabus theme) */}
+      {/* <View style={[styles.infoCard, { backgroundColor: theme.card, borderLeftColor: theme.primary, marginBottom: 12 }]}>
+        <Text style={[styles.infoTitle, { color: theme.text }]}>Hi there!</Text>
+        <Text style={[styles.infoDescription, { color: theme.textSecondary }]}>Quickly track your subjects and module progress.</Text>
+      </View> */}
+
       {/* Header Stats */}
       <View style={styles.headerStats}>
         {[
@@ -922,6 +928,22 @@ const TicklistScreen: React.FC<TicklistScreenProps> = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  infoCard: {
+    padding: 16,
+    borderRadius: 16,
+    borderLeftWidth: 4,
+    marginHorizontal: 16,
+    marginTop: 8,
+  },
+  infoTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  infoDescription: {
+    fontSize: 14,
+    lineHeight: 20,
   },
   screenHeader: {
     flexDirection: 'row',

@@ -141,10 +141,10 @@ const FlashcardScreen: React.FC<FlashcardScreenProps> = ({ navigation }) => {
 
             {/* Header with Gradient */}
             <View style={styles.headerBackground}>
-                <LinearGradient
-                    colors={['#2563EB', '#1E3A8A']}
-                    style={StyleSheet.absoluteFill}
-                />
+        <LinearGradient
+          colors={['#06070a', '#1E3A8A']}
+          style={StyleSheet.absoluteFill}
+        />
                 <SafeAreaView edges={['top']} style={styles.headerContent}>
                     <View style={styles.headerTopRow}>
                         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>

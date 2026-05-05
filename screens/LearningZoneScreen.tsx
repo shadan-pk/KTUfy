@@ -131,7 +131,7 @@ const LearningZoneScreen: React.FC<LearningZoneScreenProps> = ({ navigation }) =
       {/* Header with Gradient */}
       <View style={styles.headerBackground}>
         <LinearGradient
-          colors={['#2563EB', '#1E3A8A']}
+          colors={['#06070a', '#1E3A8A']}
           style={StyleSheet.absoluteFill}
         />
         <SafeAreaView edges={['top']} style={styles.headerContent}>
@@ -153,7 +153,7 @@ const LearningZoneScreen: React.FC<LearningZoneScreenProps> = ({ navigation }) =
       <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
 
         {/* Stats Bar */}
-        <View style={[styles.statsBar, { backgroundColor: theme.backgroundSecondary, borderColor: theme.border }]}>
+        {/* <View style={[styles.statsBar, { backgroundColor: theme.backgroundSecondary, borderColor: theme.border }]}>
           <View style={styles.statItem}>
             <View style={[styles.statIconBox, { backgroundColor: theme.primary + '1A' }]}>
               <Trophy size={16} color={theme.primary} />
@@ -182,7 +182,7 @@ const LearningZoneScreen: React.FC<LearningZoneScreenProps> = ({ navigation }) =
               <Text style={[styles.statLabel, { color: theme.textTertiary }]}>Streak</Text>
             </View>
           </View>
-        </View>
+        </View> */}
 
         {/* Section Title */}
         <Text style={[styles.sectionTitle, { color: theme.text }]}>Study Activities</Text>
@@ -258,6 +258,7 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: 30,
     borderBottomRightRadius: 30,
     overflow: 'hidden',
+    marginBottom: 5
   },
   headerContent: {
     paddingHorizontal: 20,
@@ -313,7 +314,7 @@ const styles = StyleSheet.create({
   statDivider: { width: 1, height: 24, marginHorizontal: 12 },
 
   // Section
-  sectionTitle: { fontSize: 13, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10, marginLeft: 4 },
+  sectionTitle: { fontSize: 13, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10,marginTop:10, marginLeft: 4 },
   sectionSubtitle: { fontSize: 13, marginBottom: 16, marginLeft: 4 },
 
   // Game Cards

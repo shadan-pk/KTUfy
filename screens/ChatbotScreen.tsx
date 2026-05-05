@@ -951,10 +951,7 @@ const ChatbotScreen: React.FC<{ navigation: ChatbotScreenNavigationProp }> = ({ 
                     <Gamepad2 size={20} color={'#F472B6'} />
                     <Text style={[styles.sbToolText, { color: theme.text }]}>Learning Zone</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.sbToolItem} onPress={() => { closeSidebar(); navigation.navigate('Library'); }}>
-                    <Library size={20} color={'#38BDF8'} />
-                    <Text style={[styles.sbToolText, { color: theme.text }]}>Library</Text>
-                  </TouchableOpacity>
+                  
                 </View>
 
                 {/* Recent Chats */}
