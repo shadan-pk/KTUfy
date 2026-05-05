@@ -377,6 +377,12 @@ const ChatbotScreen: React.FC<{ navigation: ChatbotScreenNavigationProp }> = ({ 
     setIsTyping(false);
   };
 
+  const isGreeting = (text: string) => {
+    const lowered = text.trim().toLowerCase();
+    const greetings = ['hi', 'hello', 'hey', 'good morning', 'good afternoon', 'good evening'];
+    return greetings.some(g => lowered.startsWith(g));
+  };
+
   const sendMessage = async (messageText: string) => {
     if (!messageText.trim() || isTyping) return;
     setError(null);
@@ -397,23 +403,28 @@ const ChatbotScreen: React.FC<{ navigation: ChatbotScreenNavigationProp }> = ({ 
       return;
     }
 
+    // Greeting handling: quick response without backend
+    if (isGreeting(messageText)) {
+      const greetingMsg: Message = {
+        id: `ai-greeting-${Date.now()}`,
+        text: "Hello! How can I assist you today?",
+        isUser: false,
+        timestamp: new Date(),
+      };
+      setMessages(prev => [...prev, greetingMsg]);
+      // No typing indicator for greetings
+      return;
+    }
+
+    // For other messages, show typing indicator
     setIsTyping(true);
+    setStatusMessage('Thinking...');
+
     const controller = new AbortController();
     setAbortController(controller);
 
     try {
       if (!serverOnline) throw new Error('Offline');
-      
-      // Status message cycling
-      statusIntervalRef.current = setInterval(() => {
-        setStatusMessage(prev => {
-          if (prev.includes('Searching')) return '📊 Analyzing Knowledge Graph...';
-          if (prev.includes('Analyzing')) return '📄 Reading Syllabus...';
-          if (prev.includes('Reading')) return '✍️ Thinking...';
-          return '🔍 Searching syllabus...';
-        });
-      }, 3000);
-      setStatusMessage('🔍 Searching syllabus...');
 
       const response = await sendChatMessage(messageText, currentSessionId || undefined, controller.signal);
       if (statusIntervalRef.current) clearInterval(statusIntervalRef.current);
@@ -426,10 +437,9 @@ const ChatbotScreen: React.FC<{ navigation: ChatbotScreenNavigationProp }> = ({ 
       setStreamingMsgId(aiMsg.id);
       setStreamingText('');
       setMessages(prev => [...prev, { ...aiMsg, text: '' }]);
-      
-      // Wait to set isTyping(false) until typing completes
+
       typewriteMessage(aiMsg.id, aiMsg.text, () => {
-        setIsTyping(false);
+        if (showThinking) setIsTyping(false);
         setAbortController(null);
         setMessages(prev => {
           const updated = prev.map(m => m.id === aiMsg.id ? aiMsg : m);
@@ -440,13 +450,12 @@ const ChatbotScreen: React.FC<{ navigation: ChatbotScreenNavigationProp }> = ({ 
     } catch (err: any) {
       if (statusIntervalRef.current) clearInterval(statusIntervalRef.current);
       if (err.name === 'AbortError') return; // Handled by handleStop
-      
+
       setTimeout(() => {
         let errorText = "⚠️ I am offline right now. Please check your connection.";
         if (err?.message && err.message !== 'Offline') {
-            errorText = `⚠️ ${err.message}`;
+          errorText = `⚠️ ${err.message}`;
         }
-        
         const aiMsg: Message = { id: `ai-${Date.now()}`, text: errorText, isUser: false, timestamp: new Date() };
         setStreamingMsgId(aiMsg.id);
         setStreamingText('');
