@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   Alert,
   ActivityIndicator,
   Platform,
+  TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -124,6 +125,8 @@ export default function SyllabusViewerScreen() {
   const [subjects, setSubjects] = useState<SyllabusSubject[]>([]);
   const [loadingSubjects, setLoadingSubjects] = useState(false);
   const [subjectsError, setSubjectsError] = useState<string | null>(null);
+  const lastFetchedRef = useRef<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Detail view state
   const [selectedSubject, setSelectedSubject] = useState<SyllabusSubject | null>(null);
@@ -147,7 +150,7 @@ export default function SyllabusViewerScreen() {
               const semRaw = profile.semester.toString().toUpperCase().trim();
               const sem = semRaw.startsWith('S') ? semRaw : `S${semRaw}`;
               setSelectedSemester(sem);
-              await fetchSubjectsFor(branchCode, sem);
+                // fetching will be triggered by the selectedBranch/selectedSemester effect below
             }
           }
         } catch (e) {
@@ -160,7 +163,8 @@ export default function SyllabusViewerScreen() {
   // When returning to this screen (focus), ensure subjects are loaded for the selected branch/semester.
   useEffect(() => {
     const unsubscribe = navigation.addListener('focus', () => {
-      if (selectedBranch && selectedSemester && (subjects.length === 0 || subjectsError) && !loadingSubjects) {
+      const key = selectedBranch && selectedSemester ? `${selectedBranch}|${selectedSemester}` : null;
+      if (selectedBranch && selectedSemester && lastFetchedRef.current !== key && !loadingSubjects) {
         fetchSubjectsFor(selectedBranch, selectedSemester);
       }
     });
@@ -170,6 +174,9 @@ export default function SyllabusViewerScreen() {
   // Fetch subjects helper
   async function fetchSubjectsFor(branch: string, semester: string) {
     if (!branch || !semester) return;
+    const key = `${branch}|${semester}`;
+    // Avoid refetching the same branch+semester
+    if (lastFetchedRef.current === key && subjects.length > 0) return;
     setLoadingSubjects(true);
     setSubjectsError(null);
     try {
@@ -181,11 +188,13 @@ export default function SyllabusViewerScreen() {
         const fallback = SUBJECTS_DATA[branch]?.[semester] || [];
         setSubjects(fallback as unknown as SyllabusSubject[]);
       }
+      lastFetchedRef.current = key;
     } catch (err: any) {
       console.error('Error fetching subjects:', err);
       setSubjectsError(err?.message || 'Failed to load subjects');
       const fallback = SUBJECTS_DATA[branch]?.[semester] || [];
       setSubjects(fallback as unknown as SyllabusSubject[]);
+      // keep lastFetchedRef null so subsequent attempts can retry
     } finally {
       setLoadingSubjects(false);
     }
@@ -195,11 +204,26 @@ export default function SyllabusViewerScreen() {
     setSelectedBranch(branchCode);
   };
 
-  const handleSemesterSelect = async (semester: string) => {
+  const handleSemesterSelect = (semester: string) => {
     setSelectedSemester(semester);
     setSubjects([]);
-    if (selectedBranch) await fetchSubjectsFor(selectedBranch, semester);
+    // reset lastFetchedRef so the selectedBranch/selectedSemester effect will fetch
+    lastFetchedRef.current = null;
   };
+
+  // When selectedBranch/selectedSemester change, trigger fetch (covers initial navigation and profile auto-select)
+  useEffect(() => {
+    const key = selectedBranch && selectedSemester ? `${selectedBranch}|${selectedSemester}` : null;
+    if (selectedBranch && selectedSemester && lastFetchedRef.current !== key && !loadingSubjects) {
+      fetchSubjectsFor(selectedBranch, selectedSemester);
+    }
+  }, [selectedBranch, selectedSemester]);
+
+  const displayedSubjects = subjects.filter((s) => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return true;
+    return s.name.toLowerCase().includes(q) || s.code.toLowerCase().includes(q);
+  });
 
   const handleSubjectPress = async (subject: SyllabusSubject) => {
     setSelectedSubject(subject);
@@ -435,6 +459,15 @@ export default function SyllabusViewerScreen() {
             )}
 
             <Text style={[styles.sectionTitle, { color: theme.text }]}>Subjects</Text>
+            <View style={{ marginBottom: 12 }}>
+              <TextInput
+                placeholder="Search subjects by name or code"
+                placeholderTextColor={theme.textTertiary}
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                style={[styles.searchInput, { backgroundColor: theme.card, color: theme.text, borderColor: theme.cardBorder }]}
+              />
+            </View>
             {loadingSubjects ? (
               <View style={styles.loadingContainer}>
                 <ActivityIndicator size="large" color={theme.primary} />
@@ -446,8 +479,12 @@ export default function SyllabusViewerScreen() {
                 <Text style={[styles.emptyStateText, { color: theme.textSecondary }]}>No subjects found</Text>
                 <Text style={[styles.emptyStateSubtext, { color: theme.textTertiary }]}>Syllabus data will be loaded from the server</Text>
               </View>
+            ) : displayedSubjects.length === 0 ? (
+              <View style={styles.emptyState}>
+                <Text style={[styles.emptyStateText, { color: theme.textSecondary }]}>No subjects match "{searchQuery}"</Text>
+              </View>
             ) : (
-              subjects.map((subject, index) => (
+              displayedSubjects.map((subject, index) => (
                 <TouchableOpacity
                   key={index}
                   style={[styles.subjectCard, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}
@@ -951,5 +988,12 @@ const styles = StyleSheet.create({
   emptyStateSubtext: {
     fontSize: 13,
     textAlign: 'center',
+  },
+  searchInput: {
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderWidth: 1,
+    marginBottom: 12,
   },
 });
