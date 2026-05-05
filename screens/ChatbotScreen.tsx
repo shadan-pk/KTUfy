@@ -333,14 +333,79 @@ const ChatbotScreen: React.FC<{ navigation: ChatbotScreenNavigationProp }> = ({ 
     return g;
   }, [sessions]);
 
-  const renderFormattedText = (text: string, color: string) => {
-    const parts = text.split(/(\*\*.*?\*\*)/g);
-    return parts.map((part, i) => {
-      if (part.startsWith('**') && part.endsWith('**')) {
-        return <Text key={i} style={{ fontWeight: '700', color }}>{part.slice(2, -2)}</Text>;
+  const parseMarkdown = (text: string, baseColor: string) => {
+    const lines = text.split('\n');
+    const elements: React.ReactNode[] = [];
+    let i = 0;
+    while (i < lines.length) {
+      const line = lines[i];
+      // Code block detection
+      if (line.startsWith('```')) {
+        const language = line.slice(3).trim();
+        const codeLines: string[] = [];
+        i++;
+        while (i < lines.length && !lines[i].startsWith('```')) {
+          codeLines.push(lines[i]);
+          i++;
+        }
+        elements.push(
+          <View key={`cb-${i}`} style={styles.codeBlock}>
+            {language ? <Text style={styles.codeLang}>{language}</Text> : null}
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              <Text style={styles.codeText}>{codeLines.join('\n')}</Text>
+            </ScrollView>
+          </View>
+        );
+        i++; // skip closing ```
+        continue;
       }
-      return <Text key={i}>{part}</Text>;
-    });
+      // Table detection (at least two pipes)
+      if (line.includes('|')) {
+        const tableRows = [line];
+        i++;
+        while (i < lines.length && lines[i].includes('|')) {
+          tableRows.push(lines[i]);
+          i++;
+        }
+        elements.push(
+          <ScrollView horizontal key={`tbl-${i}`} style={styles.tableWrapper}>
+            <View style={styles.table}>
+              {tableRows.map((row, idx) => {
+                const isHeader = idx === 0;
+                const isSeparator = row.includes('---');
+                if (isSeparator) return null;
+                return (
+                  <View key={`tr-${idx}`} style={styles.tableRow}>
+                    {row.split('|').filter((cell, index, arr) => !(index === 0 && cell.trim() === '') && !(index === arr.length - 1 && cell.trim() === '')).map((cell, cIdx) => (
+                      <Text key={`td-${cIdx}`} style={[styles.tableCell, isHeader && styles.tableHeaderCell, { color: baseColor }]}>
+                        {cell.trim()}
+                      </Text>
+                    ))}
+                  </View>
+                );
+              })}
+            </View>
+          </ScrollView>
+        );
+        continue;
+      }
+      // Inline code and bold text detection
+      const parts = line.split(/(`[^`]+`|\*\*.*?\*\*)/g); 
+      const lineElements = parts.map((part, pIdx) => {
+        if (part.startsWith('`') && part.endsWith('`')) {
+          return <Text key={`ic-${pIdx}`} style={styles.inlineCode}>{part.slice(1, -1)}</Text>;
+        } else if (part.startsWith('**') && part.endsWith('**')) {
+          return <Text key={`bd-${pIdx}`} style={{ fontWeight: '700', color: baseColor }}>{part.slice(2, -2)}</Text>;
+        } else {
+          return <Text key={`tx-${pIdx}`} style={{ color: baseColor }}>{part}</Text>;
+        }
+      });
+      elements.push(
+        <Text key={`p-${i}`} style={[styles.msgText, { color: baseColor }]}>{lineElements}</Text>
+      );
+      i++;
+    }
+    return elements;
   };
 
   // FAB items
@@ -410,24 +475,26 @@ const ChatbotScreen: React.FC<{ navigation: ChatbotScreenNavigationProp }> = ({ 
             {messages.map(m => (
               <View key={m.id} style={[styles.msgRow, m.isUser ? styles.userRow : styles.aiRow]}>
                 {!m.isUser && (
-                  <View style={styles.aiAvatarMsg}>
-                     <LinearGradient colors={['#3B82F6', '#10B981']} style={styles.aiAvatarMsgInner} />
-                  </View>
+                  <View style={[styles.aiLine, { backgroundColor: '#3B82F6' }]} />
                 )}
                 <View style={[styles.bubble, m.isUser ? [styles.userBubble, { backgroundColor: theme.backgroundSecondary }] : [styles.aiBubble, { backgroundColor: 'transparent' }]]}>
                   {(() => {
                     const displayText = m.id === streamingMsgId ? streamingText : m.text;
                     const textColor = theme.text;
-                    return <Text style={[styles.msgText, { color: textColor }]}>{m.isUser ? displayText : renderFormattedText(displayText, textColor)}</Text>;
+                    return m.isUser ? (
+                      <Text style={[styles.msgText, { color: textColor }]}>{displayText}</Text>
+                    ) : (
+                      <View style={styles.markdownContainer}>
+                        {parseMarkdown(displayText, textColor)}
+                      </View>
+                    );
                   })()}
                 </View>
               </View>
             ))}
             {isTyping && (
                <View style={[styles.msgRow, styles.aiRow]}>
-                 <View style={styles.aiAvatarMsg}>
-                     <LinearGradient colors={['#3B82F6', '#10B981']} style={styles.aiAvatarMsgInner} />
-                 </View>
+                 <View style={[styles.aiLine, { backgroundColor: '#3B82F6' }]} />
                  <View style={[styles.bubble, styles.aiBubble, { backgroundColor: 'transparent' }]}>
                    <Text style={{color: theme.textSecondary}}>{statusMessage}</Text>
                  </View>
@@ -714,15 +781,24 @@ const styles = StyleSheet.create({
   chipText: { fontSize: FONT.body, fontWeight: '600', letterSpacing: 0.2 },
   msgList: { flex: 1 },
   msgContent: { padding: 16, paddingBottom: 100 },
-  msgRow: { flexDirection: 'row', marginBottom: 20 },
+  msgRow: { flexDirection: 'row', marginBottom: 12, marginHorizontal: 8 },
   userRow: { justifyContent: 'flex-end' },
   aiRow: { justifyContent: 'flex-start' },
-  aiAvatarMsg: { width: 28, height: 28, borderRadius: 14, marginRight: 12, marginTop: 4 },
-  aiAvatarMsgInner: { width: '100%', height: '100%', borderRadius: 14 },
-  bubble: { maxWidth: '80%', borderRadius: 20, padding: 14 },
+  aiLine: { width: 4, height: 20, borderRadius: 2, marginRight: 12, marginTop: 14 },
+  bubble: { maxWidth: '85%', borderRadius: 20, padding: 12 },
   userBubble: { borderBottomRightRadius: 4 },
-  aiBubble: { paddingLeft: 0 },
+  aiBubble: { paddingLeft: 0, paddingVertical: 4 },
   msgText: { fontSize: FONT.body, lineHeight: 24 },
+  markdownContainer: { flexShrink: 1, gap: 4 },
+  codeBlock: { backgroundColor: '#1E1E1E', borderRadius: 8, padding: 12, marginVertical: 6, overflow: 'hidden' },
+  codeLang: { color: '#888', fontSize: FONT.micro, marginBottom: 4, textAlign: 'right' },
+  codeText: { fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace', fontSize: FONT.body - 2, color: '#D4D4D4' },
+  inlineCode: { backgroundColor: '#2D2D2D', fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace', fontSize: FONT.body - 1, color: '#E06C75', paddingHorizontal: 4, borderRadius: 4 },
+  tableWrapper: { marginVertical: 6, borderRadius: 8, overflow: 'hidden', borderWidth: 1, borderColor: '#333' },
+  table: { minWidth: '100%' },
+  tableRow: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: '#333' },
+  tableCell: { padding: 8, fontSize: FONT.body - 1, borderRightWidth: 1, borderRightColor: '#333', minWidth: 80 },
+  tableHeaderCell: { fontWeight: '700', backgroundColor: '#222' },
   inputArea: { paddingHorizontal: 16, paddingBottom: Platform.OS === 'ios' ? 30 : 16, paddingTop: 10 },
   inputWrap: { flexDirection: 'row', alignItems: 'flex-end', borderRadius: 24, paddingHorizontal: 12, paddingVertical: 8, minHeight: 56 },
   attachBtn: { width: 10, height: 10, justifyContent: 'center', alignItems: 'center' },
