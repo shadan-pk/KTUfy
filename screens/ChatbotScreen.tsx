@@ -50,10 +50,11 @@ const ChatbotScreen: React.FC<{ navigation: ChatbotScreenNavigationProp }> = ({ 
   const [menuSessionId, setMenuSessionId] = useState<string | null>(null);
   const [deleteSessionId, setDeleteSessionId] = useState<string | null>(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [statusMessage, setStatusMessage] = useState('Typing...');
   
   // FAB state
   const [isFabOpen, setIsFabOpen] = useState(false);
-  const fabAnim = useRef(new Animated.Value(0)).current;
+  const fabAnimation = useRef(new Animated.Value(0)).current;
 
   const streamingRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const scrollViewRef = useRef<ScrollView>(null);
@@ -115,8 +116,8 @@ const ChatbotScreen: React.FC<{ navigation: ChatbotScreenNavigationProp }> = ({ 
   const toggleFab = () => {
     const toValue = isFabOpen ? 0 : 1;
     setIsFabOpen(!isFabOpen);
-    Animated.spring(fabAnim, {
-      toValue, friction: 5, tension: 40, useNativeDriver: true
+    Animated.spring(fabAnimation, {
+      toValue, friction: 5, tension: 40, useNativeDriver: false
     }).start();
   };
 
@@ -240,7 +241,21 @@ const ChatbotScreen: React.FC<{ navigation: ChatbotScreenNavigationProp }> = ({ 
 
     try {
       if (!serverOnline) throw new Error('Offline');
+      
+      // Status message cycling
+      const statusInterval = setInterval(() => {
+        setStatusMessage(prev => {
+          if (prev.includes('Searching')) return '📊 Analyzing Knowledge Graph...';
+          if (prev.includes('Analyzing')) return '📄 Reading Syllabus...';
+          if (prev.includes('Reading')) return '✍️ Thinking...';
+          return '🔍 Searching syllabus...';
+        });
+      }, 3000);
+      setStatusMessage('🔍 Searching syllabus...');
+
       const response = await sendChatMessage(messageText, currentSessionId || undefined);
+      clearInterval(statusInterval);
+
       if (!currentSessionId && response.session_id) {
         setCurrentSessionId(response.session_id);
         refreshSessionList();
@@ -257,9 +272,14 @@ const ChatbotScreen: React.FC<{ navigation: ChatbotScreenNavigationProp }> = ({ 
           return updated;
         });
       });
-    } catch {
+    } catch (err: any) {
       setTimeout(() => {
-        const aiMsg: Message = { id: `ai-${Date.now()}`, text: "⚠️ I am offline right now. Please check your connection.", isUser: false, timestamp: new Date() };
+        let errorText = "⚠️ I am offline right now. Please check your connection.";
+        if (err?.message && err.message !== 'Offline') {
+            errorText = `⚠️ ${err.message}`;
+        }
+        
+        const aiMsg: Message = { id: `ai-${Date.now()}`, text: errorText, isUser: false, timestamp: new Date() };
         setStreamingMsgId(aiMsg.id);
         setStreamingText('');
         setMessages(prev => [...prev, { ...aiMsg, text: '' }]);
@@ -409,7 +429,7 @@ const ChatbotScreen: React.FC<{ navigation: ChatbotScreenNavigationProp }> = ({ 
                      <LinearGradient colors={['#3B82F6', '#10B981']} style={styles.aiAvatarMsgInner} />
                  </View>
                  <View style={[styles.bubble, styles.aiBubble, { backgroundColor: 'transparent' }]}>
-                   <Text style={{color: theme.textSecondary}}>Typing...</Text>
+                   <Text style={{color: theme.textSecondary}}>{statusMessage}</Text>
                  </View>
                </View>
             )}
@@ -453,7 +473,7 @@ const ChatbotScreen: React.FC<{ navigation: ChatbotScreenNavigationProp }> = ({ 
             { 
               backgroundColor: 'rgba(0,0,0,0.8)', 
               zIndex: 40,
-              opacity: fabAnim,  // fades in/out with the FAB animation
+              opacity: fabAnimation,  // fades in/out with the FAB animation
             }
           ]}
           pointerEvents="none"  // let touches pass through to the TouchableOpacity below
@@ -480,16 +500,16 @@ const ChatbotScreen: React.FC<{ navigation: ChatbotScreenNavigationProp }> = ({ 
           ]}
         >
         {fabItems.map((item, index) => {
-          const translateY = fabAnim.interpolate({
+          const translateY = fabAnimation.interpolate({
             inputRange: [0, 1],
             outputRange: [0, -fabItemSpacing * (index + 1)]
           });
-          const scale = fabAnim.interpolate({
+          const scale = fabAnimation.interpolate({
             inputRange: [0, 0.5, 1],
             outputRange: [0, 0.5, 1]
           });
           return (
-            <Animated.View key={index} pointerEvents={isFabOpen ? 'auto' : 'none'} style={[styles.fabItemWrap, { transform: [{ translateY }, { scale }], opacity: fabAnim }]}>
+            <Animated.View key={index} pointerEvents={isFabOpen ? 'auto' : 'none'} style={[styles.fabItemWrap, { transform: [{ translateY }, { scale }], opacity: fabAnimation }]}>
               <View style={[styles.fabLabelWrap, { backgroundColor: theme.backgroundSecondary }]}>
                 <Text numberOfLines={1} ellipsizeMode="tail" style={[styles.fabLabel, { color: theme.text }]}>{item.label}</Text>
               </View>
@@ -502,7 +522,7 @@ const ChatbotScreen: React.FC<{ navigation: ChatbotScreenNavigationProp }> = ({ 
         
         {/* Main FAB */}
         <Animated.View style={[styles.mainFabWrap, {
-          transform: [{ rotate: fabAnim.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '45deg'] }) }]
+          transform: [{ rotate: fabAnimation.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '45deg'] }) }]
         }]}>
           <TouchableOpacity onPress={toggleFab} activeOpacity={0.8}>
             <LinearGradient colors={['#3B82F6', '#10B981']} style={styles.mainFab}>

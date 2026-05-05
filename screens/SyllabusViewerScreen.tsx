@@ -8,14 +8,15 @@ import {
   Alert,
   ActivityIndicator,
   Platform,
-  BackHandler,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { SyllabusViewerScreenNavigationProp } from '../types/navigation';
 import { useTheme } from '../contexts/ThemeContext';
+import { useAuth } from '../auth/AuthProvider';
+import { getUserProfile } from '../supabaseConfig';
 import { ArrowLeft, Download, ChevronDown, ChevronRight, BookOpen, Monitor, Radio, Zap, Cog, Building2, Laptop, Plug, Dna, FlaskConical, Factory, BookX, AlertTriangle, GraduationCap } from 'lucide-react-native';
-import { getSubjectSyllabus, syllabusToText, SubjectSyllabus } from '../services/syllabusService';
+import { getSubjectSyllabus, getSubjects, syllabusToText, SubjectSyllabus, SyllabusSubject } from '../services/syllabusService';
 import { File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 
@@ -112,38 +113,85 @@ const SUBJECTS_DATA: { [key: string]: { [key: string]: Array<{ name: string; cod
   },
 };
 
-interface Subject {
-  name: string;
-  code: string;
-  credits: number;
-}
-
 export default function SyllabusViewerScreen() {
   const navigation = useNavigation<SyllabusViewerScreenNavigationProp>();
   const { theme, isDark } = useTheme();
+  const { user: authUser } = useAuth();
 
+  const [userData, setUserData] = useState<any>(null);
   const [selectedBranch, setSelectedBranch] = useState<string | null>(null);
   const [selectedSemester, setSelectedSemester] = useState<string | null>(null);
-  const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [subjects, setSubjects] = useState<SyllabusSubject[]>([]);
+  const [loadingSubjects, setLoadingSubjects] = useState(false);
+  const [subjectsError, setSubjectsError] = useState<string | null>(null);
 
   // Detail view state
-  const [selectedSubject, setSelectedSubject] = useState<Subject | null>(null);
+  const [selectedSubject, setSelectedSubject] = useState<SyllabusSubject | null>(null);
   const [syllabusDetail, setSyllabusDetail] = useState<SubjectSyllabus | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
   const [expandedModules, setExpandedModules] = useState<Set<number>>(new Set());
 
+  // Load user profile to auto-select their branch and semester
+  useEffect(() => {
+    // Load user profile and fetch tailored subjects for their branch/semester
+    (async () => {
+      if (authUser) {
+        try {
+          const profile = await getUserProfile(authUser.id);
+          setUserData(profile);
+          if (profile?.branch) {
+            const branchCode = profile.branch.toUpperCase();
+            setSelectedBranch(branchCode);
+            if (profile?.semester) {
+              const semRaw = profile.semester.toString().toUpperCase().trim();
+              const sem = semRaw.startsWith('S') ? semRaw : `S${semRaw}`;
+              setSelectedSemester(sem);
+              await fetchSubjectsFor(branchCode, sem);
+            }
+          }
+        } catch (e) {
+          console.error('Failed to load profile or subjects:', e);
+        }
+      }
+    })();
+  }, [authUser]);
+
+  // Fetch subjects helper
+  async function fetchSubjectsFor(branch: string, semester: string) {
+    if (!branch || !semester) return;
+    setLoadingSubjects(true);
+    setSubjectsError(null);
+    try {
+      const data = await getSubjects(branch, semester);
+      if (data && data.length) {
+        setSubjects(data);
+      } else {
+        // fallback to bundled SUBJECTS_DATA when backend returns empty
+        const fallback = SUBJECTS_DATA[branch]?.[semester] || [];
+        setSubjects(fallback as unknown as SyllabusSubject[]);
+      }
+    } catch (err: any) {
+      console.error('Error fetching subjects:', err);
+      setSubjectsError(err?.message || 'Failed to load subjects');
+      const fallback = SUBJECTS_DATA[branch]?.[semester] || [];
+      setSubjects(fallback as unknown as SyllabusSubject[]);
+    } finally {
+      setLoadingSubjects(false);
+    }
+  }
+
   const handleBranchSelect = (branchCode: string) => {
     setSelectedBranch(branchCode);
   };
 
-  const handleSemesterSelect = (semester: string) => {
+  const handleSemesterSelect = async (semester: string) => {
     setSelectedSemester(semester);
-    const branchSubjects = SUBJECTS_DATA[selectedBranch!]?.[semester] || [];
-    setSubjects(branchSubjects);
+    setSubjects([]);
+    if (selectedBranch) await fetchSubjectsFor(selectedBranch, semester);
   };
 
-  const handleSubjectPress = async (subject: Subject) => {
+  const handleSubjectPress = async (subject: SyllabusSubject) => {
     setSelectedSubject(subject);
     setSyllabusDetail(null);
     setDetailError(null);
@@ -215,38 +263,38 @@ export default function SyllabusViewerScreen() {
     }
   };
 
-  const handleBack = useCallback(() => {
+  const goUpOneLevel = useCallback(() => {
     if (selectedSubject) {
       setSelectedSubject(null);
       setSyllabusDetail(null);
       setDetailError(null);
+      return true;
     } else if (selectedSemester) {
       setSelectedSemester(null);
       setSubjects([]);
+      return true;
     } else if (selectedBranch) {
       setSelectedBranch(null);
-    } else {
-      navigation.goBack();
-      return false;
+      return true;
     }
-    return true;
-  }, [selectedSubject, selectedSemester, selectedBranch, navigation]);
+    return false;
+  }, [selectedSubject, selectedSemester, selectedBranch]);
 
-  // Intercept hardware/swipe back to navigate within screen hierarchy
-  useEffect(() => {
-    const backHandler = BackHandler.addEventListener('hardwareBackPress', handleBack);
-    return () => backHandler.remove();
-  }, [handleBack]);
+  const onHeaderBackPress = useCallback(() => {
+    if (!goUpOneLevel()) {
+      navigation.goBack();
+    }
+  }, [goUpOneLevel, navigation]);
 
   useEffect(() => {
     const unsubscribe = navigation.addListener('beforeRemove', (e: any) => {
-      if (selectedBranch || selectedSemester || selectedSubject) {
+      // Prevent default back behavior if we can go up one nested level
+      if (goUpOneLevel()) {
         e.preventDefault();
-        handleBack();
       }
     });
     return unsubscribe;
-  }, [navigation, selectedBranch, selectedSemester, selectedSubject, handleBack]);
+  }, [navigation, goUpOneLevel]);
 
   const getBreadcrumb = () => {
     const parts = ['Syllabus'];
@@ -265,7 +313,7 @@ export default function SyllabusViewerScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
       {/* Header */}
       <View style={[styles.header, { borderBottomColor: theme.border }]}>
-        <TouchableOpacity onPress={handleBack} style={styles.headerIconBtn}>
+          <TouchableOpacity onPress={onHeaderBackPress} style={styles.headerIconBtn}>
           <ArrowLeft size={20} color={theme.text} strokeWidth={2} />
         </TouchableOpacity>
         <View style={styles.headerCenter}>
@@ -361,16 +409,32 @@ export default function SyllabusViewerScreen() {
             </View>
           </View>
         ) : !selectedSubject ? (
-          /* Step 3: Subject List — simple tappable cards */
+          /* Step 3: Subject List */
           <View>
+            {userData && selectedBranch === userData.branch?.toUpperCase() && selectedSemester === userData.semester?.toUpperCase() && (
+              <View style={[styles.infoCard, {
+                backgroundColor: isDark ? (theme.success + '14') : (theme.success + '12'),
+                borderLeftColor: theme.success,
+                marginTop: 4,
+              }]}>
+                <Text style={[styles.infoTitle, { color: theme.text }]}>Hi {userData.name?.split(' ')[0] || 'there'}!</Text>
+                <Text style={[styles.infoDescription, { color: theme.textSecondary }]}>
+                  Here is your tailored syllabus for {userData.branch} {userData.semester}. You can press back to explore other branches and semesters.
+                </Text>
+              </View>
+            )}
+
             <Text style={[styles.sectionTitle, { color: theme.text }]}>Subjects</Text>
-            {subjects.length === 0 ? (
+            {loadingSubjects ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color={theme.primary} />
+                <Text style={[styles.loadingText, { color: theme.textSecondary }]}>Loading subjects…</Text>
+              </View>
+            ) : subjects.length === 0 ? (
               <View style={styles.emptyState}>
                 <GraduationCap size={56} color={theme.textTertiary} strokeWidth={1.5} />
                 <Text style={[styles.emptyStateText, { color: theme.textSecondary }]}>No subjects found</Text>
-                <Text style={[styles.emptyStateSubtext, { color: theme.textTertiary }]}>
-                  Syllabus data will be loaded from the server
-                </Text>
+                <Text style={[styles.emptyStateSubtext, { color: theme.textTertiary }]}>Syllabus data will be loaded from the server</Text>
               </View>
             ) : (
               subjects.map((subject, index) => (

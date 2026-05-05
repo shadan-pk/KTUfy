@@ -8,9 +8,9 @@ async function getSessionToken(): Promise<string | null> {
 export async function apiFetch(input: RequestInfo, init?: RequestInit) {
   let token = await getSessionToken();
 
-  // Timeout: abort after 8 seconds so the app doesn't hang on Expo/Android
+  // Timeout: abort after 30 seconds so the app doesn't hang but has time for RAG
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 8000);
+  const timeoutId = setTimeout(() => controller.abort(), 30000);
 
   const makeRequest = async (t: string | null) => {
     const headers = new Headers(init?.headers as any || {});
