@@ -105,6 +105,7 @@ const ChatbotScreen: React.FC<{ navigation: ChatbotScreenNavigationProp }> = ({ 
   const [inputAreaHeight, setInputAreaHeight] = useState(90);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [showScrollBottom, setShowScrollBottom] = useState(false);
+  const scrollBottomOpacity = useRef(new Animated.Value(0)).current;
 
   // Load user profile & upcoming exams
   useEffect(() => {
@@ -250,7 +251,14 @@ const ChatbotScreen: React.FC<{ navigation: ChatbotScreenNavigationProp }> = ({ 
   const handleScroll = (event: any) => {
     const { layoutMeasurement, contentOffset, contentSize } = event.nativeEvent;
     const isCloseToBottom = layoutMeasurement.height + contentOffset.y >= contentSize.height - 150;
-    setShowScrollBottom(!isCloseToBottom);
+    
+    if (!isCloseToBottom && !showScrollBottom) {
+      setShowScrollBottom(true);
+      Animated.spring(scrollBottomOpacity, { toValue: 1, useNativeDriver: true, speed: 20, bounciness: 4 }).start();
+    } else if (isCloseToBottom && showScrollBottom) {
+      setShowScrollBottom(false);
+      Animated.spring(scrollBottomOpacity, { toValue: 0, useNativeDriver: true, speed: 20, bounciness: 0 }).start();
+    }
   };
 
   const scrollToBottom = () => {
@@ -705,12 +713,22 @@ const ChatbotScreen: React.FC<{ navigation: ChatbotScreenNavigationProp }> = ({ 
         )}
 
         {/* Scroll To Bottom Button */}
-        {showScrollBottom && messages.length > 0 && (
-          <View style={[styles.scrollBottomContainer, { bottom: inputAreaHeight + 12 }]} pointerEvents="box-none">
+        {messages.length > 0 && (
+          <Animated.View 
+            style={[
+              styles.scrollBottomContainer, 
+              { 
+                bottom: inputAreaHeight + 12, 
+                opacity: scrollBottomOpacity,
+                transform: [{ scale: scrollBottomOpacity.interpolate({ inputRange: [0, 1], outputRange: [0.8, 1] }) }]
+              }
+            ]} 
+            pointerEvents={showScrollBottom ? "box-none" : "none"}
+          >
             <TouchableOpacity style={[styles.scrollBottomBtn, { backgroundColor: theme.backgroundSecondary, borderColor: theme.border }]} onPress={scrollToBottom}>
               <ArrowDown size={18} color={theme.textSecondary} />
             </TouchableOpacity>
-          </View>
+          </Animated.View>
         )}
 
         {/* Bottom Input */}

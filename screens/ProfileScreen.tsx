@@ -13,13 +13,28 @@ import {
   Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '../auth/AuthProvider';
 import supabase from '../supabaseClient';
 import { getUserProfile } from '../supabaseConfig';
 import { ProfileScreenNavigationProp } from '../types/navigation';
 import { useTheme } from '../contexts/ThemeContext';
 import { getCachedUserProfile, setCachedUserProfile } from '../services/cacheService';
-import { Settings, ChevronRight, ArrowLeft } from 'lucide-react-native';
+import {
+  Settings,
+  ChevronRight,
+  ArrowLeft,
+  User,
+  Mail,
+  Book,
+  School,
+  Calendar,
+  Hash,
+  GraduationCap,
+  LogOut,
+  Key,
+  Edit2
+} from 'lucide-react-native';
 import { ProfileScreenSkeleton } from '../components/SkeletonLoader';
 
 const { width } = Dimensions.get('window');
@@ -221,115 +236,139 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={theme.background} />
+      <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
 
-      <SafeAreaView edges={['top']} style={{ backgroundColor: theme.background }}>
-        {/* Minimal header */}
-        <View style={[styles.header, { borderBottomColor: theme.divider }]}>
-          <Text style={[styles.headerTitle, { color: theme.text }]}>Profile</Text>
-          <TouchableOpacity onPress={() => navigation.navigate('Settings')} style={styles.headerBtn}>
-            <Settings size={22} color={theme.text} strokeWidth={2.2} />
-          </TouchableOpacity>
+      <ScrollView
+        style={styles.scroll}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: 40 }}
+      >
+        {/* Header Background */}
+        <View style={styles.headerBackground}>
+          <LinearGradient
+            colors={['#2563EB', '#1E3A8A']}
+            style={StyleSheet.absoluteFill}
+          />
+          <SafeAreaView edges={['top']} style={styles.headerContent}>
+            <View style={styles.headerTopRow}>
+              <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+                <ArrowLeft size={24} color="#FFF" />
+              </TouchableOpacity>
+              <Text style={styles.headerTitleText}>My Profile</Text>
+              <TouchableOpacity onPress={() => navigation.navigate('Settings')} style={styles.backBtn}>
+                <Settings size={22} color="#FFF" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Profile Summary in Header */}
+            <View style={styles.profileSummary}>
+              <View style={styles.avatarWrapper}>
+                <View style={[styles.avatar, { backgroundColor: 'rgba(255,255,255,0.2)', borderColor: '#FFF' }]}>
+                  <Text style={styles.avatarLetter}>{getInitial()}</Text>
+                </View>
+                <TouchableOpacity style={styles.editAvatarBtn} onPress={handleEdit}>
+                  <Edit2 size={14} color="#FFF" />
+                </TouchableOpacity>
+              </View>
+              <Text style={styles.userName}>{userData?.name || 'Student'}</Text>
+              <Text style={styles.userEmail}>{userData?.email || supabaseUser?.email}</Text>
+
+              <View style={styles.badgeRow}>
+                {userData?.branch && (
+                  <View style={styles.headerBadge}>
+                    <Text style={styles.headerBadgeText}>{userData.branch}</Text>
+                  </View>
+                )}
+                {userData?.semester && (
+                  <View style={styles.headerBadge}>
+                    <Text style={styles.headerBadgeText}>{userData.semester}</Text>
+                  </View>
+                )}
+              </View>
+            </View>
+          </SafeAreaView>
         </View>
-      </SafeAreaView>
 
-      {loading ? (
-        <ProfileScreenSkeleton />
-      ) : (
-        <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
-          {/* Avatar + Name Card */}
-          <View style={[styles.profileCard, { borderBottomColor: theme.divider }]}>
-            <View style={[styles.avatar, { backgroundColor: theme.primary }]}>
-              <Text style={[styles.avatarLetter, { color: '#FFFFFF' }]}>{getInitial()}</Text>
-            </View>
-            <Text style={[styles.name, { color: theme.text }]}>
-              {userData?.name || supabaseUser?.email || 'Student'}
-            </Text>
-            <Text style={[styles.email, { color: theme.textSecondary }]}>{userData?.email || supabaseUser?.email}</Text>
-
-            {/* Quick info badges */}
-            <View style={styles.badges}>
-              {userData?.branch && (
-                <View style={[styles.badge, { backgroundColor: theme.primary + '1A', borderColor: theme.primaryLight + '40' }]}>
-                  <Text style={[styles.badgeText, { color: theme.primaryLight }]}>{userData.branch}</Text>
+        <View style={styles.contentBody}>
+          {loading ? (
+            <View style={{ marginTop: 20 }}><ProfileScreenSkeleton /></View>
+          ) : (
+            <>
+              {error && (
+                <View style={[styles.errorBanner, { backgroundColor: theme.error + '14', borderLeftColor: theme.error }]}>
+                  <Text style={[styles.errorText, { color: theme.error }]}>⚠ {error}</Text>
                 </View>
               )}
-              {getBatch() && (
-                <View style={[styles.badge, { backgroundColor: theme.primary + '1A', borderColor: theme.primaryLight + '40' }]}>
-                  <Text style={[styles.badgeText, { color: theme.primaryLight }]}>{getBatch()}</Text>
-                </View>
-              )}
-              {userData?.college && (
-                <View style={[styles.badge, { backgroundColor: theme.primary + '1A', borderColor: theme.primaryLight + '40' }]}>
-                  <Text style={[styles.badgeText, { color: theme.primaryLight }]}>{userData.college}</Text>
-                </View>
-              )}
-            </View>
-          </View>
 
-          {error && (
-            <View style={[styles.errorBanner, { backgroundColor: theme.error + '14', borderLeftColor: theme.error }]}>
-              <Text style={[styles.errorText, { color: theme.error }]}>⚠ {error}</Text>
-            </View>
-          )}
-
-          {/* Academic Info */}
-          {userData?.registration_number && (
-            <View style={[styles.card, { backgroundColor: theme.backgroundSecondary, borderColor: theme.border }]}>
-              <Text style={[styles.cardTitle, { color: theme.textTertiary }]}>Academic</Text>
-              <View style={[styles.row, { borderBottomColor: theme.divider }]}>
-                <Text style={[styles.rowLabel, { color: theme.textSecondary }]}>Registration</Text>
-                <Text style={[styles.rowValue, { color: theme.text }]}>{userData.registration_number}</Text>
+              {/* Information Section */}
+              <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>Academic Information</Text>
+              <View style={[styles.card, { backgroundColor: theme.backgroundSecondary, borderColor: theme.border }]}>
+                <ProfileRow
+                  icon={Hash}
+                  label="Registration No."
+                  value={userData?.registration_number || '—'}
+                  theme={theme}
+                />
+                <ProfileRow
+                  icon={School}
+                  label="College"
+                  value={userData?.college || '—'}
+                  theme={theme}
+                />
+                <ProfileRow
+                  icon={Book}
+                  label="Branch"
+                  value={userData?.branch || '—'}
+                  theme={theme}
+                />
+                <ProfileRow
+                  icon={GraduationCap}
+                  label="Semester"
+                  value={userData?.semester || '—'}
+                  theme={theme}
+                />
+                <ProfileRow
+                  icon={Calendar}
+                  label="Batch"
+                  value={getBatch() || '—'}
+                  theme={theme}
+                  isLast
+                />
               </View>
-              {userData?.roll_number && (
-                <View style={[styles.row, { borderBottomColor: theme.divider }]}>
-                  <Text style={[styles.rowLabel, { color: theme.textSecondary }]}>Roll Number</Text>
-                  <Text style={[styles.rowValue, { color: theme.text }]}>{userData.roll_number}</Text>
-                </View>
-              )}
-            </View>
-          )}
 
-          {/* Account Info */}
-          <View style={[styles.card, { backgroundColor: theme.backgroundSecondary, borderColor: theme.border }]}>
-            <Text style={[styles.cardTitle, { color: theme.textTertiary }]}>Account</Text>
-            <View style={[styles.row, { borderBottomColor: theme.divider }]}>
-              <Text style={[styles.rowLabel, { color: theme.textSecondary }]}>Email Verified</Text>
-              <View style={[styles.statusBadge, supabaseUser?.email_confirmed_at ? { backgroundColor: theme.success + '26' } : { backgroundColor: theme.warning + '26' }]}>
-                <Text style={[styles.statusText, { color: supabaseUser?.email_confirmed_at ? theme.success : theme.warning }]}>
-                  {supabaseUser?.email_confirmed_at ? 'Verified' : 'Pending'}
-                </Text>
+              <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>Account Settings</Text>
+              <View style={[styles.card, { backgroundColor: theme.backgroundSecondary, borderColor: theme.border }]}>
+                {/* <TouchableOpacity style={styles.menuItem} onPress={handleEdit}>
+                  <View style={[styles.menuIcon, { backgroundColor: theme.primary + '1A' }]}>
+                    <User size={18} color={theme.primary} />
+                  </View>
+                  <Text style={[styles.menuLabel, { color: theme.text }]}>Edit Profile</Text>
+                  <ChevronRight size={18} color={theme.textTertiary} />
+                </TouchableOpacity>
+
+                <TouchableOpacity style={styles.menuItem} onPress={handleResetPassword}>
+                  <View style={[styles.menuIcon, { backgroundColor: theme.success + '1A' }]}>
+                    <Key size={18} color={theme.success} />
+                  </View>
+                  <Text style={[styles.menuLabel, { color: theme.text }]}>Change Password</Text>
+                  <ChevronRight size={18} color={theme.textTertiary} />
+                </TouchableOpacity> */}
+
+                <TouchableOpacity style={[styles.menuItem, { borderBottomWidth: 0 }]} onPress={handleLogout}>
+                  <View style={[styles.menuIcon, { backgroundColor: theme.error + '1A' }]}>
+                    <LogOut size={18} color={theme.error} />
+                  </View>
+                  <Text style={[styles.menuLabel, { color: theme.error }]}>Logout</Text>
+                  <ChevronRight size={18} color={theme.error} />
+                </TouchableOpacity>
               </View>
-            </View>
-            <View style={[styles.row, { borderBottomColor: theme.divider }]}>
-              <Text style={[styles.rowLabel, { color: theme.textSecondary }]}>Member Since</Text>
-              <Text style={[styles.rowValue, { color: theme.text }]}>
-                {supabaseUser?.created_at
-                  ? new Date(supabaseUser.created_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
-                  : '—'}
-              </Text>
-            </View>
-          </View>
 
-          {/* Actions */}
-          <View style={styles.actions}>
-            <TouchableOpacity style={[styles.actionBtn, { backgroundColor: theme.backgroundSecondary, borderColor: theme.border }]} onPress={handleEdit}>
-              <Text style={[styles.actionText, { color: theme.text }]}>Edit Profile</Text>
-              <ChevronRight size={20} color={theme.textTertiary} strokeWidth={1.8} />
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.actionBtn, { backgroundColor: theme.backgroundSecondary, borderColor: theme.border }]} onPress={handleResetPassword}>
-              <Text style={[styles.actionText, { color: theme.text }]}>Change Password</Text>
-              <ChevronRight size={20} color={theme.textTertiary} strokeWidth={1.8} />
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.actionBtn, styles.actionDanger, { backgroundColor: theme.backgroundSecondary, borderColor: theme.error + '4D' }]} onPress={handleLogout}>
-              <Text style={[styles.actionText, { color: theme.error }]}>Logout</Text>
-              <ChevronRight size={20} color={theme.error} strokeWidth={1.8} />
-            </TouchableOpacity>
-          </View>
-
-          <View style={{ height: 24 }} />
-        </ScrollView>
-      )}
+              {/* Version Info */}
+              <Text style={[styles.versionText, { color: theme.textTertiary }]}>KTUfy v1.0.4 (Stable)</Text>
+            </>
+          )}
+        </View>
+      </ScrollView>
 
       {/* Edit Modal */}
       <Modal visible={showEdit} animationType="slide" transparent onRequestClose={() => setShowEdit(false)}>
@@ -455,133 +494,267 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
   );
 };
 
+const ProfileRow = ({ icon: Icon, label, value, theme, isLast }: any) => (
+  <View style={[styles.infoRow, !isLast && { borderBottomWidth: 1, borderBottomColor: theme.divider }]}>
+    <View style={[styles.infoIconBox, { backgroundColor: theme.backgroundTertiary }]}>
+      <Icon size={16} color={theme.textSecondary} />
+    </View>
+    <View style={styles.infoContent}>
+      <Text style={[styles.infoLabel, { color: theme.textTertiary }]}>{label}</Text>
+      <Text style={[styles.infoValue, { color: theme.text }]}>{value}</Text>
+    </View>
+  </View>
+);
+
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  // Header
-  header: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 16, paddingVertical: 10,
-    borderBottomWidth: 1,
+  scroll: { flex: 1 },
+  headerBackground: {
+    paddingBottom: 40,
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
+    overflow: 'hidden',
+    marginBottom: 20
   },
-  headerBtn: { width: 40, height: 40, justifyContent: 'center', alignItems: 'center', borderRadius: 10 },
-  headerBtnText: { fontSize: 20 },
-  headerTitle: { fontSize: FONT.body, fontWeight: '700', paddingLeft: 5 },
-  // Loading
-  loadWrap: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  // Scroll
-  scroll: { flex: 1, paddingHorizontal: 16 },
-  // Profile card
-  profileCard: {
-    alignItems: 'center', paddingVertical: 28,
-    borderBottomWidth: 1,
+  headerContent: {
+    paddingHorizontal: 20,
+    paddingTop: 10,
+  },
+  headerTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 15,
+  },
+  backBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerTitleText: {
+    color: '#FFF',
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  profileSummary: {
+    alignItems: 'center',
+    marginTop: 10,
+  },
+  avatarWrapper: {
+    position: 'relative',
     marginBottom: 16,
   },
   avatar: {
-    width: 80, height: 80, borderRadius: 40,
-    justifyContent: 'center', alignItems: 'center',
-    marginBottom: 14,
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    borderWidth: 3,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  avatarLetter: { fontSize: 32, fontWeight: '700' },
-  name: { fontSize: FONT.h1, fontWeight: '700', marginBottom: 4 },
-  email: { fontSize: FONT.caption, marginBottom: 12 },
-  badges: { flexDirection: 'row', gap: 8, flexWrap: 'wrap', justifyContent: 'center' },
-  badge: {
-    paddingHorizontal: 12, paddingVertical: 5, borderRadius: 10,
-    borderWidth: 1,
+  avatarLetter: {
+    color: '#FFF',
+    fontSize: 40,
+    fontWeight: '700',
   },
-  badgeText: { fontSize: FONT.micro, fontWeight: '600' },
-  // Error
-  errorBanner: {
-    borderLeftWidth: 3,
-    paddingHorizontal: 16, paddingVertical: 10, borderRadius: 8, marginBottom: 16,
+  editAvatarBtn: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    backgroundColor: '#3B82F6',
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#FFF',
   },
-  errorText: { fontSize: FONT.caption },
-  // Cards
+  userName: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: '#FFF',
+    marginBottom: 4,
+  },
+  userEmail: {
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.8)',
+    marginBottom: 16,
+  },
+  badgeRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  headerBadge: {
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  headerBadgeText: {
+    color: '#FFF',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  contentBody: {
+    paddingHorizontal: 20,
+    marginTop: -30,
+  },
+  sectionTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginTop: 25,
+    marginBottom: 10,
+    marginLeft: 4,
+  },
   card: {
-    borderRadius: 14,
-    padding: 16, marginBottom: 12,
+    borderRadius: 20,
     borderWidth: 1,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    elevation: 3,
   },
-  cardTitle: {
-    fontSize: FONT.caption, fontWeight: '700',
-    textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 12,
+  infoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
   },
-  row: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingVertical: 8,
-    borderBottomWidth: 1,
+  infoIconBox: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 15,
   },
-  rowLabel: { fontSize: FONT.body },
-  rowValue: { fontSize: FONT.body, fontWeight: '500' },
-  statusBadge: { paddingHorizontal: 10, paddingVertical: 3, borderRadius: 8 },
-  statusText: { fontSize: FONT.micro, fontWeight: '600' },
-  // Actions
-  actions: { marginTop: 8 },
-  actionBtn: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+  infoContent: {
+    flex: 1,
+  },
+  infoLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  infoValue: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  menuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    // paddingVertical: 14,
+    // borderBottomWidth: 1,
+    // borderBottomColor: 'rgba(0,0,0,0.05)',
+  },
+  menuIcon: {
+    width: 40,
+    height: 40,
     borderRadius: 12,
-    paddingHorizontal: 16, paddingVertical: 14,
-    marginBottom: 8, borderWidth: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 15,
   },
-  actionDanger: {},
-  actionText: { fontSize: FONT.body, fontWeight: '500' },
-  actionArrow: { fontSize: 20, fontWeight: '300' },
-  // Modal
+  menuLabel: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  errorBanner: {
+    borderLeftWidth: 4,
+    padding: 12,
+    borderRadius: 8,
+    marginVertical: 10,
+  },
+  errorText: {
+    fontSize: 14,
+  },
+  versionText: {
+    textAlign: 'center',
+    marginTop: 30,
+    fontSize: 12,
+    fontWeight: '500',
+  },
   modalOverlay: {
-    flex: 1, backgroundColor: 'rgba(0,0,0,0.6)',
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.7)',
     justifyContent: 'flex-end',
   },
   modal: {
-    borderTopLeftRadius: 24, borderTopRightRadius: 24,
-    paddingHorizontal: 20, paddingTop: 20, paddingBottom: Platform.OS === 'ios' ? 40 : 24,
-    maxHeight: '85%',
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    paddingHorizontal: 20,
+    paddingTop: 24,
+    paddingBottom: Platform.OS === 'ios' ? 40 : 24,
+    maxHeight: '90%',
   },
   modalHeader: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    marginBottom: 20,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 24,
   },
-  modalTitle: { fontSize: FONT.h2, fontWeight: '700' },
-  modalClose: { fontSize: 18, fontWeight: '600' },
-  inputGroup: { marginBottom: 14 },
+  modalTitle: { fontSize: 20, fontWeight: '800' },
+  modalClose: { fontSize: 24, fontWeight: '400' },
+  inputGroup: { marginBottom: 18 },
   inputLabel: {
-    fontSize: FONT.caption, fontWeight: '600',
-    marginBottom: 6, letterSpacing: 0.3,
+    fontSize: 12,
+    fontWeight: '700',
+    marginBottom: 8,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   textInput: {
-    borderRadius: 12,
-    paddingHorizontal: 14, paddingVertical: 12,
-    fontSize: FONT.body,
-    borderWidth: 1,
+    borderRadius: 15,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 16,
+    borderWidth: 1.5,
   },
   modalActions: {
-    flexDirection: 'row', gap: 12, marginTop: 20,
+    flexDirection: 'row',
+    gap: 15,
+    marginTop: 25,
   },
   cancelBtn: {
-    flex: 1, paddingVertical: 14, borderRadius: 12,
-    borderWidth: 1,
+    flex: 1,
+    paddingVertical: 16,
+    borderRadius: 15,
+    borderWidth: 1.5,
     alignItems: 'center',
   },
-  cancelText: { fontSize: FONT.body, fontWeight: '500' },
+  cancelText: { fontSize: 16, fontWeight: '700' },
   saveBtn: {
-    flex: 1, paddingVertical: 14, borderRadius: 12,
+    flex: 1,
+    paddingVertical: 16,
+    borderRadius: 15,
     alignItems: 'center',
+    shadowColor: '#3B82F6',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
   },
-  saveText: { fontSize: FONT.body, fontWeight: '600' },
-  // Alert Modal
+  saveText: { fontSize: 16, fontWeight: '700' },
   alertModal: {
-    borderRadius: 16,
-    padding: 24, borderWidth: 1,
+    borderRadius: 24,
+    padding: 24,
+    borderWidth: 1,
   },
-  alertTitle: { fontSize: FONT.h2, fontWeight: '700', marginBottom: 8 },
-  alertMessage: { fontSize: FONT.body, marginBottom: 24, lineHeight: 22 },
+  alertTitle: { fontSize: 20, fontWeight: '800', marginBottom: 10 },
+  alertMessage: { fontSize: 15, marginBottom: 25, lineHeight: 22 },
   alertActions: { flexDirection: 'row', gap: 12, justifyContent: 'flex-end' },
-  alertCancelBtn: { paddingVertical: 10, paddingHorizontal: 16, borderRadius: 8 },
-  alertCancelText: { fontSize: FONT.body, fontWeight: '500' },
-  alertConfirmBtn: { paddingVertical: 10, paddingHorizontal: 16, borderRadius: 8 },
-  alertConfirmText: { fontSize: FONT.body, fontWeight: '600' },
+  alertCancelBtn: { paddingVertical: 12, paddingHorizontal: 20 },
+  alertCancelText: { fontSize: 15, fontWeight: '600' },
+  alertConfirmBtn: { paddingVertical: 12, paddingHorizontal: 25, borderRadius: 12 },
+  alertConfirmText: { fontSize: 15, fontWeight: '700' },
 });
-
-// (Removed duplicate styles block)
-
 
 export default ProfileScreen;
