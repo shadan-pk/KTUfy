@@ -11,6 +11,8 @@ import {
     StatusBar,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { ArrowLeft, Brain, Zap, CheckCircle2, XCircle, Trophy } from 'lucide-react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RouteProp } from '@react-navigation/native';
 import { RootStackParamList } from '../types/navigation';
@@ -98,146 +100,130 @@ const QuizGameScreen: React.FC<Props> = ({ navigation, route }) => {
 
     return (
         <View style={[styles.container, { backgroundColor: theme.background }]}>
-            <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={theme.background} />
-            <SafeAreaView edges={['top']} style={{ backgroundColor: theme.background }}>
-                <View style={[styles.header, { borderBottomColor: theme.divider }]}>
-                    <TouchableOpacity onPress={() => navigation.goBack()}>
-                        <Text style={[styles.backIcon, { color: theme.text }]}>←</Text>
-                    </TouchableOpacity>
-                    <Text style={[styles.headerTitle, { color: theme.text }]}>🧠 Topic Quiz</Text>
-                    <View style={{ width: 40 }} />
-                </View>
-            </SafeAreaView>
+            <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
 
-            <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
-                {/* Topic Input */}
-                {!hasStarted && (
+            <View style={styles.headerBackground}>
+                <LinearGradient
+                    colors={['#2563EB', '#1E3A8A']}
+                    style={StyleSheet.absoluteFill}
+                />
+                <SafeAreaView edges={['top']} style={styles.headerContent}>
+                    <View style={styles.headerTopRow}>
+                        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+                            <ArrowLeft size={24} color="#FFF" />
+                        </TouchableOpacity>
+                        <Text style={styles.headerTitleText}>AI Topic Quiz</Text>
+                        <View style={{ width: 44 }} />
+                    </View>
+
+                    <View style={styles.headerSummary}>
+                        <Text style={styles.welcomeText}>Knowledge Check</Text>
+                        <Text style={styles.subtitleText}>Test your understanding of {topic || 'any topic'}.</Text>
+                    </View>
+                </SafeAreaView>
+            </View>
+
+            <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+                {!hasStarted ? (
                     <View style={[styles.inputCard, { backgroundColor: theme.backgroundSecondary, borderColor: theme.border }]}>
-                        <Text style={[styles.inputLabel, { color: theme.text }]}>Choose a Topic</Text>
-                        <View style={styles.inputRow}>
+                        <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>Enter a Topic</Text>
+                        <View style={[styles.inputRow, { borderColor: theme.border, backgroundColor: theme.backgroundTertiary }]}>
                             <TextInput
-                                style={[styles.input, { color: theme.text, backgroundColor: theme.background }]}
-                                placeholder="e.g., Computer Networks..."
+                                style={[styles.input, { color: theme.text }]}
+                                placeholder="e.g., Computer Networks, DBMS..."
                                 placeholderTextColor={theme.textTertiary}
                                 value={topic}
                                 onChangeText={setTopic}
+                                returnKeyType="go"
+                                onSubmitEditing={() => handleGenerate()}
                                 editable={!isLoading}
                             />
                             <TouchableOpacity
-                                style={[styles.generateBtn, isLoading && { opacity: 0.6 }]}
-                                onPress={handleGenerate}
+                                style={[styles.generateButton, isLoading && styles.generateButtonDisabled]}
+                                onPress={() => handleGenerate()}
                                 disabled={isLoading}
                             >
-                                {isLoading ? <ActivityIndicator color="#FFF" size="small" /> : <Text style={styles.generateBtnText}>Start</Text>}
+                                {isLoading ? <ActivityIndicator color="#FFF" size="small" /> : <Zap size={18} color="#FFF" />}
                             </TouchableOpacity>
                         </View>
                     </View>
-                )}
-
-                {isLoading && (
-                    <View style={[styles.loadingCard, { backgroundColor: theme.backgroundSecondary, borderColor: theme.border }]}>
-                        <ActivityIndicator size="large" color={theme.primary} />
-                        <Text style={[styles.loadingText, { color: theme.textSecondary }]}>Generating quiz...</Text>
-                    </View>
-                )}
-
-                {/* Quiz */}
-                {hasStarted && !isLoading && !isFinished && currentQ && (
-                    <View>
-                        {/* Progress */}
-                        <View style={styles.progressRow}>
-                            <Text style={[styles.progressText, { color: theme.textSecondary }]}>
-                                Question {currentIdx + 1}/{questions.length}
-                            </Text>
-                            <Text style={[styles.scoreText, { color: theme.primary }]}>Score: {score}</Text>
+                ) : isFinished ? (
+                    <View style={[styles.resultCard, { backgroundColor: theme.backgroundSecondary, borderColor: theme.border }]}>
+                        <View style={[styles.resultIconBox, { backgroundColor: theme.primary + '1A' }]}>
+                            <Trophy size={48} color={theme.primary} />
                         </View>
-                        <View style={[styles.progressBar, { backgroundColor: theme.divider }]}>
+                        <Text style={[styles.resultTitle, { color: theme.text }]}>Quiz Complete!</Text>
+                        <Text style={[styles.resultScore, { color: theme.primary }]}>{score} / {questions.length}</Text>
+                        <Text style={[styles.resultMsg, { color: theme.textSecondary }]}>
+                            {score === questions.length ? "Perfect score! You're a master." : "Good effort! Keep learning."}
+                        </Text>
+                        <TouchableOpacity 
+                            style={[styles.retryBtn, { backgroundColor: theme.primary }]} 
+                            onPress={() => { setHasStarted(false); setIsFinished(false); }}
+                        >
+                            <Text style={styles.retryText}>Try New Topic</Text>
+                        </TouchableOpacity>
+                    </View>
+                ) : (
+                    <View style={styles.quizSection}>
+                        <View style={styles.progressRow}>
+                            <Text style={[styles.progressText, { color: theme.textTertiary }]}>QUESTION {currentIdx + 1} OF {questions.length}</Text>
+                            <View style={[styles.scoreBadge, { backgroundColor: theme.primary + '1A' }]}>
+                                <Text style={[styles.scoreBadgeText, { color: theme.primary }]}>Score: {score}</Text>
+                            </View>
+                        </View>
+                        <View style={[styles.progressBar, { backgroundColor: theme.backgroundTertiary }]}>
                             <View style={[styles.progressFill, { width: `${((currentIdx + 1) / questions.length) * 100}%`, backgroundColor: theme.primary }]} />
                         </View>
 
-                        {/* Question */}
                         <View style={[styles.questionCard, { backgroundColor: theme.backgroundSecondary, borderColor: theme.border }]}>
                             <Text style={[styles.questionText, { color: theme.text }]}>{currentQ.question}</Text>
                         </View>
 
-                        {/* Options */}
-                        {currentQ.options.map((option, i) => {
-                            const isSelected = selectedAnswer === i;
-                            const isCorrect = i === currentQ.correctAnswer;
-                            let optionStyle = { backgroundColor: theme.backgroundSecondary, borderColor: theme.border };
+                        <View style={styles.optionsList}>
+                            {currentQ.options.map((option, idx) => {
+                                const isSelected = selectedAnswer === idx;
+                                const isCorrect = idx === currentQ.correctAnswer;
+                                let borderColor = theme.border;
+                                let bgColor = theme.backgroundSecondary;
+                                let icon = null;
 
-                            if (showResult) {
-                                if (isCorrect) optionStyle = { backgroundColor: '#10B98120', borderColor: '#10B981' };
-                                else if (isSelected && !isCorrect) optionStyle = { backgroundColor: '#EF444420', borderColor: '#EF4444' };
-                            } else if (isSelected) {
-                                optionStyle = { backgroundColor: theme.primary + '15', borderColor: theme.primary };
-                            }
+                                if (showResult) {
+                                    if (isCorrect) {
+                                        borderColor = '#10B981';
+                                        bgColor = '#10B9811A';
+                                        icon = <CheckCircle2 size={18} color="#10B981" />;
+                                    } else if (isSelected) {
+                                        borderColor = '#EF4444';
+                                        bgColor = '#EF44441A';
+                                        icon = <XCircle size={18} color="#EF4444" />;
+                                    }
+                                } else if (isSelected) {
+                                    borderColor = theme.primary;
+                                    bgColor = theme.primary + '1A';
+                                }
 
-                            return (
-                                <TouchableOpacity
-                                    key={i}
-                                    style={[styles.optionBtn, optionStyle]}
-                                    onPress={() => handleAnswer(i)}
-                                    disabled={showResult}
-                                >
-                                    <Text style={[styles.optionLabel, { color: theme.textSecondary }]}>{String.fromCharCode(65 + i)}</Text>
-                                    <Text style={[styles.optionText, { color: theme.text }]}>{option}</Text>
-                                    {showResult && isCorrect && <Text style={styles.optionIcon}>✓</Text>}
-                                    {showResult && isSelected && !isCorrect && <Text style={[styles.optionIcon, { color: '#EF4444' }]}>✗</Text>}
-                                </TouchableOpacity>
-                            );
-                        })}
+                                return (
+                                    <TouchableOpacity 
+                                        key={idx} 
+                                        style={[styles.optionBtn, { backgroundColor: bgColor, borderColor }]} 
+                                        onPress={() => handleAnswer(idx)}
+                                        disabled={showResult}
+                                    >
+                                        <Text style={[styles.optionText, { color: theme.text }]}>{option}</Text>
+                                        {icon}
+                                    </TouchableOpacity>
+                                );
+                            })}
+                        </View>
 
-                        {/* Explanation */}
-                        {showResult && currentQ.explanation && (
-                            <View style={[styles.explanationCard, { backgroundColor: '#3B82F610', borderColor: '#3B82F6' }]}>
-                                <Text style={[styles.explanationText, { color: theme.text }]}>💡 {currentQ.explanation}</Text>
-                            </View>
-                        )}
-
-                        {/* Next Button */}
                         {showResult && (
                             <TouchableOpacity style={[styles.nextBtn, { backgroundColor: theme.primary }]} onPress={handleNext}>
-                                <Text style={styles.nextBtnText}>
-                                    {currentIdx + 1 < questions.length ? 'Next Question →' : 'See Results'}
-                                </Text>
+                                <Text style={styles.nextBtnText}>{currentIdx + 1 === questions.length ? 'Finish Quiz' : 'Next Question'}</Text>
                             </TouchableOpacity>
                         )}
                     </View>
                 )}
-
-                {/* Results */}
-                {isFinished && (
-                    <View style={[styles.resultsCard, { backgroundColor: theme.backgroundSecondary, borderColor: theme.border }]}>
-                        <Text style={styles.resultsEmoji}>{score >= questions.length * 0.8 ? '🏆' : score >= questions.length * 0.5 ? '👏' : '📚'}</Text>
-                        <Text style={[styles.resultsTitle, { color: theme.text }]}>Quiz Complete!</Text>
-                        <Text style={[styles.resultsScore, { color: theme.primary }]}>{score}/{questions.length}</Text>
-                        <Text style={[styles.resultsLabel, { color: theme.textSecondary }]}>correct answers</Text>
-
-                        <View style={styles.resultsActions}>
-                            <TouchableOpacity
-                                style={[styles.retryBtn, { borderColor: theme.primary }]}
-                                onPress={() => { setHasStarted(false); setIsFinished(false); }}
-                            >
-                                <Text style={[styles.retryBtnText, { color: theme.primary }]}>🔄 New Topic</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                                style={[styles.retryBtn, { backgroundColor: theme.primary }]}
-                                onPress={() => {
-                                    setCurrentIdx(0);
-                                    setScore(0);
-                                    setSelectedAnswer(null);
-                                    setShowResult(false);
-                                    setIsFinished(false);
-                                }}
-                            >
-                                <Text style={[styles.retryBtnText, { color: '#FFF' }]}>🔁 Retry Same</Text>
-                            </TouchableOpacity>
-                        </View>
-                    </View>
-                )}
-
-                <View style={{ height: 40 }} />
             </ScrollView>
         </View>
     );
@@ -245,28 +231,50 @@ const QuizGameScreen: React.FC<Props> = ({ navigation, route }) => {
 
 const styles = StyleSheet.create({
     container: { flex: 1 },
-    header: {
-        flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-        paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1,
+    headerBackground: {
+        paddingBottom: 30,
+        borderBottomLeftRadius: 30,
+        borderBottomRightRadius: 30,
+        overflow: 'hidden',
     },
-    backIcon: { fontSize: 22, fontWeight: '500' },
-    headerTitle: { fontSize: 18, fontWeight: '700' },
+    headerContent: {
+        paddingHorizontal: 20,
+        paddingTop: 10,
+    },
+    headerTopRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 15,
+    },
+    backBtn: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        backgroundColor: 'rgba(255,255,255,0.15)',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    headerTitleText: {
+        color: '#FFF',
+        fontSize: 18,
+        fontWeight: '700',
+    },
+    headerSummary: {
+        marginTop: 5,
+        paddingLeft: 4,
+    },
+    welcomeText: {
+        fontSize: 22,
+        fontWeight: '800',
+        color: '#FFF',
+        marginBottom: 4,
+    },
+    subtitleText: {
+        fontSize: 14,
+        color: 'rgba(255,255,255,0.8)',
+    },
     scroll: { flex: 1 },
-    scrollContent: { padding: 16 },
-    inputCard: { borderRadius: 16, padding: 18, borderWidth: 1, marginBottom: 16 },
-    inputLabel: { fontSize: 17, fontWeight: '700', marginBottom: 12 },
-    inputRow: { flexDirection: 'row', gap: 10 },
-    input: { flex: 1, height: 46, borderRadius: 12, paddingHorizontal: 14, fontSize: 15 },
-    generateBtn: { backgroundColor: '#F472B6', height: 46, paddingHorizontal: 18, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
-    generateBtnText: { color: '#FFF', fontSize: 14, fontWeight: '700' },
-    loadingCard: { borderRadius: 16, padding: 40, borderWidth: 1, alignItems: 'center' },
-    loadingText: { fontSize: 14, marginTop: 16 },
-    progressRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
-    progressText: { fontSize: 13, fontWeight: '600' },
-    scoreText: { fontSize: 13, fontWeight: '700' },
-    progressBar: { height: 4, borderRadius: 2, overflow: 'hidden', marginBottom: 20 },
-    progressFill: { height: '100%', borderRadius: 2 },
-    questionCard: { borderRadius: 16, padding: 20, borderWidth: 1, marginBottom: 16 },
     questionText: { fontSize: 16, fontWeight: '600', lineHeight: 24 },
     optionBtn: {
         flexDirection: 'row', alignItems: 'center', borderRadius: 12, padding: 14,

@@ -11,7 +11,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '../types/navigation';
 import { useTheme } from '../contexts/ThemeContext';
-import { ArrowLeft } from 'lucide-react-native';
+import { ArrowLeft, Brain, Zap, Gamepad2, Layers, Trophy, Flame } from 'lucide-react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '../auth/AuthProvider';
 import supabase from '../supabaseClient';
 
@@ -60,27 +61,24 @@ const LearningZoneScreen: React.FC<LearningZoneScreenProps> = ({ navigation }) =
       id: 'quiz',
       title: 'Topic Quiz',
       description: 'Test your knowledge with AI-generated questions on any topic',
-      icon: '🧠',
-      color: '#F472B6',
-      gradient: ['#F472B6', '#EC4899'],
+      icon: Brain,
+      color: '#3B82F6',
       onPress: () => navigation.navigate('QuizGame', { topic: '' }),
     },
     {
       id: 'match',
       title: 'Match the Following',
       description: 'Match terms to their definitions — perfect for memorizing concepts',
-      icon: '🔗',
-      color: '#8B5CF6',
-      gradient: ['#8B5CF6', '#7C3AED'],
+      icon: Layers,
+      color: '#10B981',
       onPress: () => navigation.navigate('MatchGame', { topic: '' }),
     },
     {
       id: 'flashcards',
       title: 'AI Flashcards',
       description: 'Generate flashcards for any topic and flip to study',
-      icon: '�',
-      color: '#3B82F6',
-      gradient: ['#3B82F6', '#2563EB'],
+      icon: Zap,
+      color: '#F59E0B',
       onPress: () => navigation.navigate('Flashcards'),
     },
   ];
@@ -92,34 +90,61 @@ const LearningZoneScreen: React.FC<LearningZoneScreenProps> = ({ navigation }) =
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={theme.background} />
-      <SafeAreaView edges={['top']} style={{ backgroundColor: theme.background }}>
-        <View style={[styles.header, { borderBottomColor: theme.divider }]}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-            <ArrowLeft size={20} color={theme.text} strokeWidth={2} />
-          </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: theme.text }]}>Learning Zone</Text>
-          <View style={{ width: 40 }} />
-        </View>
-      </SafeAreaView>
+      <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
+      
+      {/* Header with Gradient */}
+      <View style={styles.headerBackground}>
+        <LinearGradient
+          colors={['#2563EB', '#1E3A8A']}
+          style={StyleSheet.absoluteFill}
+        />
+        <SafeAreaView edges={['top']} style={styles.headerContent}>
+          <View style={styles.headerTopRow}>
+            <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+              <ArrowLeft size={24} color="#FFF" />
+            </TouchableOpacity>
+            <Text style={styles.headerTitleText}>Learning Zone</Text>
+            <View style={{ width: 44 }} />
+          </View>
+
+          <View style={styles.headerSummary}>
+            <Text style={styles.welcomeText}>Boost your skills!</Text>
+            <Text style={styles.subtitleText}>Choose an activity to start learning.</Text>
+          </View>
+        </SafeAreaView>
+      </View>
 
       <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
 
         {/* Stats Bar */}
         <View style={[styles.statsBar, { backgroundColor: theme.backgroundSecondary, borderColor: theme.border }]}>
           <View style={styles.statItem}>
-            <Text style={[styles.statValue, { color: theme.primary }]}>{stats.totalPoints}</Text>
-            <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Points</Text>
+            <View style={[styles.statIconBox, { backgroundColor: theme.primary + '1A' }]}>
+              <Trophy size={16} color={theme.primary} />
+            </View>
+            <View>
+              <Text style={[styles.statValue, { color: theme.text }]}>{stats.totalPoints}</Text>
+              <Text style={[styles.statLabel, { color: theme.textTertiary }]}>Points</Text>
+            </View>
           </View>
           <View style={[styles.statDivider, { backgroundColor: theme.divider }]} />
           <View style={styles.statItem}>
-            <Text style={[styles.statValue, { color: '#F472B6' }]}>{stats.gamesPlayed}</Text>
-            <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Games</Text>
+            <View style={[styles.statIconBox, { backgroundColor: '#F472B61A' }]}>
+              <Gamepad2 size={16} color="#F472B6" />
+            </View>
+            <View>
+              <Text style={[styles.statValue, { color: theme.text }]}>{stats.gamesPlayed}</Text>
+              <Text style={[styles.statLabel, { color: theme.textTertiary }]}>Games</Text>
+            </View>
           </View>
-          <View style={[styles.statDivider, { backgroundColor: theme.divider }]} />
-          <View style={styles.statItem}>
-            <Text style={[styles.statValue, { color: '#F59E0B' }]}>🔥 {stats.dailyStreak}</Text>
-            <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Streak</Text>
+          <View style={[styles.statItem, { paddingLeft: 12 }]}>
+            <View style={[styles.statIconBox, { backgroundColor: '#F59E0B1A' }]}>
+              <Flame size={16} color="#F59E0B" />
+            </View>
+            <View>
+              <Text style={[styles.statValue, { color: theme.text }]}>{stats.dailyStreak}</Text>
+              <Text style={[styles.statLabel, { color: theme.textTertiary }]}>Streak</Text>
+            </View>
           </View>
         </View>
 
@@ -136,18 +161,20 @@ const LearningZoneScreen: React.FC<LearningZoneScreenProps> = ({ navigation }) =
             activeOpacity={0.7}
           >
             <View style={[styles.gameIconContainer, { backgroundColor: game.color + '18' }]}>
-              <Text style={styles.gameIcon}>{game.icon}</Text>
+              <game.icon size={26} color={game.color} />
             </View>
             <View style={styles.gameInfo}>
               <Text style={[styles.gameTitle, { color: theme.text }]}>{game.title}</Text>
               <Text style={[styles.gameDesc, { color: theme.textSecondary }]}>{game.description}</Text>
             </View>
-            <Text style={[styles.gameArrow, { color: theme.textTertiary }]}>›</Text>
+            <View style={[styles.gameArrowCircle, { backgroundColor: theme.backgroundTertiary }]}>
+              <ArrowLeft size={16} color={theme.textTertiary} style={{ transform: [{ rotate: '180deg' }] }} />
+            </View>
           </TouchableOpacity>
         ))}
 
         {/* Suggested Topics */}
-        <Text style={[styles.sectionTitle, { color: theme.text, marginTop: 24 }]}>Suggested Topics</Text>
+        {/* <Text style={[styles.sectionTitle, { color: theme.text, marginTop: 24 }]}>Suggested Topics</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.topicsRow}>
           {suggestedTopics.map((topic) => (
             <TouchableOpacity
@@ -158,10 +185,10 @@ const LearningZoneScreen: React.FC<LearningZoneScreenProps> = ({ navigation }) =
               <Text style={[styles.topicChipText, { color: theme.primary }]}>{topic}</Text>
             </TouchableOpacity>
           ))}
-        </ScrollView>
+        </ScrollView> */}
 
         {/* How it Works */}
-        <View style={[styles.howItWorks, { backgroundColor: theme.backgroundSecondary, borderColor: theme.border }]}>
+        {/* <View style={[styles.howItWorks, { backgroundColor: theme.backgroundSecondary, borderColor: theme.border }]}>
           <Text style={[styles.howTitle, { color: theme.text }]}>How It Works</Text>
           <View style={styles.howStep}>
             <Text style={styles.howStepNum}>1</Text>
@@ -179,7 +206,7 @@ const LearningZoneScreen: React.FC<LearningZoneScreenProps> = ({ navigation }) =
             <Text style={styles.howStepNum}>4</Text>
             <Text style={[styles.howStepText, { color: theme.textSecondary }]}>Play, learn, and earn points!</Text>
           </View>
-        </View>
+        </View> */}
 
         <View style={{ height: 40 }} />
       </ScrollView>
@@ -189,58 +216,97 @@ const LearningZoneScreen: React.FC<LearningZoneScreenProps> = ({ navigation }) =
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1,
+  headerBackground: {
+    paddingBottom: 30,
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
+    overflow: 'hidden',
   },
-  backButton: { width: 40, height: 40, justifyContent: 'center', alignItems: 'center' },
-  headerTitle: { fontSize: 20, fontWeight: '700' },
+  headerContent: {
+    paddingHorizontal: 20,
+    paddingTop: 10,
+  },
+  headerTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 15,
+  },
+  backBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerTitleText: {
+    color: '#FFF',
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  headerSummary: {
+    marginTop: 5,
+    paddingLeft: 4,
+  },
+  welcomeText: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#FFF',
+    marginBottom: 4,
+  },
+  subtitleText: {
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.8)',
+  },
   scroll: { flex: 1 },
-  scrollContent: { padding: 16 },
+  scrollContent: { padding: 20, marginTop: -20 },
 
   // Stats
   statsBar: {
-    flexDirection: 'row', alignItems: 'center', borderRadius: 16, padding: 16,
+    flexDirection: 'row', alignItems: 'center', borderRadius: 20, padding: 16,
     borderWidth: 1, marginBottom: 24,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 10, elevation: 3,
+    marginTop:20
   },
-  statItem: { flex: 1, alignItems: 'center' },
-  statValue: { fontSize: 20, fontWeight: '800', marginBottom: 2 },
-  statLabel: { fontSize: 11, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
-  statDivider: { width: 1, height: 30 },
+  statItem: { flex: 1, flexDirection: 'row', alignItems: 'center' },
+  statIconBox: { width: 34, height: 34, borderRadius: 10, justifyContent: 'center', alignItems: 'center', marginRight: 10 },
+  statValue: { fontSize: 16, fontWeight: '800' },
+  statLabel: { fontSize: 10, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
+  statDivider: { width: 1, height: 24, marginHorizontal: 12 },
 
   // Section
-  sectionTitle: { fontSize: 18, fontWeight: '700', marginBottom: 4 },
-  sectionSubtitle: { fontSize: 13, marginBottom: 16 },
+  sectionTitle: { fontSize: 13, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10, marginLeft: 4 },
+  sectionSubtitle: { fontSize: 13, marginBottom: 16, marginLeft: 4 },
 
   // Game Cards
   gameCard: {
-    flexDirection: 'row', alignItems: 'center', borderRadius: 16, padding: 16,
+    flexDirection: 'row', alignItems: 'center', borderRadius: 20, padding: 16,
     borderWidth: 1, marginBottom: 12,
   },
   gameIconContainer: {
-    width: 52, height: 52, borderRadius: 14, justifyContent: 'center', alignItems: 'center',
+    width: 56, height: 56, borderRadius: 14, justifyContent: 'center', alignItems: 'center',
   },
-  gameIcon: { fontSize: 26 },
-  gameInfo: { flex: 1, marginLeft: 14 },
+  gameInfo: { flex: 1, marginLeft: 16 },
   gameTitle: { fontSize: 16, fontWeight: '700', marginBottom: 3 },
   gameDesc: { fontSize: 12, lineHeight: 17 },
-  gameArrow: { fontSize: 22, fontWeight: '300', marginLeft: 8 },
+  gameArrowCircle: { width: 32, height: 32, borderRadius: 16, justifyContent: 'center', alignItems: 'center' },
 
   // Topics
-  topicsRow: { gap: 8, paddingBottom: 4 },
-  topicChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1 },
-  topicChipText: { fontSize: 13, fontWeight: '600' },
+  topicsRow: { gap: 8, paddingBottom: 10, paddingLeft: 4 },
+  topicChip: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 15, borderWidth: 1.5 },
+  topicChipText: { fontSize: 13, fontWeight: '700' },
 
   // How it works
-  howItWorks: { borderRadius: 16, padding: 18, borderWidth: 1, marginTop: 24 },
-  howTitle: { fontSize: 16, fontWeight: '700', marginBottom: 14 },
-  howStep: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
+  howItWorks: { borderRadius: 20, padding: 20, borderWidth: 1, marginTop: 24 },
+  howTitle: { fontSize: 16, fontWeight: '800', marginBottom: 16 },
+  howStep: { flexDirection: 'row', alignItems: 'center', marginBottom: 14 },
   howStepNum: {
-    width: 24, height: 24, borderRadius: 12, backgroundColor: '#8B5CF620',
-    textAlign: 'center', lineHeight: 24, fontSize: 12, fontWeight: '700', color: '#8B5CF6',
-    marginRight: 10, overflow: 'hidden',
+    width: 26, height: 26, borderRadius: 13, backgroundColor: '#3B82F620',
+    textAlign: 'center', lineHeight: 26, fontSize: 12, fontWeight: '800', color: '#3B82F6',
+    marginRight: 12, overflow: 'hidden',
   },
-  howStepText: { fontSize: 13, flex: 1 },
+  howStepText: { fontSize: 13, flex: 1, fontWeight: '500' },
 });
 
 export default LearningZoneScreen;

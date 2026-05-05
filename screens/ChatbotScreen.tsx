@@ -897,18 +897,27 @@ const ChatbotScreen: React.FC<{ navigation: ChatbotScreenNavigationProp }> = ({ 
 
               <View style={{ marginHorizontal: 20, marginBottom: 20 }}>
                 {upcomingExams.length === 0 ? (
-                  <View style={[styles.sbSearch, { backgroundColor: 'transparent', borderWidth: 1, borderColor: theme.backgroundTertiary, borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center', marginHorizontal: 0, paddingVertical: 16 }]}>
+                  <View style={[styles.sbSearch, { backgroundColor: 'transparent', borderWidth: 1, borderColor: theme.border, borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center', marginHorizontal: 0, paddingVertical: 16 }]}>
                     <Text style={{ color: theme.textTertiary, fontSize: 12 }}>No new notifications</Text>
                   </View>
                 ) : (
                   upcomingExams.map((ex, i) => (
-                    <View key={i} style={[styles.sbSearch, { backgroundColor: theme.backgroundTertiary, flexDirection: 'row', alignItems: 'center', marginHorizontal: 0, padding: 12, marginBottom: 8 }]}>
-                      <Bell size={16} color={theme.error} />
-                      <Text style={[styles.sbExamText, { color: theme.text, flex: 1 }]} numberOfLines={1}>{ex.title}</Text>
+                    <TouchableOpacity 
+                      key={i} 
+                      onPress={() => { closeSidebar(); navigation.navigate('Schedule'); }}
+                      style={[styles.sbSearch, { backgroundColor: theme.backgroundTertiary, flexDirection: 'row', alignItems: 'center', marginHorizontal: 0, padding: 12, marginBottom: 8 }]}
+                    >
+                      <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: theme.error + '20', alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
+                        <Bell size={16} color={theme.error} />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.sbExamText, { color: theme.text, fontSize: 13, fontWeight: '600' }]} numberOfLines={1}>{ex.title}</Text>
+                        <Text style={{ color: theme.textTertiary, fontSize: 10, marginTop: 2 }}>{new Date(ex.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</Text>
+                      </View>
                       <TouchableOpacity onPress={() => setUpcomingExams(prev => prev.filter((_, idx) => idx !== i))}>
-                        <X size={16} color={theme.textSecondary} />
+                        <X size={14} color={theme.textTertiary} />
                       </TouchableOpacity>
-                    </View>
+                    </TouchableOpacity>
                   ))
                 )}
               </View>

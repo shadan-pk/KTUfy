@@ -12,6 +12,8 @@ import {
     StatusBar,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { ArrowLeft, Layers, Zap, CheckCircle2, XCircle, Trophy, RefreshCcw } from 'lucide-react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { RouteProp } from '@react-navigation/native';
 import { RootStackParamList } from '../types/navigation';
@@ -143,150 +145,135 @@ const MatchGameScreen: React.FC<Props> = ({ navigation, route }) => {
 
     return (
         <View style={[styles.container, { backgroundColor: theme.background }]}>
-            <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={theme.background} />
-            <SafeAreaView edges={['top']} style={{ backgroundColor: theme.background }}>
-                <View style={[styles.header, { borderBottomColor: theme.divider }]}>
-                    <TouchableOpacity onPress={() => navigation.goBack()}>
-                        <Text style={[styles.backIcon, { color: theme.text }]}>←</Text>
-                    </TouchableOpacity>
-                    <Text style={[styles.headerTitle, { color: theme.text }]}>🔗 Match the Following</Text>
-                    <View style={{ width: 40 }} />
-                </View>
-            </SafeAreaView>
+            <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
 
-            <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
-                {/* Topic Input */}
-                {!hasStarted && (
+            <View style={styles.headerBackground}>
+                <LinearGradient
+                    colors={['#2563EB', '#1E3A8A']}
+                    style={StyleSheet.absoluteFill}
+                />
+                <SafeAreaView edges={['top']} style={styles.headerContent}>
+                    <View style={styles.headerTopRow}>
+                        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+                            <ArrowLeft size={24} color="#FFF" />
+                        </TouchableOpacity>
+                        <Text style={styles.headerTitleText}>Match the Following</Text>
+                        <View style={{ width: 44 }} />
+                    </View>
+                    <View style={styles.headerSummary}>
+                        <Text style={styles.welcomeText}>Focus & Pair</Text>
+                        <Text style={styles.subtitleText}>Connect the terms to their definitions.</Text>
+                    </View>
+                </SafeAreaView>
+            </View>
+
+            <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+                {!hasStarted ? (
                     <View style={[styles.inputCard, { backgroundColor: theme.backgroundSecondary, borderColor: theme.border }]}>
-                        <Text style={[styles.inputLabel, { color: theme.text }]}>Choose a Topic</Text>
-                        <View style={styles.inputRow}>
+                        <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>Enter a Topic</Text>
+                        <View style={[styles.inputRow, { borderColor: theme.border, backgroundColor: theme.backgroundTertiary }]}>
                             <TextInput
-                                style={[styles.input, { color: theme.text, backgroundColor: theme.background }]}
-                                placeholder="e.g., OSI Model layers..."
+                                style={[styles.input, { color: theme.text }]}
+                                placeholder="e.g., Computer Networks, DBMS..."
                                 placeholderTextColor={theme.textTertiary}
                                 value={topic}
                                 onChangeText={setTopic}
-                                editable={!isLoading}
                                 returnKeyType="go"
                                 onSubmitEditing={() => handleGenerate()}
+                                editable={!isLoading}
                             />
                             <TouchableOpacity
-                                style={[styles.generateBtn, isLoading && { opacity: 0.6 }]}
+                                style={[styles.generateButton, isLoading && styles.generateButtonDisabled]}
                                 onPress={() => handleGenerate()}
                                 disabled={isLoading}
                             >
-                                {isLoading ? <ActivityIndicator color="#FFF" size="small" /> : <Text style={styles.generateBtnText}>Start</Text>}
+                                {isLoading ? <ActivityIndicator color="#FFF" size="small" /> : <Zap size={18} color="#FFF" />}
                             </TouchableOpacity>
                         </View>
                     </View>
-                )}
-
-                {isLoading && (
-                    <View style={[styles.loadingCard, { backgroundColor: theme.backgroundSecondary, borderColor: theme.border }]}>
-                        <ActivityIndicator size="large" color={theme.primary} />
-                        <Text style={[styles.loadingText, { color: theme.textSecondary }]}>Generating match pairs...</Text>
-                    </View>
-                )}
-
-                {/* Game Board */}
-                {hasStarted && !isLoading && (
-                    <View>
-                        {/* Score */}
-                        <View style={styles.scoreRow}>
-                            <Text style={[styles.scoreText, { color: theme.textSecondary }]}>
-                                Matched: {score}/{pairs.length}
-                            </Text>
-                            <Text style={[styles.scoreText, { color: theme.textSecondary }]}>
-                                Attempts: {attempts}
-                            </Text>
-                            <Text style={[styles.topicBadge, { backgroundColor: theme.primary + '18', color: theme.primary }]}>
-                                {topic}
-                            </Text>
+                ) : matched.size === pairs.length ? (
+                    <View style={[styles.resultCard, { backgroundColor: theme.backgroundSecondary, borderColor: theme.border }]}>
+                        <View style={[styles.resultIconBox, { backgroundColor: theme.primary + '1A' }]}>
+                            <Trophy size={48} color={theme.primary} />
                         </View>
-
-                        {/* Match columns */}
-                        <View style={styles.gameBoard}>
-                            {/* Terms Column */}
+                        <Text style={[styles.resultTitle, { color: theme.text }]}>Game Over!</Text>
+                        <Text style={[styles.resultScore, { color: theme.primary }]}>{score} / {pairs.length}</Text>
+                        <Text style={[styles.resultMsg, { color: theme.textSecondary }]}>
+                            Took you {attempts} attempts. Great work!
+                        </Text>
+                        <TouchableOpacity 
+                            style={[styles.retryBtn, { backgroundColor: theme.primary }]} 
+                            onPress={() => { setHasStarted(false); }}
+                        >
+                            <Text style={styles.retryText}>New Topic</Text>
+                        </TouchableOpacity>
+                    </View>
+                ) : (
+                    <View style={styles.gameSection}>
+                        <View style={styles.progressRow}>
+                            <Text style={[styles.progressText, { color: theme.textTertiary }]}>MATCHED {matched.size} OF {pairs.length}</Text>
+                            <View style={[styles.scoreBadge, { backgroundColor: theme.primary + '1A' }]}>
+                                <Text style={[styles.scoreBadgeText, { color: theme.primary }]}>Attempts: {attempts}</Text>
+                            </View>
+                        </View>
+                        <View style={[styles.progressBar, { backgroundColor: theme.backgroundTertiary }]}>
+                            <View style={[styles.progressFill, { width: `${(matched.size / pairs.length) * 100}%`, backgroundColor: theme.primary }]} />
+                        </View>
+                        <View style={styles.matchGrid}>
                             <View style={styles.column}>
-                                <Text style={[styles.columnLabel, { color: theme.textSecondary }]}>Terms</Text>
-                                {pairs.map((pair, i) => {
-                                    const isMatched = matched.has(i);
-                                    const isSelected = selectedTerm === i;
-                                    const isWrong = wrongPair?.term === i;
-
+                                <Text style={[styles.colTitle, { color: theme.textTertiary }]}>TERMS</Text>
+                                {pairs.map((pair, idx) => {
+                                    const isMatched = matched.has(idx);
+                                    const isSelected = selectedTerm === idx;
+                                    const isWrong = wrongPair?.term === idx;
+                                    let borderColor = theme.border;
+                                    let bgColor = theme.backgroundSecondary;
+                                    if (isMatched) { borderColor = '#10B981'; bgColor = '#10B9811A'; }
+                                    else if (isWrong) { borderColor = '#EF4444'; bgColor = '#EF44441A'; }
+                                    else if (isSelected) { borderColor = theme.primary; bgColor = theme.primary + '1A'; }
                                     return (
-                                        <TouchableOpacity
-                                            key={`t-${i}`}
-                                            style={[
-                                                styles.card,
-                                                { backgroundColor: theme.backgroundSecondary, borderColor: theme.border },
-                                                isMatched && styles.cardMatched,
-                                                isSelected && { borderColor: theme.primary, borderWidth: 2 },
-                                                isWrong && styles.cardWrong,
-                                            ]}
-                                            onPress={() => handleTermSelect(i)}
+                                        <TouchableOpacity 
+                                            key={idx} 
+                                            style={[styles.matchItem, { backgroundColor: bgColor, borderColor }]}
+                                            onPress={() => handleTermSelect(idx)}
                                             disabled={isMatched}
-                                            activeOpacity={0.7}
                                         >
-                                            <Text style={[
-                                                styles.cardText,
-                                                { color: theme.text },
-                                                isMatched && styles.cardTextMatched,
-                                            ]}>{pair.term}</Text>
-                                            {isMatched && <Text style={styles.checkIcon}>✓</Text>}
+                                            <Text style={[styles.itemText, { color: isMatched ? '#10B981' : theme.text }]} numberOfLines={3}>{pair.term}</Text>
                                         </TouchableOpacity>
                                     );
                                 })}
                             </View>
-
-                            {/* Definitions Column */}
                             <View style={styles.column}>
-                                <Text style={[styles.columnLabel, { color: theme.textSecondary }]}>Definitions</Text>
-                                {shuffledDefinitions.map((def, i) => {
-                                    const defMatched = isDefMatched(i);
-                                    const isSelected = selectedDef === i;
-                                    const isWrong = wrongPair?.def === i;
-
+                                <Text style={[styles.colTitle, { color: theme.textTertiary }]}>DEFINITIONS</Text>
+                                {shuffledDefinitions.map((def, idx) => {
+                                    const matchedPairIdx = pairs.findIndex(p => p.definition === def);
+                                    const isMatched = matched.has(matchedPairIdx);
+                                    const isSelected = selectedDef === idx;
+                                    const isWrong = wrongPair?.def === idx;
+                                    let borderColor = theme.border;
+                                    let bgColor = theme.backgroundSecondary;
+                                    if (isMatched) { borderColor = '#10B981'; bgColor = '#10B9811A'; }
+                                    else if (isWrong) { borderColor = '#EF4444'; bgColor = '#EF44441A'; }
+                                    else if (isSelected) { borderColor = theme.primary; bgColor = theme.primary + '1A'; }
                                     return (
-                                        <TouchableOpacity
-                                            key={`d-${i}`}
-                                            style={[
-                                                styles.card,
-                                                { backgroundColor: theme.backgroundSecondary, borderColor: theme.border },
-                                                defMatched && styles.cardMatched,
-                                                isSelected && { borderColor: '#8B5CF6', borderWidth: 2 },
-                                                isWrong && styles.cardWrong,
-                                            ]}
-                                            onPress={() => handleDefSelect(i)}
-                                            disabled={defMatched}
-                                            activeOpacity={0.7}
+                                        <TouchableOpacity 
+                                            key={idx} 
+                                            style={[styles.matchItem, { backgroundColor: bgColor, borderColor }]}
+                                            onPress={() => handleDefSelect(idx)}
+                                            disabled={isMatched}
                                         >
-                                            <Text style={[
-                                                styles.cardText,
-                                                { color: theme.text },
-                                                defMatched && styles.cardTextMatched,
-                                                { fontSize: 12 },
-                                            ]}>{def}</Text>
-                                            {defMatched && <Text style={styles.checkIcon}>✓</Text>}
+                                            <Text style={[styles.itemText, { color: isMatched ? '#10B981' : theme.text, fontSize: 11 }]} numberOfLines={4}>{def}</Text>
                                         </TouchableOpacity>
                                     );
                                 })}
                             </View>
                         </View>
-
-                        {/* Play Again */}
-                        {matched.size === pairs.length && (
-                            <TouchableOpacity
-                                style={[styles.playAgainBtn, { borderColor: theme.primary }]}
-                                onPress={() => { setHasStarted(false); setPairs([]); }}
-                            >
-                                <Text style={[styles.playAgainText, { color: theme.primary }]}>🔄 Play Again</Text>
-                            </TouchableOpacity>
-                        )}
+                        <TouchableOpacity style={[styles.resetBtn, { borderColor: theme.border }]} onPress={() => handleGenerate()}>
+                            <RefreshCcw size={16} color={theme.textTertiary} />
+                            <Text style={[styles.resetText, { color: theme.textTertiary }]}>Restart Game</Text>
+                        </TouchableOpacity>
                     </View>
                 )}
-
-                <View style={{ height: 40 }} />
             </ScrollView>
         </View>
     );
@@ -294,17 +281,15 @@ const MatchGameScreen: React.FC<Props> = ({ navigation, route }) => {
 
 const styles = StyleSheet.create({
     container: { flex: 1 },
-    header: {
-        flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-        paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1,
-    },
-    backIcon: { fontSize: 22, fontWeight: '500' },
-    headerTitle: { fontSize: 18, fontWeight: '700' },
+    headerBackground: { paddingBottom: 30, borderBottomLeftRadius: 30, borderBottomRightRadius: 30, overflow: 'hidden' },
+    headerContent: { paddingHorizontal: 20, paddingTop: 10 },
+    headerTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 },
+    backBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.15)', justifyContent: 'center', alignItems: 'center' },
+    headerTitleText: { color: '#FFF', fontSize: 18, fontWeight: '700' },
+    headerSummary: { marginTop: 5, paddingLeft: 4 },
+    welcomeText: { fontSize: 22, fontWeight: '800', color: '#FFF', marginBottom: 4 },
+    subtitleText: { fontSize: 14, color: 'rgba(255,255,255,0.8)' },
     scroll: { flex: 1 },
-    scrollContent: { padding: 16 },
-    inputCard: { borderRadius: 16, padding: 18, borderWidth: 1, marginBottom: 16 },
-    inputLabel: { fontSize: 17, fontWeight: '700', marginBottom: 12 },
-    inputRow: { flexDirection: 'row', gap: 10 },
     input: { flex: 1, height: 46, borderRadius: 12, paddingHorizontal: 14, fontSize: 15 },
     generateBtn: { backgroundColor: '#8B5CF6', height: 46, paddingHorizontal: 18, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
     generateBtnText: { color: '#FFF', fontSize: 14, fontWeight: '700' },
