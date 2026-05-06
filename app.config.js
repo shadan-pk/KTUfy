@@ -4,6 +4,7 @@ module.exports = {
   expo: {
     name: "KTUfy",
     slug: "KTUfy_App",
+    owner: "ktufy",
     version: "1.0.0",
     orientation: "portrait",
     icon: "./assets/icon.png",
