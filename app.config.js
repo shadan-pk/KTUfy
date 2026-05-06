@@ -28,8 +28,8 @@ module.exports = {
       favicon: "./assets/favicon.png"
     },
     extra: {
-      SUPABASE_URL: process.env.SUPABASE_URL || 'https://bojrxrzwcuzduilfwyqp.supabase.co',
-      SUPABASE_ANON_KEY: process.env.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJvanJ4cnp3Y3V6ZHVpbGZ3eXFwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjA5MDY5NTcsImV4cCI6MjA3NjQ4Mjk1N30.005yfg5xqJ6JrmAKcqBnlE92e6BRuxWSnXB-vWHrBR4',
+      SUPABASE_URL: process.env.SUPABASE_URL,
+      SUPABASE_ANON_KEY: process.env.SUPABASE_ANON_KEY,
     }
   }
 };
