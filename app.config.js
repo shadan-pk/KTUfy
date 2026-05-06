@@ -3,7 +3,7 @@ require('dotenv').config();
 module.exports = {
   expo: {
     name: "KTUfy",
-    slug: "KTUfy",
+    slug: "KTUfy_App",
     version: "1.0.0",
     orientation: "portrait",
     icon: "./assets/icon.png",
