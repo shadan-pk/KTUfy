@@ -15,6 +15,7 @@ import { SettingsScreenNavigationProp } from '../types/navigation';
 import { useTheme } from '../contexts/ThemeContext';
 import { TestBackendButton } from '../components/TestBackendButton';
 import { useServerStatus } from '../hooks/useServerStatus';
+import { clearAllCaches } from '../services/cacheService';
 
 interface SettingsScreenProps {
   navigation: SettingsScreenNavigationProp;
@@ -31,13 +32,20 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation }) => {
   const handleClearCache = () => {
     Alert.alert(
       'Clear Cache',
-      'Are you sure you want to clear the cache?',
+      'This will remove all locally stored syllabus and profile data. You will need to fetch them again.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Clear',
+          text: 'Clear All',
           style: 'destructive',
-          onPress: () => Alert.alert('Success', 'Cache cleared successfully!'),
+          onPress: async () => {
+            try {
+              await clearAllCaches();
+              Alert.alert('Success', 'All cache cleared successfully!');
+            } catch (error) {
+              Alert.alert('Error', 'Failed to clear cache');
+            }
+          },
         },
       ]
     );
