@@ -107,7 +107,7 @@ export async function getSubjectSyllabus(
     }
 
     const url = `${process.env.API_BASE_URL}/api/v1/syllabus/subject/${encodeURIComponent(normalized)}`;
-    console.log('📖 Fetching syllabus for', normalized);
+    console.log('🌐 [SyllabusService] GET', url);
 
     const data = await apiRequest<SubjectSyllabus>(url, {
         method: 'GET',

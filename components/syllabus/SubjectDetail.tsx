@@ -24,6 +24,7 @@ export default function SubjectDetail({ subject }: SubjectDetailProps) {
     setError(null);
     try {
       const data = await getSubjectSyllabus(subject.code);
+      console.log('🧪 [SubjectDetail] API Data received:', JSON.stringify(data, null, 2));
       setDetail(data);
     } catch (err: any) {
       setError(err?.message || 'Failed to load syllabus details');
@@ -34,20 +35,27 @@ export default function SubjectDetail({ subject }: SubjectDetailProps) {
 
   useEffect(() => {
     let mounted = true;
-    (async () => {
+    const fetchData = async () => {
+      console.log('🔍 [SubjectDetail] Attempting to fetch detail for:', subject.code);
       setLoading(true);
       setError(null);
       try {
         const data = await getSubjectSyllabus(subject.code);
-        if (mounted) setDetail(data);
+        if (mounted) {
+          console.log('✅ [SubjectDetail] Received data for:', subject.code);
+          setDetail(data);
+        }
       } catch (err: any) {
+        console.error('❌ [SubjectDetail] Fetch error:', err);
         if (mounted) setError(err?.message || 'Failed to load syllabus details');
       } finally {
         if (mounted) setLoading(false);
       }
-    })();
+    };
+
+    fetchData();
     return () => { mounted = false; };
-  }, [subject]);
+  }, [subject.code]);
 
   const toggleModule = (modNum: number) => {
     setExpandedModules(prev => {
@@ -197,9 +205,9 @@ export default function SubjectDetail({ subject }: SubjectDetailProps) {
         </View>
       )}
 
-      <TouchableOpacity 
+      <TouchableOpacity
         style={[styles.downloadBtnGradient, { backgroundColor: theme.primary }]}
-        onPress={handleDownloadText} 
+        onPress={handleDownloadText}
         activeOpacity={0.8}
       >
         <Download size={18} color="#fff" strokeWidth={2} />
