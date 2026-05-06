@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { ChevronRight, GraduationCap, BookOpen } from 'lucide-react-native';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -6,6 +6,7 @@ import { useAuth } from '../../auth/AuthProvider';
 import { getUserProfile } from '../../supabaseConfig';
 import { getSubjects, SyllabusSubject } from '../../services/syllabusService';
 import { BRANCHES } from './constants';
+import { getSubjectCategoryLabel, groupSubjectsByCategory } from './subjectCategoryUtils';
 
 interface MySyllabusProps {
   onSubjectPress: (subject: SyllabusSubject) => void;
@@ -20,6 +21,17 @@ export default function MySyllabus({ onSubjectPress, onBrowsePress }: MySyllabus
   const [mySubjects, setMySubjects] = useState<SyllabusSubject[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [collapsedCategories, setCollapsedCategories] = useState<string[]>([]);
+
+  const groupedSubjects = useMemo(() => groupSubjectsByCategory(mySubjects), [mySubjects]);
+
+  const toggleCategory = (categoryKey: string) => {
+    setCollapsedCategories((current) => (
+      current.includes(categoryKey)
+        ? current.filter((key) => key !== categoryKey)
+        : [...current, categoryKey]
+    ));
+  };
 
   useEffect(() => {
     let mounted = true;
@@ -87,7 +99,7 @@ export default function MySyllabus({ onSubjectPress, onBrowsePress }: MySyllabus
       </View>
       
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, paddingHorizontal: 16 }}>
-        <Text style={[styles.sectionTitle, { color: theme.text, marginBottom: 0 }]}>My Subjects</Text>
+        <Text accessibilityRole="header" style={[styles.sectionTitle, { color: theme.text, marginBottom: 0 }]}>My Subjects</Text>
       </View>
 
       {loading ? (
@@ -103,20 +115,71 @@ export default function MySyllabus({ onSubjectPress, onBrowsePress }: MySyllabus
         </View>
       ) : (
         <View style={styles.listContainer}>
-          {mySubjects.map((subject, index) => (
-            <TouchableOpacity key={index} style={[styles.subjectCard, { backgroundColor: theme.card, borderColor: theme.cardBorder }]} onPress={() => onSubjectPress(subject)} activeOpacity={0.7}>
-              <View style={[styles.subjectIndexBadge, { backgroundColor: theme.primary + '20' }]}>
-                <Text style={[styles.subjectIndex, { color: theme.primary }]}>{index + 1}</Text>
+          {groupedSubjects.map((group) => {
+            const isExpanded = !collapsedCategories.includes(group.key);
+
+            return (
+              <View key={group.key} style={styles.categorySection}>
+                <TouchableOpacity
+                  style={[styles.categoryHeader, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}
+                  onPress={() => toggleCategory(group.key)}
+                  activeOpacity={0.75}
+                  accessibilityRole="button"
+                  accessibilityState={{ expanded: isExpanded }}
+                  accessibilityLabel={`${group.label} — ${group.subjects.length} subjects`}
+                  accessibilityHint={isExpanded ? 'Collapse this category' : 'Expand this category'}
+                >
+                  <View style={styles.categoryHeaderContent}>
+                    <Text accessibilityRole="header" style={[styles.categoryHeaderTitle, { color: theme.text }]}>
+                      {getSubjectCategoryLabel(group.key)} — {group.subjects.length} subjects
+                    </Text>
+                    <Text style={[styles.categoryHeaderSubtitle, { color: theme.textSecondary }]}>
+                      {isExpanded ? 'Tap to collapse' : 'Tap to expand'}
+                    </Text>
+                  </View>
+                  <View style={[styles.categoryChevronWrap, { backgroundColor: theme.backgroundSecondary }]}>
+                    <ChevronRight
+                      size={16}
+                      color={theme.textTertiary}
+                      strokeWidth={2}
+                      style={{ transform: [{ rotate: isExpanded ? '90deg' : '0deg' }] }}
+                    />
+                  </View>
+                </TouchableOpacity>
+
+                {isExpanded && (
+                  <View style={styles.categoryBody}>
+                    {group.subjects.map((subject) => {
+                      const moduleCount = subject.module_count ?? 0;
+
+                      return (
+                        <TouchableOpacity
+                          key={subject.code}
+                          style={[styles.subjectCard, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}
+                          onPress={() => onSubjectPress(subject)}
+                          activeOpacity={0.75}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Open ${subject.name} syllabus details`}
+                          accessibilityHint={`View ${subject.code}, ${subject.credits} credits, ${moduleCount} modules`}
+                        >
+                          <View style={styles.subjectInfo}>
+                            <Text style={[styles.subjectName, { color: theme.text }]}>{subject.name}</Text>
+                            <Text style={[styles.subjectMeta, { color: theme.textSecondary }]}>
+                              {subject.code} • {subject.credits} Credits • {moduleCount} Modules
+                            </Text>
+                            <View style={styles.detailLinkRow}>
+                              <Text style={[styles.detailLinkText, { color: theme.primary }]}>Open subject details</Text>
+                              <ChevronRight size={14} color={theme.primary} strokeWidth={2} />
+                            </View>
+                          </View>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                )}
               </View>
-              <View style={styles.subjectInfo}>
-                <Text style={[styles.subjectName, { color: theme.text }]}>{subject.name}</Text>
-                <Text style={[styles.subjectCode, { color: theme.textSecondary }]}>{subject.code} • {subject.credits} Credits</Text>
-              </View>
-              <View style={[styles.arrowCircle, { backgroundColor: theme.backgroundSecondary }]}>
-                <ChevronRight size={16} color={theme.textTertiary} strokeWidth={2} />
-              </View>
-            </TouchableOpacity>
-          ))}
+            );
+          })}
         </View>
       )}
 
@@ -186,37 +249,67 @@ const styles = StyleSheet.create({
   listContainer: {
     paddingHorizontal: 16,
   },
-  subjectCard: {
+  categorySection: {
+    marginBottom: 14,
+  },
+  categoryHeader: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     padding: 16,
     borderRadius: 16,
     borderWidth: 1,
-    marginBottom: 12,
   },
-  subjectIndexBadge: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 14,
-  },
-  subjectIndex: {
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  subjectInfo: {
+  categoryHeaderContent: {
     flex: 1,
     marginRight: 12,
   },
+  categoryHeaderTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    marginBottom: 2,
+  },
+  categoryHeaderSubtitle: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  categoryChevronWrap: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  categoryBody: {
+    marginTop: 12,
+  },
+  subjectCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+  },
+  subjectInfo: {
+    flex: 1,
+  },
   subjectName: {
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: '800',
     marginBottom: 4,
   },
-  subjectCode: {
+  subjectMeta: {
     fontSize: 13,
+    marginBottom: 4,
+  },
+  detailLinkRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  detailLinkText: {
+    fontSize: 13,
+    fontWeight: '700',
+    marginRight: 4,
   },
   arrowCircle: {
     width: 32,

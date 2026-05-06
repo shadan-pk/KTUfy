@@ -21,7 +21,7 @@ const KEYS = {
     SCHEDULE_EVENTS: '@KTUfy:cache:schedule_events',
     SCHEDULE_BY_SEMESTER: (sem: string, branch: string) =>
         `@KTUfy:cache:schedule:${sem}:${branch}`,
-    SYLLABUS: (branch: string, semester: string) => `@KTUfy:cache:syllabus:${branch}:${semester}`,
+    SYLLABUS: (branch: string, semester: string) => `@KTUfy:cache:syllabus:v2:${branch}:${semester}`,
     SYLLABUS_SUBJECT: (code: string) => `@KTUfy:cache:syllabus_subject:${code}`,
     STUDY_DASHBOARD: '@KTUfy:cache:study_dashboard',
 };

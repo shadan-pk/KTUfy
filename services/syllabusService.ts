@@ -13,6 +13,7 @@ export interface SyllabusSubject {
     credits: number;
     semester?: number;
     module_count?: number;
+    category?: string | null;
 }
 
 export interface SyllabusModule {
@@ -55,10 +56,23 @@ export async function getSubjects(
 ): Promise<SyllabusSubject[]> {
     // Cache-first
     const cached = await getCachedSyllabus(branch, semester);
-    if (cached) return cached as SyllabusSubject[];
+    if (cached) {
+        console.log('📚 [Syllabus] Cache hit for subjects', { branch, semester, count: cached.length, sample: cached.slice(0, 3) });
+        return cached as SyllabusSubject[];
+    }
 
-    const url = `${process.env.API_BASE_URL}/api/v1/syllabus/subjects?branch=${encodeURIComponent(branch)}&semester=${encodeURIComponent(semester)}`;
+    const url = `${process.env.API_BASE_URL}/api/v1/syllabus/subjects?semester=${encodeURIComponent(semester)}&branch=${encodeURIComponent(branch)}`;
+    console.log('📚 [Syllabus] Fetching subjects', { branch, semester, url });
     const data = await apiRequest<SyllabusSubject[]>(url, { method: 'GET' });
+    console.log('📚 [Syllabus] Subjects response', data);
+    console.log(
+        '📚 [Syllabus] Category summary',
+        data.reduce<Record<string, number>>((summary, subject) => {
+            const category = (subject.category || 'UNCATEGORIZED').trim().toUpperCase() || 'UNCATEGORIZED';
+            summary[category] = (summary[category] || 0) + 1;
+            return summary;
+        }, {})
+    );
     await setCachedSyllabus(branch, semester, data);
     return data;
 }
