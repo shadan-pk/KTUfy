@@ -358,6 +358,17 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: 40,
   },
+  emptyStateText: {
+    fontSize: 18,
+    fontWeight: '700',
+    marginTop: 16,
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  emptyStateSubtext: {
+    fontSize: 13,
+    textAlign: 'center',
+  },
   categorySection: {
     marginBottom: 14,
   },
@@ -393,36 +404,33 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   subjectCard: {
-    fontSize: 18,
+    flexDirection: 'row',
     alignItems: 'flex-start',
-    marginTop: 16,
-    marginBottom: 8,
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    marginBottom: 12,
   },
   subjectInfo: {
-    borderWidth: 1,
-    height: 32,
-    borderRadius: 8,
+    flex: 1,
   },
   subjectName: {
     fontSize: 16,
     fontWeight: '800',
     marginBottom: 4,
-    justifyContent: 'center',
-  },  
+  },
   subjectMeta: {
     fontSize: 13,
-    // fontSize: 14,
-    fontWeight: '700',
+    marginBottom: 4,
   },
   detailLinkRow: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   detailLinkText: {
-
+    fontSize: 13,
     fontWeight: '700',
     marginRight: 4,
-    flex: 1,
   },
   subjectCode: {
     fontSize: 13,

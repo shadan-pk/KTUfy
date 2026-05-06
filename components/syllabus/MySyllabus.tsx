@@ -16,7 +16,7 @@ interface MySyllabusProps {
 export default function MySyllabus({ onSubjectPress, onBrowsePress }: MySyllabusProps) {
   const { theme } = useTheme();
   const { user: authUser } = useAuth();
-  
+
   const [userData, setUserData] = useState<any>(null);
   const [mySubjects, setMySubjects] = useState<SyllabusSubject[]>([]);
   const [loading, setLoading] = useState(false);
@@ -44,7 +44,7 @@ export default function MySyllabus({ onSubjectPress, onBrowsePress }: MySyllabus
           console.log('📚 [MySyllabus] Profile result:', JSON.stringify(profile, null, 2));
           if (!mounted) { console.log('📚 [MySyllabus] Unmounted after getUserProfile, aborting'); return; }
           setUserData(profile);
-          
+
           if (profile?.branch && profile?.semester) {
             let branchCode = profile.branch.toString().toUpperCase().trim();
             const matchedBranch = BRANCHES.find(
@@ -54,9 +54,9 @@ export default function MySyllabus({ onSubjectPress, onBrowsePress }: MySyllabus
 
             const semRaw = profile.semester.toString().toUpperCase().trim();
             const sem = semRaw.startsWith('S') ? semRaw : `S${semRaw.match(/\d+/)?.[0] || '1'}`;
-            
+
             console.log('📚 [MySyllabus] Normalized: branch=', branchCode, 'semester=', sem);
-            
+
             setLoading(true);
             try {
               console.log('📚 [MySyllabus] Calling getSubjects(', branchCode, ',', sem, ')');
@@ -69,12 +69,12 @@ export default function MySyllabus({ onSubjectPress, onBrowsePress }: MySyllabus
                 setMySubjects([]);
               }
             } catch (err: any) {
-               console.error('📚 [MySyllabus] getSubjects ERROR:', err);
-               if (!mounted) return;
-               setError(err?.message || 'Failed to load subjects');
-               setMySubjects([]);
+              console.error('📚 [MySyllabus] getSubjects ERROR:', err);
+              if (!mounted) return;
+              setError(err?.message || 'Failed to load subjects');
+              setMySubjects([]);
             } finally {
-               if (mounted) setLoading(false);
+              if (mounted) setLoading(false);
             }
           } else {
             console.log('📚 [MySyllabus] Profile missing branch or semester. branch:', profile?.branch, 'semester:', profile?.semester);
@@ -97,7 +97,7 @@ export default function MySyllabus({ onSubjectPress, onBrowsePress }: MySyllabus
           Here is your syllabus for {userData?.branch || 'your branch'} {userData?.semester || ''}.
         </Text>
       </View>
-      
+
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, paddingHorizontal: 16 }}>
         <Text accessibilityRole="header" style={[styles.sectionTitle, { color: theme.text, marginBottom: 0 }]}>My Subjects</Text>
       </View>
@@ -292,6 +292,7 @@ const styles = StyleSheet.create({
   },
   subjectInfo: {
     flex: 1,
+
   },
   subjectName: {
     fontSize: 16,
