@@ -85,10 +85,7 @@ export async function getSubjects(
  * e.g., "CST201" → "CST 201", "MAT101" → "MAT 101", "CST 201" stays "CST 201"
  */
 function normalizeSubjectCode(code: string): string {
-    // If there's already a space, return as-is
-    if (/[A-Za-z]\s+\d/.test(code)) return code.trim();
-    // Insert space between letters and digits: "CST201" → "CST 201"
-    return code.replace(/([A-Za-z])(\d)/, '$1 $2').trim();
+    return code.trim();
 }
 
 /**
