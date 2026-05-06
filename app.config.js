@@ -28,8 +28,11 @@ module.exports = {
       favicon: "./assets/favicon.png"
     },
     extra: {
-      SUPABASE_URL: process.env.SUPABASE_URL,
-      SUPABASE_ANON_KEY: process.env.SUPABASE_ANON_KEY,
+      eas: {
+        projectId: "2c46e047-02f1-4bc1-85af-287ddf841d27"
+      },
+      SUPABASE_URL: process.env.SUPABASE_URL || '...',
+      SUPABASE_ANON_KEY: process.env.SUPABASE_ANON_KEY || '...'
     }
   }
 };
