@@ -14,6 +14,7 @@ export interface SyllabusSubject {
     semester?: number;
     module_count?: number;
     category?: string | null;
+    program_elective?: string | null;
 }
 
 export interface SyllabusModule {
@@ -27,6 +28,8 @@ export interface SubjectSyllabus {
     subject_name: string;
     subject_code: string;
     credits: number;
+    category?: string | null;
+    program_elective?: string | null;
     modules: SyllabusModule[];
     course_outcomes?: string[];
     textbooks?: string[];

@@ -5,6 +5,7 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { getSubjectSyllabus, SubjectSyllabus, SyllabusSubject, syllabusToText } from '../../services/syllabusService';
 import { File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
+import { getSubjectCategoryLabel } from './subjectCategoryUtils';
 
 interface SubjectDetailProps {
   subject: SyllabusSubject;
@@ -103,6 +104,7 @@ export default function SubjectDetail({ subject }: SubjectDetailProps) {
         <Text style={[styles.detailSubjectMeta, { color: theme.textSecondary }]}>
           {detail.subject_code} • {detail.credits} Credits
           {detail.modules?.length ? ` • ${detail.modules.length} Modules` : ''}
+          {detail.category && ` • ${getSubjectCategoryLabel(detail.program_elective || detail.category)}`}
         </Text>
       </View>
 
