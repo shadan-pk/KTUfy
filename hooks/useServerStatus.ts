@@ -1,7 +1,8 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+upimport { useState, useEffect, useRef, useCallback } from 'react';
 import NetInfo from '@react-native-community/netinfo';
+import Constants from 'expo-constants';
 
-const API_BASE = process.env.API_BASE_URL;
+const API_BASE = Constants.expoConfig?.extra?.API_BASE_URL || process.env.API_BASE_URL;
 
 export interface ServerStatus {
     /** Device has internet connectivity */
