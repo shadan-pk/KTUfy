@@ -4,6 +4,9 @@
  */
 
 import { apiRequest } from '../utils/api';
+import Constants from 'expo-constants';
+
+const API_BASE = Constants.expoConfig?.extra?.API_BASE_URL || process.env.API_BASE_URL;
 
 // Judge0 language IDs
 export const LANGUAGE_IDS: { [key: string]: number } = {
@@ -53,7 +56,7 @@ export async function executeCodeViaBackend(
     language: string,
     stdin?: string
 ): Promise<CodeResult> {
-    const url = `${process.env.API_BASE_URL}/api/v1/coding/execute`;
+    const url = `${API_BASE}/api/v1/coding/execute`;
     console.log('💻 Executing code via backend:', language);
 
     return apiRequest<CodeResult>(url, {

@@ -4,6 +4,9 @@
  */
 
 import { apiRequest } from '../utils/api';
+import Constants from 'expo-constants';
+
+const API_BASE = Constants.expoConfig?.extra?.API_BASE_URL || process.env.API_BASE_URL;
 
 // Types
 export interface ChatMessage {
@@ -50,7 +53,11 @@ export async function sendChatMessage(
   sessionId?: string,
   signal?: AbortSignal
 ): Promise<SendMessageResponse> {
-  const url = `${process.env.API_BASE_URL}/api/v1/chat/message`;
+  if (!API_BASE || API_BASE === 'undefined') {
+    throw new Error('API base URL is not configured');
+  }
+
+  const url = `${API_BASE}/api/v1/chat/message`;
   console.log('💬 Sending chat message:', { message, sessionId });
   
   const systemPrompt = `You are a helpful KTUfy study assistant. Keep responses CONCISE and FOCUSED:
@@ -93,7 +100,11 @@ Always prioritize clarity and user control over breadth.`;
  * @returns The created chat session
  */
 export async function createChatSession(title?: string): Promise<ChatSession> {
-  const url = `${process.env.API_BASE_URL}/api/v1/chat/sessions`;
+  if (!API_BASE || API_BASE === 'undefined') {
+    throw new Error('API base URL is not configured');
+  }
+
+  const url = `${API_BASE}/api/v1/chat/sessions`;
   console.log('➕ Creating new chat session:', title);
   
   return apiRequest<ChatSession>(url, {
@@ -109,7 +120,11 @@ export async function createChatSession(title?: string): Promise<ChatSession> {
  * @returns List of all chat sessions
  */
 export async function getChatSessions(): Promise<ChatSession[]> {
-  const url = `${process.env.API_BASE_URL}/api/v1/chat/sessions`;
+  if (!API_BASE || API_BASE === 'undefined') {
+    throw new Error('API base URL is not configured');
+  }
+
+  const url = `${API_BASE}/api/v1/chat/sessions`;
   console.log('📋 Fetching chat sessions');
   
   return apiRequest<ChatSession[]>(url, {
@@ -125,7 +140,11 @@ export async function getChatSessions(): Promise<ChatSession[]> {
  * @returns The chat session with all messages
  */
 export async function getChatSession(sessionId: string): Promise<ChatSessionWithMessages> {
-  const url = `${process.env.API_BASE_URL}/api/v1/chat/sessions/${sessionId}`;
+  if (!API_BASE || API_BASE === 'undefined') {
+    throw new Error('API base URL is not configured');
+  }
+
+  const url = `${API_BASE}/api/v1/chat/sessions/${sessionId}`;
   console.log('📖 Fetching chat session:', sessionId);
   
   return apiRequest<ChatSessionWithMessages>(url, {
@@ -145,7 +164,11 @@ export async function updateChatSession(
   sessionId: string,
   title: string
 ): Promise<ChatSession> {
-  const url = `${process.env.API_BASE_URL}/api/v1/chat/sessions/${sessionId}`;
+  if (!API_BASE || API_BASE === 'undefined') {
+    throw new Error('API base URL is not configured');
+  }
+
+  const url = `${API_BASE}/api/v1/chat/sessions/${sessionId}`;
   console.log('✏️ Updating chat session:', sessionId, title);
   
   return apiRequest<ChatSession>(url, {
@@ -162,7 +185,11 @@ export async function updateChatSession(
  * @returns Success message
  */
 export async function deleteChatSession(sessionId: string): Promise<{ message: string }> {
-  const url = `${process.env.API_BASE_URL}/api/v1/chat/sessions/${sessionId}`;
+  if (!API_BASE || API_BASE === 'undefined') {
+    throw new Error('API base URL is not configured');
+  }
+
+  const url = `${API_BASE}/api/v1/chat/sessions/${sessionId}`;
   console.log('🗑️ Deleting chat session:', sessionId);
   
   return apiRequest<{ message: string }>(url, {

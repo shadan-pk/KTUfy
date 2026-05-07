@@ -4,6 +4,9 @@
  */
 
 import { apiRequest } from '../utils/api';
+import Constants from 'expo-constants';
+
+const API_BASE = Constants.expoConfig?.extra?.API_BASE_URL || process.env.API_BASE_URL;
 
 // Types
 export interface Flashcard {
@@ -51,7 +54,7 @@ export async function generateFlashcards(
     count: number = 10,
     forceRegenerate: boolean = false
 ): Promise<GenerateFlashcardsResponse> {
-    const url = `${process.env.API_BASE_URL}/api/v1/flashcards/generate`;
+    const url = `${API_BASE}/api/v1/flashcards/generate`;
     console.log('🎴 Generating flashcards for topic:', topic, forceRegenerate ? '(force)' : '');
 
     return apiRequest<GenerateFlashcardsResponse>(url, {
@@ -65,7 +68,7 @@ export async function generateFlashcards(
  * Backend: GET /api/v1/flashcards/
  */
 export async function listFlashcardSets(): Promise<FlashcardSet[]> {
-    const url = `${process.env.API_BASE_URL}/api/v1/flashcards/`;
+    const url = `${API_BASE}/api/v1/flashcards/`;
     return apiRequest<FlashcardSet[]>(url, { method: 'GET' });
 }
 
@@ -74,7 +77,7 @@ export async function listFlashcardSets(): Promise<FlashcardSet[]> {
  * Backend: GET /api/v1/flashcards/{id}
  */
 export async function getFlashcardSet(id: string): Promise<FlashcardSet> {
-    const url = `${process.env.API_BASE_URL}/api/v1/flashcards/${id}`;
+    const url = `${API_BASE}/api/v1/flashcards/${id}`;
     return apiRequest<FlashcardSet>(url, { method: 'GET' });
 }
 
@@ -83,6 +86,6 @@ export async function getFlashcardSet(id: string): Promise<FlashcardSet> {
  * Backend: DELETE /api/v1/flashcards/{id}
  */
 export async function deleteFlashcardSet(id: string): Promise<{ message: string }> {
-    const url = `${process.env.API_BASE_URL}/api/v1/flashcards/${id}`;
+    const url = `${API_BASE}/api/v1/flashcards/${id}`;
     return apiRequest<{ message: string }>(url, { method: 'DELETE' });
 }

@@ -4,6 +4,9 @@
  */
 
 import { apiRequest } from '../utils/api';
+import Constants from 'expo-constants';
+
+const API_BASE = Constants.expoConfig?.extra?.API_BASE_URL || process.env.API_BASE_URL;
 
 // Types
 export interface QuizQuestion {
@@ -46,7 +49,7 @@ export async function generateQuiz(
     difficulty: 'easy' | 'medium' | 'hard' = 'medium',
     forceRegenerate: boolean = false
 ): Promise<GenerateQuizResponse> {
-    const url = `${process.env.API_BASE_URL}/api/v1/learning/quiz/generate`;
+    const url = `${API_BASE}/api/v1/learning/quiz/generate`;
     console.log('🧠 Generating quiz for topic:', topic, forceRegenerate ? '(force)' : '');
 
     return apiRequest<GenerateQuizResponse>(url, {
@@ -60,7 +63,7 @@ export async function generateQuiz(
  * Backend: GET /api/v1/learning/quiz/?type=quiz|match|all
  */
 export async function listLearningSets(type: 'quiz' | 'match' | 'all' = 'all'): Promise<any[]> {
-    const url = `${process.env.API_BASE_URL}/api/v1/learning/quiz/?type=${type}`;
+    const url = `${API_BASE}/api/v1/learning/quiz/?type=${type}`;
     return apiRequest<any[]>(url, { method: 'GET' });
 }
 
@@ -69,7 +72,7 @@ export async function listLearningSets(type: 'quiz' | 'match' | 'all' = 'all'): 
  * Backend: GET /api/v1/learning/quiz/{id}
  */
 export async function getLearningSet(id: string): Promise<any> {
-    const url = `${process.env.API_BASE_URL}/api/v1/learning/quiz/${id}`;
+    const url = `${API_BASE}/api/v1/learning/quiz/${id}`;
     return apiRequest<any>(url, { method: 'GET' });
 }
 
@@ -78,7 +81,7 @@ export async function getLearningSet(id: string): Promise<any> {
  * Backend: DELETE /api/v1/learning/quiz/{id}
  */
 export async function deleteLearningSet(id: string): Promise<{ message: string }> {
-    const url = `${process.env.API_BASE_URL}/api/v1/learning/quiz/${id}`;
+    const url = `${API_BASE}/api/v1/learning/quiz/${id}`;
     return apiRequest<{ message: string }>(url, { method: 'DELETE' });
 }
 
@@ -87,7 +90,7 @@ export async function deleteLearningSet(id: string): Promise<{ message: string }
  * Backend: GET /api/v1/learning/quiz/search?q=topic
  */
 export async function searchQuizSets(query: string): Promise<any[]> {
-    const url = `${process.env.API_BASE_URL}/api/v1/learning/quiz/search?q=${encodeURIComponent(query)}`;
+    const url = `${API_BASE}/api/v1/learning/quiz/search?q=${encodeURIComponent(query)}`;
     return apiRequest<any[]>(url, { method: 'GET' });
 }
 
@@ -116,7 +119,7 @@ export async function generateMatchPairs(
     count: number = 6,
     forceRegenerate: boolean = false
 ): Promise<GenerateMatchResponse> {
-    const url = `${process.env.API_BASE_URL}/api/v1/learning/match/generate`;
+    const url = `${API_BASE}/api/v1/learning/match/generate`;
     console.log('🔗 Generating match pairs for topic:', topic, forceRegenerate ? '(force)' : '');
 
     return apiRequest<GenerateMatchResponse>(url, {

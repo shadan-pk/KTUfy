@@ -4,7 +4,10 @@
  */
 
 import { apiRequest } from '../utils/api';
+import Constants from 'expo-constants';
 import { getSubjectSyllabus } from './syllabusService';
+
+const API_BASE = Constants.expoConfig?.extra?.API_BASE_URL || process.env.API_BASE_URL;
 
 export interface ChecklistItem {
     id: string;
@@ -42,7 +45,7 @@ export async function generateChecklist(
     }
 
     // 2. Fallback to AI Generation
-    const url = `${process.env.API_BASE_URL}/api/v1/ticklist/generate`;
+    const url = `${API_BASE}/api/v1/ticklist/generate`;
     console.log(`🤖 Generating AI checklist for ${subjectName} Module ${moduleNumber}`);
     
     return apiRequest<string[]>(url, {

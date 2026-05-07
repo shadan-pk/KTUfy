@@ -5,7 +5,10 @@
 
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, Alert, ActivityIndicator, StyleSheet } from 'react-native';
+import Constants from 'expo-constants';
 import { getCurrentUserProfile } from '../services/userService';
+
+const API_BASE = Constants.expoConfig?.extra?.API_BASE_URL || process.env.API_BASE_URL;
 
 export const TestBackendButton: React.FC = () => {
   const [testing, setTesting] = useState(false);
@@ -17,7 +20,7 @@ export const TestBackendButton: React.FC = () => {
     
     try {
       console.log('🧪 Testing backend connection...');
-      console.log('📍 Backend URL:', process.env.API_BASE_URL);
+      console.log('📍 Backend URL:', API_BASE);
       
       // Call your backend's /api/v1/auth/me endpoint
       const profile = await getCurrentUserProfile();
@@ -69,7 +72,7 @@ export const TestBackendButton: React.FC = () => {
       ) : null}
       
       <Text style={styles.hint}>
-        Backend: {process.env.API_BASE_URL || 'Not configured'}
+        Backend: {API_BASE || 'Not configured'}
       </Text>
     </View>
   );

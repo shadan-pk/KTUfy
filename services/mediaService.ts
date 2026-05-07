@@ -7,9 +7,10 @@ import { Paths, File as ExpoFile } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import * as DocumentPicker from 'expo-document-picker';
 import { Platform, Alert } from 'react-native';
+import Constants from 'expo-constants';
 import supabase from '../supabaseClient';
 
-const API_BASE = process.env.API_BASE_URL || 'http://localhost:8000';
+const API_BASE = Constants.expoConfig?.extra?.API_BASE_URL || process.env.API_BASE_URL || 'http://localhost:8000';
 const MEDIA_BASE = `${API_BASE}/api/v1/media`;
 
 // Longer timeout for media processing (3 minutes)

@@ -4,7 +4,10 @@
  */
 
 import { apiRequest } from '../utils/api';
+import Constants from 'expo-constants';
 import { getCachedSyllabus, setCachedSyllabus, getCachedSubjectSyllabus, setCachedSubjectSyllabus } from './cacheService';
+
+const API_BASE = Constants.expoConfig?.extra?.API_BASE_URL || process.env.API_BASE_URL;
 
 // Types
 export interface SyllabusSubject {
@@ -46,7 +49,7 @@ export interface BranchInfo {
  * Get available branches
  */
 export async function getBranches(): Promise<BranchInfo[]> {
-    const url = `${process.env.API_BASE_URL}/api/v1/syllabus/branches`;
+    const url = `${API_BASE}/api/v1/syllabus/branches`;
     return apiRequest<BranchInfo[]>(url, { method: 'GET' });
 }
 
@@ -64,7 +67,7 @@ export async function getSubjects(
         return cached as SyllabusSubject[];
     }
 
-    const url = `${process.env.API_BASE_URL}/api/v1/syllabus/subjects?semester=${encodeURIComponent(semester)}&branch=${encodeURIComponent(branch)}`;
+    const url = `${API_BASE}/api/v1/syllabus/subjects?semester=${encodeURIComponent(semester)}&branch=${encodeURIComponent(branch)}`;
     console.log('📚 [Syllabus] Fetching subjects', { branch, semester, url });
     const data = await apiRequest<SyllabusSubject[]>(url, { method: 'GET' });
     console.log('📚 [Syllabus] Subjects response', data);
@@ -106,7 +109,7 @@ export async function getSubjectSyllabus(
         return cached as SubjectSyllabus;
     }
 
-    const url = `${process.env.API_BASE_URL}/api/v1/syllabus/subject/${encodeURIComponent(normalized)}`;
+    const url = `${API_BASE}/api/v1/syllabus/subject/${encodeURIComponent(normalized)}`;
     console.log('🌐 [SyllabusService] GET', url);
 
     const data = await apiRequest<SubjectSyllabus>(url, {
