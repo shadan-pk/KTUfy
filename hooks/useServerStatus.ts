@@ -1,4 +1,4 @@
-upimport { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import NetInfo from '@react-native-community/netinfo';
 import Constants from 'expo-constants';
 
